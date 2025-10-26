@@ -26,7 +26,7 @@ func login(c echo.Context) error {
 	}
 
 	// Find
-	user, err := db.FindUserByEmail(email)
+	user, err := db.FindUserAuthByEmail(email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(500, _type.H{
@@ -75,6 +75,7 @@ func login(c echo.Context) error {
 		HttpOnly: true,
 	}
 	sess.Values["uid"] = user.ID
+	sess.Values["user_agent"] = c.Request().Header.Get("User-Agent")
 	if err = sess.Save(c.Request(), c.Response()); err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
 	}

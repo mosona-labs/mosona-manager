@@ -14,6 +14,7 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 			return c.JSON(500, _type.H{Code: "err", Msg: "Session error"})
 		}
 
+		// User ID
 		uid := sess.Values["uid"]
 		if uid == nil || uid == 0 {
 			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
@@ -23,7 +24,11 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
 		}
 
+		// Team ID
+		tid, _ := c.Get("tid").(int64)
+
 		c.Set("uid", uid)
+		c.Set("tid", tid)
 
 		return next(c)
 	}
