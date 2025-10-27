@@ -133,6 +133,9 @@ func create(c echo.Context) error {
 		})
 	}
 
+	// Set Active Team
+	_ = db.SetUserActiveTeam(uid, teamId)
+
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Team created successfully",

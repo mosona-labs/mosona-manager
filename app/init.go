@@ -41,6 +41,10 @@ func Start() {
 	// Decompress
 	e.Use(middleware.Decompress())
 
+	// Static
+	e.Static("/static", "./static")
+	e.Static("/avatars", "./avatars")
+
 	// API Routers
 	api := e.Group("/api")
 	{

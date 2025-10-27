@@ -1,6 +1,8 @@
 package auser
 
 import (
+	"database/sql"
+	"errors"
 	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/db"
@@ -19,12 +21,34 @@ func me(c echo.Context) error {
 	}
 
 	if tid == 0 {
+		tid, err = db.GetUserActiveTeam(uid)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return c.JSON(500, _type.H{
+				Code: "error",
+				Msg:  "Database error",
+			})
+		}
+		if tid != 0 {
+			c.Set("tid", tid)
+		}
+	}
+
+	teams, err := db.GetTeamsByUserId(uid)
+	if err != nil {
+		return c.JSON(500, _type.H{
+			Code: "error",
+			Msg:  "Database error",
+		})
+	}
+
+	if tid == 0 {
 		return c.JSON(200, _type.H{
 			Code: "ok",
 			Msg:  "Success",
 			Data: map[string]interface{}{
-				"user": userInfo,
-				"team": nil,
+				"user":  userInfo,
+				"team":  nil,
+				"teams": teams,
 			},
 		})
 	} else {
@@ -40,8 +64,9 @@ func me(c echo.Context) error {
 			Code: "ok",
 			Msg:  "Success",
 			Data: map[string]interface{}{
-				"user": userInfo,
-				"team": teamInfo,
+				"user":  userInfo,
+				"team":  teamInfo,
+				"teams": teams,
 			},
 		})
 	}

@@ -20,7 +20,7 @@ func GetUserByEmail(email string) (_type.User, error) {
 	return user, nil
 }
 
-func FindUserAuthByEmail(email string) (_type.UserAuthInfo, error) {
+func GetUserAuthByEmail(email string) (_type.UserAuthInfo, error) {
 	var user _type.UserAuthInfo
 
 	if err := Db.Get(&user, "SELECT id, email, password, salt, is_admin, verified FROM users WHERE email = $1", email); err != nil {

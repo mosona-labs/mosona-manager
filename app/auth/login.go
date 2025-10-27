@@ -26,7 +26,7 @@ func login(c echo.Context) error {
 	}
 
 	// Find
-	user, err := db.FindUserAuthByEmail(email)
+	user, err := db.GetUserAuthByEmail(email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(500, _type.H{

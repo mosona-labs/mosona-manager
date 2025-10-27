@@ -4,7 +4,7 @@ import "mosona-manager/_type"
 
 func GetTeamById(id int64) (_type.Team, error) {
 	var team _type.Team
-	if err := Db.Get(&team, "SELECT id, name, color, image, max_server, max_alert, max_member, updated_at, created_at FROM teams WHERE id = $1", id); err != nil {
+	if err := Db.Get(&team, "SELECT id, name, description, color, image, max_server, max_alert, max_member, updated_at, created_at FROM teams WHERE id = $1", id); err != nil {
 		return _type.Team{}, err
 	}
 
@@ -49,4 +49,18 @@ func CreateTeam(
 	}
 
 	return teamId, tx.Commit()
+}
+
+func GetTeamsByUserId(uid int64) ([]_type.Team, error) {
+	var teams = make([]_type.Team, 0)
+	if err := Db.Select(&teams, `
+		SELECT t.id, t.name, t.description, t.color, t.image, t.max_server, t.max_alert, t.max_member, t.updated_at, t.created_at
+		FROM teams t
+		JOIN m_team_user mtu ON t.id = mtu.team_id
+		WHERE mtu.user_id = $1
+	`, uid); err != nil {
+		return nil, err
+	}
+
+	return teams, nil
 }

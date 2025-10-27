@@ -40,7 +40,7 @@ func ConvertAvatar(file multipart.File, path, filename string) error {
 	draw.Draw(rgba, resized.Bounds(), resized, image.Point{}, draw.Src)
 
 	out, err := os.Create(
-		filepath.Join(filepath.Dir(path), filename+".avif"),
+		filepath.Join(path, filename+".avif"),
 	)
 	if err != nil {
 		return err
