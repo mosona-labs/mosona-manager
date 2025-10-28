@@ -12,10 +12,9 @@ type configType struct {
 	PostgresDB   string
 
 	// InfluxDB 2
-	InfluxDBUrl    string
-	InfluxDBOrg    string
-	InfluxDBBucket string
-	InfluxDBToken  string
+	InfluxDBUrl   string
+	InfluxDBOrg   string
+	InfluxDBToken string
 
 	// Redis
 	RedisHost     string

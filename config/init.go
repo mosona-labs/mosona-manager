@@ -9,6 +9,7 @@ import (
 
 var Conf configType
 var DynamicConf dynamicConfigType
+var Key []byte
 
 func init() {
 	_ = godotenv.Load(".env")
@@ -32,9 +33,8 @@ func init() {
 	// InfluxDB 2
 	Conf.InfluxDBUrl = getEnv("INFLUXDB_URL", "http://localhost:8086")
 	Conf.InfluxDBOrg = getEnv("INFLUXDB_ORG", "")
-	Conf.InfluxDBBucket = getEnv("INFLUXDB_BUCKET", "")
 	Conf.InfluxDBToken = getEnv("INFLUXDB_TOKEN", "")
-	if Conf.InfluxDBOrg == "" || Conf.InfluxDBBucket == "" || Conf.InfluxDBToken == "" {
+	if Conf.InfluxDBOrg == "" || Conf.InfluxDBToken == "" {
 		log.Fatalln("InfluxDB configuration is missing in environment variables")
 	}
 
