@@ -38,6 +38,7 @@ func CreateTeam(
 		return 0, err
 	}
 
+	// Add Members
 	for _, memberId := range members {
 		if _, err = tx.Exec(`INSERT INTO m_team_user (user_id, team_id)
 			 VALUES ($1, $2)`,
@@ -46,6 +47,12 @@ func CreateTeam(
 			_ = tx.Rollback()
 			return 0, err
 		}
+	}
+
+	// Add Default Category
+	if _, err = tx.Exec(`INSERT INTO categories (team, name) VALUES ($1, $2)`, teamId, "Default"); err != nil {
+		_ = tx.Rollback()
+		return 0, err
 	}
 
 	return teamId, tx.Commit()

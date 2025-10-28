@@ -25,7 +25,17 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 
 		// Team ID
-		tid, _ := c.Get("tid").(int64)
+		tid, _ := sess.Values["tid"]
+		if tid == nil || tid == 0 {
+			activeTid, err := db.GetUserActiveTeam(uid.(int64))
+			if err != nil {
+				return c.JSON(500, _type.H{Code: "err", Msg: "Database error"})
+			}
+			sess.Values["tid"] = activeTid
+			if err = sess.Save(c.Request(), c.Response()); err != nil {
+				return c.JSON(500, _type.H{Code: "error", Msg: "Session update failed"})
+			}
+		}
 
 		c.Set("uid", uid)
 		c.Set("tid", tid)

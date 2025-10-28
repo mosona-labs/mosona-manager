@@ -3,6 +3,7 @@ package auser
 import (
 	"database/sql"
 	"errors"
+	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/db"
@@ -31,6 +32,15 @@ func setActiveTeam(c echo.Context) error {
 			Code: "error",
 			Msg:  "Database error",
 		})
+	}
+
+	sess, err := session.Get("session", c)
+	if err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
+	}
+	sess.Values["tid"] = teamID
+	if err = sess.Save(c.Request(), c.Response()); err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Session update failed"})
 	}
 
 	return c.JSON(200, _type.H{

@@ -10,6 +10,7 @@ import (
 	"github.com/rbcervilla/redisstore/v9"
 	"log"
 	"mosona-manager/_type"
+	acategory "mosona-manager/app/api/category"
 	ateam "mosona-manager/app/api/team"
 	auser "mosona-manager/app/api/user"
 	"mosona-manager/app/auth"
@@ -57,8 +58,9 @@ func Start() {
 	}
 	v1 := api.Group("/v1", inMiddleware.UserAuth)
 	{
-		auser.Router(v1.Group("/user")) // User
-		ateam.Router(v1.Group("/team")) // Team
+		auser.Router(v1.Group("/user"))         // User
+		ateam.Router(v1.Group("/team"))         // Team
+		acategory.Router(v1.Group("/category")) // Category
 	}
 
 	// NotFound
