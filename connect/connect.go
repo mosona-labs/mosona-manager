@@ -61,7 +61,23 @@ func StartServer(serverId int64) error {
 			"UPDATE server_info SET os = $1, open_time = $2 WHERE sid = $3",
 			system, startTime, serverId,
 		); err != nil {
+			log.Println("Failed to update server info:", err)
+		}
+		ipAddress, err := utils.GetDomainAddress(host)
+		if err != nil {
+			log.Println("Failed to get domain address:", err)
 			return
+		}
+		geo, err := utils.GetIPGeoLocation(ipAddress)
+		if err != nil {
+			log.Println("Failed to get IP geo location:", err)
+			return
+		}
+		if _, err = db.Db.Exec(
+			"UPDATE server_info SET county = $1, area = $2 WHERE sid = $3",
+			geo.CountryCode, geo.Country, serverId,
+		); err != nil {
+			log.Println("Failed to update server info:", err)
 		}
 	}
 

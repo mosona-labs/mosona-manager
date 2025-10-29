@@ -16,6 +16,13 @@ type Server struct {
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 }
 
+type ServerMinimal struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Weight   int    `json:"weight"`
+	Category int64  `json:"category"`
+}
+
 type ServerConnect struct {
 	ID       int64  `json:"id"`
 	TeamID   int64  `json:"team_id" db:"team_id"`

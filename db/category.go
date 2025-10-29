@@ -81,3 +81,11 @@ func GetCategoriesByTeam(teamId int64) ([]_type.Category, error) {
 
 	return categories, nil
 }
+
+func SetServerCategory(teamId, serverId, categoryId int64) error {
+	_, err := Db.Exec(
+		`UPDATE servers SET category = $1 WHERE id = $2 AND team_id = $3`,
+		categoryId, serverId, teamId,
+	)
+	return err
+}

@@ -3,8 +3,7 @@ set -euo pipefail
 export LC_ALL=C LANG=C
 
 CPU_INTERVAL="${CPU_INTERVAL:-0.5}"
-NET_INTERVAL="${NET_INTERVAL:-5}"
-IFACE_EXCLUDE_REGEX="${IFACE_EXCLUDE_REGEX:-^(lo|docker[0-9]*|veth.*|br-.*|virbr.*|vmnet.*|tun.*|tap.*|tailscale.*|wg.*)$}"
+NET_INTERVAL="${NET_INTERVAL:-2.5}"
 
 get_cpu_usage() {
   local u1 n1 s1 id1 iw1 ir1 si1 st1
@@ -45,13 +44,11 @@ read_mem_mb() {
 }
 
 read_net_bytes() {
-  awk -v re="$IFACE_EXCLUDE_REGEX" -F'[: ]+' '
-    /:/ {
-      if ($1 ~ re) next;
-      rx += $3;  tx += $11
-    }
-    END { printf "%d %d\n", rx+0, tx+0 }
-  ' /proc/net/dev
+  awk 'NR>2 && $1 !~ /lo:/ {
+    rx += $2;
+    tx += $10;
+  }
+  END { print rx, tx }' /proc/net/dev
 }
 
 read_disk_gb() {

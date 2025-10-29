@@ -26,7 +26,6 @@ func AddServerStatus(serverId int64, status _type.ServerStatusType) error {
 			"tx_kib_s":      status.TxKibS,
 			"rx_total_mb":   status.RxTotalMB,
 			"tx_total_mb":   status.TxTotalMB,
-			"timestamp":     time.Now().Unix(),
 		},
 		time.Now(),
 	)
@@ -100,7 +99,6 @@ func GetLatestServerStatusBatch(serverIDs []int64) (map[int64]*_type.ServerStatu
 	query := fmt.Sprintf(`from(bucket: "%s")
   |> range(start: -30d)
   |> filter(fn: (r) => r._measurement == "server_status" and (%s))
-  |> group(columns: ["server_id"])
   |> last()`, "server_status_raw", idFilter)
 
 	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)

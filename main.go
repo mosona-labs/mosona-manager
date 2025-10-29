@@ -26,8 +26,6 @@ func main() {
 	redis.Init()   // Redis
 	connect.Init() // SSH Connect
 
-	fmt.Println(influx.GetLatestServerStatusBatch([]int64{3}))
-
 	// Sync
 	if err := db.SyncConfig(); err != nil {
 		log.Fatalln("Sync config error:", err)

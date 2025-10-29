@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/config"
+	"mosona-manager/connect"
 	"mosona-manager/db"
 	"mosona-manager/utils"
 	"strconv"
@@ -109,7 +110,6 @@ func add(c echo.Context) error {
 		serverId, note, provider, cycle, startTimeParsed, endTimeParsed, amount, autoRenew, bandwidth, traffic, trafficType, notePublic,
 	); err != nil {
 		_ = tx.Rollback()
-		fmt.Println(err)
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
@@ -121,6 +121,12 @@ func add(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	go func() {
+		if err = connect.StartServer(serverId); err != nil {
+			fmt.Println("Failed to start server connection:", err)
+		}
+	}()
 
 	return c.JSON(200, _type.H{
 		Code: "ok",
