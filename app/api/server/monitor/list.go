@@ -2,11 +2,12 @@ package amonitor
 
 import (
 	"fmt"
-	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/db"
 	"mosona-manager/influx"
 	"time"
+
+	"github.com/labstack/echo/v4"
 )
 
 func list(c echo.Context) error {

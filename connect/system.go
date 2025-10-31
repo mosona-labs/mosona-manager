@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func OS(client *ssh.Client) (string, error) {
+func oS(client *ssh.Client) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {
 		return "", err

@@ -34,14 +34,32 @@ type ServerConnect struct {
 }
 
 type ServerStatusType struct {
-	CPU         float64   `json:"cpu"`
-	MemTotalMB  float64   `json:"mem_total_mb"`
-	MemUsedMB   float64   `json:"mem_used_mb"`
-	DiskTotalGB float64   `json:"disk_total_gb"`
-	DiskUsedGB  float64   `json:"disk_used_gb"`
-	RxKibS      float64   `json:"rx_kib_s"`
-	TxKibS      float64   `json:"tx_kib_s"`
-	RxTotalMB   float64   `json:"rx_total_mb"`
-	TxTotalMB   float64   `json:"tx_total_mb"`
-	Time        time.Time `json:"time"`
+	CPU           float64   `json:"cpu"`
+	MemTotalMB    float64   `json:"mem_total_mb"`
+	MemUsedMB     float64   `json:"mem_used_mb"`
+	SwapTotalMB   float64   `json:"swap_total_mb"`
+	SwapUsedMB    float64   `json:"swap_used_mb"`
+	DiskTotalGB   float64   `json:"disk_total_gb"`
+	DiskUsedGB    float64   `json:"disk_used_gb"`
+	DiskReadKibS  float64   `json:"disk_read_kib_s"`
+	DiskWriteKibS float64   `json:"disk_write_kib_s"`
+	DiskReadIOPS  float64   `json:"disk_read_iops"`
+	DiskWriteIOPS float64   `json:"disk_write_iops"`
+	RxKibS        float64   `json:"rx_kib_s"`
+	TxKibS        float64   `json:"tx_kib_s"`
+	RxTotalMB     float64   `json:"rx_total_mb"`
+	TxTotalMB     float64   `json:"tx_total_mb"`
+	Time          time.Time `json:"time"`
+}
+
+type ServerInfoType struct {
+	LinuxVersion  string `json:"linux_version"`
+	Uptime        string `json:"uptime"`
+	Hostname      string `json:"hostname"`
+	CpuName       string `json:"cpu_name"`
+	CpuC          int    `json:"cpu_c"`
+	CpuT          int    `json:"cpu_t"`
+	KernelVersion string `json:"kernel_version"`
+	IPAddress     string `json:"ip_address"`
+	Architecture  string `json:"architecture"`
 }

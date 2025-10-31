@@ -2,8 +2,6 @@ package connect
 
 import (
 	"context"
-	"fmt"
-	"golang.org/x/crypto/ssh"
 	"log"
 	"mosona-manager/_type"
 	"mosona-manager/config"
@@ -19,6 +17,18 @@ var (
 	connectPool = make(map[int64]*serverEntry)
 )
 
+type infoCallbackType func(
+	system string,
+	bootTime time.Time,
+	hostName string,
+	cpuName string,
+	coreC int,
+	coreT int,
+	kernel string,
+	ip string,
+	arch string,
+)
+
 type serverEntry struct {
 	cancel   context.CancelFunc
 	host     string
@@ -26,7 +36,7 @@ type serverEntry struct {
 	user     string
 	password string
 	callback func(data _type.ServerStatusType)
-	info     func(system string, startTime time.Time)
+	info     infoCallbackType
 }
 
 func StartServer(serverId int64) error {
@@ -48,39 +58,70 @@ func StartServer(serverId int64) error {
 		pwdStr = string(pwd)
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-
 	var callback = func(data _type.ServerStatusType) {
 		if err := influx.AddServerStatus(serverId, data); err != nil {
 			log.Println("Failed to add server status:", err)
 		}
 	}
-	var info = func(system string, startTime time.Time) {
+	var info = func(
+		system string,
+		startTime time.Time,
+		hostName string,
+		cpuName string,
+		coreC int,
+		coreT int,
+		kernel string,
+		ip string,
+		arch string,
+	) {
 		if _, err := db.Db.Exec(
 			"UPDATE server_info SET os = $1, open_time = $2 WHERE sid = $3",
 			system, startTime, serverId,
 		); err != nil {
 			log.Println("Failed to update server info:", err)
 		}
-		ipAddress, err := utils.GetDomainAddress(host)
-		if err != nil {
-			log.Println("Failed to get domain address:", err)
-			return
+		if ip == "Unknown" {
+			var err error
+			ip, err = utils.GetDomainAddress(host)
+			if err != nil {
+				log.Println("Failed to get domain address:", err)
+			}
 		}
-		geo, err := utils.GetIPGeoLocation(ipAddress)
+		geo, err := utils.GetIPGeoLocation(ip)
 		if err != nil {
 			log.Println("Failed to get IP geo location:", err)
+			geo.CountryCode = "UN"
+			geo.Country = "Unknown"
+		}
+
+		tx, err := db.Db.Begin()
+		if err != nil {
+			log.Println("Failed to begin transaction:", err)
 			return
 		}
-		if _, err = db.Db.Exec(
+		if _, err = tx.Exec(
 			"UPDATE server_info SET county = $1, area = $2 WHERE sid = $3",
 			geo.CountryCode, geo.Country, serverId,
 		); err != nil {
+			_ = tx.Rollback()
 			log.Println("Failed to update server info:", err)
+			return
+		}
+		if _, err = tx.Exec(
+			"UPDATE server_info_adv SET hostname = $1, cpu_name = $2, core_c = $3, core_t = $4, kernel = $5, ip = $6, arch = $7 WHERE sid = $8",
+			hostName, cpuName, coreC, coreT, kernel, ip, arch, serverId,
+		); err != nil {
+			_ = tx.Rollback()
+			log.Println("Failed to update server advanced info:", err)
+			return
+		}
+		if err = tx.Commit(); err != nil {
+			log.Println("Failed to commit transaction:", err)
+			return
 		}
 	}
 
+	mu.Lock()
 	if old, exists := connectPool[serverId]; exists {
 		old.cancel()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -93,11 +134,10 @@ func StartServer(serverId int64) error {
 			callback: callback,
 			info:     info,
 		}
+		mu.Unlock()
 		go func() {
 			_ = SSH(ctx, host, port, user, pwdStr, callback, info)
 		}()
-
-		return nil
 	} else {
 		ctx, cancel := context.WithCancel(context.Background())
 		connectPool[serverId] = &serverEntry{
@@ -109,110 +149,11 @@ func StartServer(serverId int64) error {
 			callback: callback,
 			info:     info,
 		}
-
+		mu.Unlock()
 		go func() {
 			_ = SSH(ctx, host, port, user, pwdStr, callback, info)
 		}()
 	}
 
 	return nil
-}
-
-func SSH(
-	ctx context.Context,
-	host string, port int, user, password string,
-	callback func(data _type.ServerStatusType),
-	info func(system string, startTime time.Time),
-) error {
-	const (
-		initialBackoff = 1 * time.Second
-		maxBackoff     = 30 * time.Second
-		dialTimeout    = 10 * time.Second
-	)
-
-	backoff := initialBackoff
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		config := &ssh.ClientConfig{
-			User: user,
-			Auth: []ssh.AuthMethod{
-				ssh.Password(password),
-			},
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			Timeout:         dialTimeout,
-		}
-
-		client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host, port), config)
-		if err != nil {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(backoff):
-			}
-			backoff *= 2
-			if backoff > maxBackoff {
-				backoff = maxBackoff
-			}
-			continue
-		}
-
-		backoff = initialBackoff
-
-		connClosed := make(chan struct{})
-		go func() {
-			<-ctx.Done()
-			_ = client.Close()
-			close(connClosed)
-		}()
-
-		workErr := func() error {
-			defer func() { _ = client.Close() }()
-
-			osName, err := OS(client)
-			if err != nil {
-				return err
-			}
-			switch osName {
-			case "Linux":
-				system, err := linuxVersion(client)
-				if err != nil {
-					return err
-				}
-				startTime, err := uptime("Linux", client)
-				if err != nil {
-					return err
-				}
-
-				info(system, startTime)
-				if err = status(client, callback); err != nil {
-					return err
-				}
-			}
-			return nil
-		}()
-
-		if workErr == nil {
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(2 * time.Second):
-		}
-
-		_ = connClosed
-	}
 }

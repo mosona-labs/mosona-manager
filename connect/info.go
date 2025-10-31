@@ -9,7 +9,7 @@ import (
 	"mosona-manager/connect/script"
 )
 
-func status(client *ssh.Client, callback func(data _type.ServerStatusType)) error {
+func information(client *ssh.Client, callback func(data _type.ServerInfoType)) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -30,7 +30,7 @@ func status(client *ssh.Client, callback func(data _type.ServerStatusType)) erro
 	done := make(chan struct{})
 	go func() {
 		for scanner.Scan() {
-			var data _type.ServerStatusType
+			var data _type.ServerInfoType
 			if err = json.Unmarshal([]byte(scanner.Text()), &data); err != nil {
 				continue
 			}
@@ -47,7 +47,7 @@ func status(client *ssh.Client, callback func(data _type.ServerStatusType)) erro
 		return err
 	}
 
-	scriptFile, err := script.GetScript("linux_status.sh")
+	scriptFile, err := script.GetScript("linux_info.sh")
 	if err != nil {
 		_ = stdin.Close()
 		return err

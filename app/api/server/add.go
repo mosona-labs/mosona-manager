@@ -115,6 +115,16 @@ func add(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+	if _, err = tx.Exec(
+		"INSERT INTO server_info_adv (sid) VALUES ($1)",
+		serverId,
+	); err != nil {
+		_ = tx.Rollback()
+		return c.JSON(500, _type.H{
+			Code: "error",
+			Msg:  "Database error",
+		})
+	}
 	if err = tx.Commit(); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",

@@ -3,35 +3,11 @@ package influx
 import (
 	"context"
 	"fmt"
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"mosona-manager/_type"
 	"mosona-manager/config"
 	"strconv"
 	"time"
 )
-
-func AddServerStatus(serverId int64, status _type.ServerStatusType) error {
-	point := influxdb2.NewPoint(
-		"server_status",
-		map[string]string{
-			"server_id": strconv.FormatInt(serverId, 10),
-		},
-		map[string]interface{}{
-			"cpu":           status.CPU,
-			"mem_total_mb":  status.MemTotalMB,
-			"mem_used_mb":   status.MemUsedMB,
-			"disk_total_gb": status.DiskTotalGB,
-			"disk_used_gb":  status.DiskUsedGB,
-			"rx_kib_s":      status.RxKibS,
-			"tx_kib_s":      status.TxKibS,
-			"rx_total_mb":   status.RxTotalMB,
-			"tx_total_mb":   status.TxTotalMB,
-		},
-		time.Now(),
-	)
-	writeAPI := Client.WriteAPIBlocking(config.Conf.InfluxDBOrg, "server_status_raw")
-	return writeAPI.WritePoint(context.Background(), point)
-}
 
 func GetLatestServerStatus(serverID int64) (*_type.ServerStatusType, error) {
 	query := fmt.Sprintf(`from(bucket: "%s")
@@ -61,10 +37,22 @@ func GetLatestServerStatus(serverID int64) (*_type.ServerStatusType, error) {
 			status.MemTotalMB = value.(float64)
 		case "mem_used_mb":
 			status.MemUsedMB = value.(float64)
+		case "swap_total_mb":
+			status.SwapTotalMB = value.(float64)
+		case "swap_used_mb":
+			status.SwapUsedMB = value.(float64)
 		case "disk_total_gb":
 			status.DiskTotalGB = value.(float64)
 		case "disk_used_gb":
 			status.DiskUsedGB = value.(float64)
+		case "disk_read_kib_s":
+			status.DiskReadKibS = value.(float64)
+		case "disk_write_kib_s":
+			status.DiskWriteKibS = value.(float64)
+		case "disk_read_iops":
+			status.DiskReadIOPS = value.(float64)
+		case "disk_write_iops":
+			status.DiskWriteIOPS = value.(float64)
 		case "rx_kib_s":
 			status.RxKibS = value.(float64)
 		case "tx_kib_s":
@@ -136,10 +124,22 @@ func GetLatestServerStatusBatch(serverIDs []int64) (map[int64]*_type.ServerStatu
 			status.MemTotalMB = value.(float64)
 		case "mem_used_mb":
 			status.MemUsedMB = value.(float64)
+		case "swap_total_mb":
+			status.SwapTotalMB = value.(float64)
+		case "swap_used_mb":
+			status.SwapUsedMB = value.(float64)
 		case "disk_total_gb":
 			status.DiskTotalGB = value.(float64)
 		case "disk_used_gb":
 			status.DiskUsedGB = value.(float64)
+		case "disk_read_kib_s":
+			status.DiskReadKibS = value.(float64)
+		case "disk_write_kib_s":
+			status.DiskWriteKibS = value.(float64)
+		case "disk_read_iops":
+			status.DiskReadIOPS = value.(float64)
+		case "disk_write_iops":
+			status.DiskWriteIOPS = value.(float64)
 		case "rx_kib_s":
 			status.RxKibS = value.(float64)
 		case "tx_kib_s":
@@ -156,4 +156,83 @@ func GetLatestServerStatusBatch(serverIDs []int64) (map[int64]*_type.ServerStatu
 	}
 
 	return statusMap, nil
+}
+
+func GetServerStatusHistory(serverID int64, start, end time.Time, timeFrame string) ([]*_type.ServerStatusType, error) {
+	var bucket = "server_status_raw"
+	switch timeFrame {
+	case "minute":
+		bucket = "server_status_minute"
+	case "hour":
+		bucket = "server_status_hourly"
+	case "day":
+		bucket = "server_status_daily"
+	}
+
+	query := fmt.Sprintf(`from(bucket: "%s")
+  |> range(start: %s, stop: %s)
+  |> filter(fn: (r) => r._measurement == "server_status" and r.server_id == "%d")
+  |> sort(columns:["_time"])`, bucket, start.Format(time.RFC3339), end.Format(time.RFC3339), serverID)
+
+	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
+	result, err := queryAPI.Query(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
+
+	var history []*_type.ServerStatusType
+	statusMap := make(map[time.Time]*_type.ServerStatusType)
+
+	for result.Next() {
+		record := result.Record()
+		timestamp := record.Time()
+
+		if _, exists := statusMap[timestamp]; !exists {
+			statusMap[timestamp] = &_type.ServerStatusType{Time: timestamp}
+			history = append(history, statusMap[timestamp])
+		}
+
+		field := record.Field()
+		value := record.Value()
+		status := statusMap[timestamp]
+
+		switch field {
+		case "cpu":
+			status.CPU = value.(float64)
+		case "mem_total_mb":
+			status.MemTotalMB = value.(float64)
+		case "mem_used_mb":
+			status.MemUsedMB = value.(float64)
+		case "swap_total_mb":
+			status.SwapTotalMB = value.(float64)
+		case "swap_used_mb":
+			status.SwapUsedMB = value.(float64)
+		case "disk_total_gb":
+			status.DiskTotalGB = value.(float64)
+		case "disk_used_gb":
+			status.DiskUsedGB = value.(float64)
+		case "disk_read_kib_s":
+			status.DiskReadKibS = value.(float64)
+		case "disk_write_kib_s":
+			status.DiskWriteKibS = value.(float64)
+		case "disk_read_iops":
+			status.DiskReadIOPS = value.(float64)
+		case "disk_write_iops":
+			status.DiskWriteIOPS = value.(float64)
+		case "rx_kib_s":
+			status.RxKibS = value.(float64)
+		case "tx_kib_s":
+			status.TxKibS = value.(float64)
+		case "rx_total_mb":
+			status.RxTotalMB = value.(float64)
+		case "tx_total_mb":
+			status.TxTotalMB = value.(float64)
+		}
+	}
+
+	if result.Err() != nil {
+		return nil, result.Err()
+	}
+
+	return history, nil
 }

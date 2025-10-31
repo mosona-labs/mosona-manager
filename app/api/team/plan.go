@@ -1,9 +1,10 @@
 package ateam
 
 import (
-	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/db"
+
+	"github.com/labstack/echo/v4"
 )
 
 func plans(c echo.Context) error {

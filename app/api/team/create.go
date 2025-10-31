@@ -3,13 +3,14 @@ package ateam
 import (
 	"database/sql"
 	"errors"
-	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/db"
 	"mosona-manager/utils"
 	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 )
 
 func create(c echo.Context) error {

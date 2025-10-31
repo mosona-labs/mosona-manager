@@ -23,7 +23,8 @@ func Init() {
 
 	// Bucket
 	buckets := []bucketType{
-		{Name: "server_status_raw", Every: 7 * 24 * 60 * 60},     // 7 Days
+		{Name: "server_status_raw", Every: 1 * 24 * 60 * 60},     // 1 Days
+		{Name: "server_status_minute", Every: 7 * 24 * 60 * 60},  // 7 Days
 		{Name: "server_status_hourly", Every: 30 * 24 * 60 * 60}, // 30 Days
 		{Name: "server_status_daily", Every: 365 * 24 * 60 * 60}, // 365 Days
 	}
