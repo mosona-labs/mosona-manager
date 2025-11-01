@@ -7,3 +7,10 @@ type Terminal struct {
 	Port     int     `db:"port" json:"port"`
 	OS       *string `json:"os"`
 }
+
+type TerminalDetail struct {
+	Address  string `db:"address"`
+	Port     int    `db:"port"`
+	Username string `db:"username"`
+	Password string `db:"password,omitempty"`
+}

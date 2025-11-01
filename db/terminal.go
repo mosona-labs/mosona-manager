@@ -2,6 +2,8 @@ package db
 
 import (
 	"mosona-manager/_type"
+	"mosona-manager/config"
+	"mosona-manager/utils"
 
 	"github.com/Masterminds/squirrel"
 )
@@ -30,4 +32,26 @@ func ListTerminals(teamId int64) ([]_type.Terminal, error) {
 	}
 	err = Db.Select(&servers, sql, args...)
 	return servers, err
+}
+
+func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
+	var server _type.TerminalDetail
+	var password []byte
+
+	if err := Db.QueryRow(
+		"SELECT address, port, username, password FROM servers WHERE id = $1 AND team_id = $2 AND allow_terminal = true",
+		serverId, teamId,
+	).Scan(
+		&server.Address, &server.Port, &server.Username, &password,
+	); err != nil {
+		return server, err
+	}
+
+	pwd, err := utils.Decrypt(password, config.Key)
+	if err != nil {
+		return server, err
+	}
+	server.Password = string(pwd)
+
+	return server, nil
 }
