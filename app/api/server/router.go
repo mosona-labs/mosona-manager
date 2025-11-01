@@ -1,8 +1,10 @@
 package aserver
 
 import (
-	"github.com/labstack/echo/v4"
 	amonitor "mosona-manager/app/api/server/monitor"
+	aterminal "mosona-manager/app/api/server/terminal"
+
+	"github.com/labstack/echo/v4"
 )
 
 func Router(e *echo.Group) {
@@ -11,4 +13,6 @@ func Router(e *echo.Group) {
 
 	// Monitor
 	amonitor.Router(e.Group("/monitor"))
+	// Terminal
+	aterminal.Router(e.Group("/terminal"))
 }

@@ -7,4 +7,5 @@ func Router(e *echo.Group) {
 	e.POST("", create)
 	e.PUT("/:id", edit)
 	e.DELETE("/:id", del)
+	e.PUT("/sort", sort)
 }

@@ -15,7 +15,6 @@ func list(c echo.Context) error {
 
 	servers, err := db.ListMonitoredServers(tid)
 	if err != nil {
-		fmt.Println(err)
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Failed to list monitored servers",

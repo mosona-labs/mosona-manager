@@ -3,10 +3,12 @@ package connect
 import (
 	"bufio"
 	"encoding/json"
-	"golang.org/x/crypto/ssh"
+	"fmt"
 	"io"
 	"mosona-manager/_type"
 	"mosona-manager/connect/script"
+
+	"golang.org/x/crypto/ssh"
 )
 
 func status(client *ssh.Client, callback func(data _type.ServerStatusType)) error {
@@ -57,7 +59,7 @@ func status(client *ssh.Client, callback func(data _type.ServerStatusType)) erro
 
 	if err = session.Wait(); err != nil {
 		<-done
-		return err
+		return fmt.Errorf("script error: %w", err)
 	}
 	<-done
 	return nil

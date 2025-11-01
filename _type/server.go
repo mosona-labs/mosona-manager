@@ -7,7 +7,7 @@ type Server struct {
 	TeamID        int64     `json:"team_id" db:"team_id"`
 	Name          string    `json:"name"`
 	Address       string    `json:"address"`
-	Port          string    `json:"port"`
+	Port          int       `json:"port"`
 	AllowMonitor  bool      `json:"allow_monitor" db:"allow_monitor"`
 	AllowTerminal bool      `json:"allow_terminal" db:"allow_terminal"`
 	Weight        int       `json:"weight"`
@@ -28,7 +28,7 @@ type ServerConnect struct {
 	TeamID   int64  `json:"team_id" db:"team_id"`
 	Name     string `json:"name"`
 	Address  string `json:"address"`
-	Port     string `json:"port"`
+	Port     int    `json:"port"`
 	Key      string `json:"key"`
 	Password string `json:"password"`
 }

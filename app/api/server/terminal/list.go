@@ -1,4 +1,4 @@
-package acategory
+package aterminal
 
 import (
 	"mosona-manager/_type"
@@ -10,24 +10,17 @@ import (
 func list(c echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 
-	if tid == 0 {
-		return c.JSON(400, _type.H{
-			Code: "team",
-			Msg:  "No Active Team ID",
-		})
-	}
-
-	data, err := db.GetCategoriesByTeam(tid)
+	servers, err := db.ListTerminals(tid)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
-			Msg:  "Database error",
+			Msg:  "Failed to list terminal servers",
 		})
 	}
 
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: data,
+		Data: servers,
 	})
 }

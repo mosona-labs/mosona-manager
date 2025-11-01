@@ -1,8 +1,9 @@
 package db
 
 import (
-	"github.com/Masterminds/squirrel"
 	"mosona-manager/_type"
+
+	"github.com/Masterminds/squirrel"
 )
 
 func ListMonitoredServers(teamId int64) ([]_type.Monitor, error) {

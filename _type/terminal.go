@@ -1,0 +1,9 @@
+package _type
+
+type Terminal struct {
+	ServerMinimal
+	Username string  `db:"username" json:"username"`
+	Address  string  `db:"address" json:"address"`
+	Port     int     `db:"port" json:"port"`
+	OS       *string `json:"os"`
+}

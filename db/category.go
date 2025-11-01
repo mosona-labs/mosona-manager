@@ -72,9 +72,27 @@ func EditCategory(teamId, categoryId int64, name string) error {
 	return err
 }
 
+func SortCategories(teamId int64, categoryIds []int64) error {
+	tx, err := Db.Begin()
+	if err != nil {
+		return err
+	}
+	for index, categoryId := range categoryIds {
+		if _, err = tx.Exec(
+			"UPDATE categories SET sort = $1 WHERE id = $2 AND team = $3",
+			index, categoryId, teamId,
+		); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 func GetCategoriesByTeam(teamId int64) ([]_type.Category, error) {
 	var categories = make([]_type.Category, 0)
-	err := Db.Select(&categories, "SELECT id, name FROM categories WHERE team = $1 ORDER BY id", teamId)
+	err := Db.Select(&categories, "SELECT id, name, sort FROM categories WHERE team = $1 ORDER BY sort, id", teamId)
 	if err != nil {
 		return nil, err
 	}
