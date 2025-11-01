@@ -5,9 +5,9 @@
 ![Postgres](https://img.shields.io/badge/-Postgres%2018-336791?style=flat-square&logo=postgresql&logoColor=black)
 ![Docker](https://img.shields.io/badge/-Docker-0091e2?style=flat-square&logo=docker&logoColor=white)
 
-<div style="text-align: center">
-    <img src="./images/about.webp" alt="Mosona Manager" width="280" height="280" align="center"/>
-</div>
+<p align="center">
+  <img src="./images/about.webp" alt="Mosona Manager" width="280" height="280">
+</p>
 
 Designed as a team-oriented project management server monitor and terminal management tool, featuring comprehensive project permission control and SSH-driven remote management protocol.
 
