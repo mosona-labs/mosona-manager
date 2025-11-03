@@ -1,6 +1,8 @@
 package _type
 
-import "time"
+import (
+	"time"
+)
 
 type Server struct {
 	ID            int64     `json:"id"`
@@ -62,4 +64,29 @@ type ServerInfoType struct {
 	KernelVersion string `json:"kernel_version"`
 	IPAddress     string `json:"ip_address"`
 	Architecture  string `json:"architecture"`
+}
+
+type ServerFullType struct {
+	ID            int64      `json:"id" db:"id"`
+	Category      int64      `json:"category" db:"category"`
+	Name          string     `json:"name" db:"name"`
+	Address       string     `json:"address" db:"address"`
+	Port          int        `json:"port" db:"port"`
+	Username      string     `json:"username" db:"username"`
+	Password      string     `json:"password" db:"password"`
+	KeyID         int64      `json:"key_id" db:"key_id"`
+	AllowMonitor  bool       `json:"allow_monitor" db:"allow_monitor"`
+	AllowTerminal bool       `json:"allow_terminal" db:"allow_terminal"`
+	Weight        int        `json:"weight" db:"weight"`
+	Note          *string    `json:"note" db:"note"`
+	Provider      *string    `json:"provider" db:"provider"`
+	Cycle         *int       `json:"cycle" db:"cycle"`
+	StartTime     *time.Time `json:"start_time" db:"start_time"`
+	EndTime       *time.Time `json:"end_time" db:"end_time"`
+	Amount        *string    `json:"amount" db:"amount"`
+	AutoRenew     *bool      `json:"auto_renew" db:"auto_renew"`
+	Bandwidth     *string    `json:"bandwidth" db:"bandwidth"`
+	Traffic       *string    `json:"traffic" db:"traffic"`
+	TrafficType   *int       `json:"traffic_type" db:"traffic_type"`
+	NotePublic    *string    `json:"note_public" db:"note_public"`
 }

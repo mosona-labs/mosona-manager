@@ -8,6 +8,8 @@ import (
 )
 
 func Router(e *echo.Group) {
+	e.GET("/:id", info)
+	e.PUT("/:id", edit)
 	e.POST("", add)
 	e.PUT("/:id/category", category)
 

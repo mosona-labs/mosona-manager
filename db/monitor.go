@@ -12,7 +12,7 @@ func ListMonitoredServers(teamId int64) ([]_type.Monitor, error) {
 	psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 
 	query := psql.Select(
-		"s.id as id", "name", "weight", "category",
+		"s.id as id", "name", "weight", "category", "allow_terminal",
 		"i.os", "i.county", "i.area", "i.open_time", "i.provider", "i.cycle",
 		"i.start_time", "i.end_time", "i.amount", "i.bandwidth", "i.traffic", "i.traffic_type",
 		"i.note_public",
@@ -39,7 +39,7 @@ func GetMonitoredServerInfo(teamId, serverId int64) (_type.MonitorDetail, error)
 	psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 
 	query := psql.Select(
-		"s.id as id", "name", "weight", "category",
+		"s.id as id", "name", "weight", "category", "allow_terminal",
 		"i.os", "i.county", "i.area", "i.open_time", "i.provider", "i.cycle",
 		"i.start_time", "i.end_time", "i.amount", "i.bandwidth", "i.traffic", "i.traffic_type",
 		"i.note_public",
