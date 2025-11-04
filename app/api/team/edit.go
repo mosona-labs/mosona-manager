@@ -4,15 +4,18 @@ import (
 	"encoding/json"
 	"mosona-manager/_type"
 	"mosona-manager/db"
+	"mosona-manager/influx"
 	"mosona-manager/utils"
 	"os"
 	"path"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 func edit(c echo.Context) error {
+	tid, _ := c.Get("tid").(int64)
 	uid, _ := c.Get("uid").(int64)
 
 	name := c.FormValue("name")
@@ -30,7 +33,7 @@ func edit(c echo.Context) error {
 	// Get Team limit
 	var maxMembers int
 	if err := db.Db.QueryRow(
-		`SELECT max_member FROM teams WHERE id = $1`, uid,
+		`SELECT max_member FROM teams WHERE id = $1`, tid,
 	).Scan(&maxMembers); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "err",
@@ -52,7 +55,7 @@ func edit(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
-	if _, err = tx.Exec("DELETE FROM m_team_user WHERE team_id = $1", uid); err != nil {
+	if _, err = tx.Exec("DELETE FROM m_team_user WHERE team_id = $1", tid); err != nil {
 		_ = tx.Rollback()
 		return c.JSON(500, _type.H{
 			Code: "err",
@@ -60,7 +63,7 @@ func edit(c echo.Context) error {
 		})
 	}
 	for _, m := range members {
-		if _, err = tx.Exec("INSERT INTO m_team_user (team_id, user_id, role) VALUES ($1, $2, $3)", uid, m.ID, m.Role); err != nil {
+		if _, err = tx.Exec("INSERT INTO m_team_user (team_id, user_id, role) VALUES ($1, $2, $3)", tid, m.ID, m.Role); err != nil {
 			_ = tx.Rollback()
 			return c.JSON(500, _type.H{
 				Code: "err",
@@ -116,7 +119,7 @@ func edit(c echo.Context) error {
 
 		// Remove old avatar
 		var oldAvatar string
-		if err = tx.QueryRow("SELECT image FROM teams WHERE id = $1", uid).Scan(&oldAvatar); err == nil {
+		if err = tx.QueryRow("SELECT image FROM teams WHERE id = $1", tid).Scan(&oldAvatar); err == nil {
 			if oldAvatar != "" {
 				if err = os.Remove(path.Join("./avatars", oldAvatar)); err != nil && !os.IsNotExist(err) {
 					return c.JSON(500, _type.H{
@@ -130,7 +133,7 @@ func edit(c echo.Context) error {
 
 	if _, err = tx.Exec(
 		"UPDATE teams SET name = $1, description = $2, color = $3, image = $4 WHERE id = $5",
-		name, description, avatarColor, avatarUrl, uid,
+		name, description, avatarColor, avatarUrl, tid,
 	); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "err",
@@ -144,6 +147,12 @@ func edit(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	// Log action
+	influx.LogAdd(
+		tid, uid, "team", "Edit Team: "+name+" (ID"+strconv.FormatInt(tid, 10)+")",
+		c.RealIP(), c.Request().UserAgent(), "high",
+	)
 
 	return c.JSON(200, _type.H{
 		Code: "ok",

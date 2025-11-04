@@ -39,7 +39,7 @@ func create(c echo.Context) error {
 
 	// Parse member IDs
 	var members = make([]_type.TeamUsersRole, 0)
-	if err := json.Unmarshal([]byte(c.FormValue("members")), &members); err != nil {
+	if err = json.Unmarshal([]byte(c.FormValue("members")), &members); err != nil {
 		return c.JSON(400, _type.H{
 			Code: "err",
 			Msg:  "Invalid member data",

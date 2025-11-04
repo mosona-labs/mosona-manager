@@ -2,13 +2,16 @@ package acategory
 
 import (
 	"errors"
-	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/db"
+	"mosona-manager/influx"
+
+	"github.com/labstack/echo/v4"
 )
 
 func create(c echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
+	uid, _ := c.Get("uid").(int64)
 	name := c.FormValue("name")
 
 	if tid == 0 || name == "" {
@@ -30,6 +33,12 @@ func create(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	// Log action
+	influx.LogAdd(
+		tid, uid, "category", "Create Category: "+name,
+		c.RealIP(), c.Request().UserAgent(), "low",
+	)
 
 	return c.JSON(200, _type.H{
 		Code: "ok",

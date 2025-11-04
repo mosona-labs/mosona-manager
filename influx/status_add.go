@@ -2,11 +2,12 @@ package influx
 
 import (
 	"context"
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"mosona-manager/_type"
 	"mosona-manager/config"
 	"strconv"
 	"time"
+
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 )
 
 func AddServerStatus(serverId int64, status _type.ServerStatusType) error {

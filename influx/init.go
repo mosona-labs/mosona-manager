@@ -2,10 +2,11 @@ package influx
 
 import (
 	"context"
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	"github.com/influxdata/influxdb-client-go/v2/domain"
 	"log"
 	"mosona-manager/config"
+
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/domain"
 )
 
 var Client influxdb2.Client
@@ -27,6 +28,7 @@ func Init() {
 		{Name: "server_status_minute", Every: 7 * 24 * 60 * 60},  // 7 Days
 		{Name: "server_status_hourly", Every: 30 * 24 * 60 * 60}, // 30 Days
 		{Name: "server_status_daily", Every: 365 * 24 * 60 * 60}, // 365 Days
+		{Name: "logs", Every: 0},                                 // No Retention
 	}
 	ctx := context.Background()
 
@@ -43,7 +45,10 @@ func Init() {
 			continue
 		}
 
-		retentionRules := []domain.RetentionRule{{EverySeconds: v.Every}}
+		var retentionRules []domain.RetentionRule
+		if v.Every > 0 {
+			retentionRules = []domain.RetentionRule{{EverySeconds: v.Every}}
+		}
 		newBucket := &domain.Bucket{
 			Name:           v.Name,
 			OrgID:          org.Id,

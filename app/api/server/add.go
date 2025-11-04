@@ -7,6 +7,7 @@ import (
 	"mosona-manager/config"
 	"mosona-manager/connect"
 	"mosona-manager/db"
+	"mosona-manager/influx"
 	"mosona-manager/utils"
 	"strconv"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 func add(c echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
+	uid, _ := c.Get("uid").(int64)
 
 	name := c.FormValue("name")
 	address := c.FormValue("address")
@@ -165,6 +167,12 @@ func add(c echo.Context) error {
 			fmt.Println("Failed to start server connection:", err)
 		}
 	}()
+
+	// Log action
+	influx.LogAdd(
+		tid, uid, "server", "Create Server: "+name+" (ID"+strconv.FormatInt(serverId, 10)+")",
+		c.RealIP(), c.Request().UserAgent(), "high",
+	)
 
 	return c.JSON(200, _type.H{
 		Code: "ok",

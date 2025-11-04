@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"mosona-manager/db"
+	"mosona-manager/influx"
 	"net/http"
 	"strconv"
 
@@ -27,8 +28,16 @@ type xtermMessage struct {
 
 func ws(c echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
+	uid, _ := c.Get("uid").(int64)
+
 	serverId, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	serverAuth, err := db.GetTerminalInfo(tid, serverId)
+
+	// Log action
+	influx.LogAdd(
+		tid, uid, "terminal", "Access Terminal for Server (ID"+strconv.FormatInt(serverId, 10)+")",
+		c.RealIP(), c.Request().UserAgent(), "high",
+	)
 
 	wsConn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	defer func() {

@@ -8,6 +8,16 @@ import (
 var ErrSameCategoryName = errors.New("duplicate category name")
 var ErrCanNotDeleteDefaultCategory = errors.New("cannot delete default category")
 
+func GetCategoryById(teamId, categoryId int64) (_type.Category, error) {
+	var category _type.Category
+	err := Db.Get(
+		&category,
+		"SELECT id, name, sort FROM categories WHERE team = $1 AND id = $2",
+		teamId, categoryId,
+	)
+	return category, err
+}
+
 func CreateCategory(teamId int64, name string) error {
 	var exist int
 	err := Db.Get(&exist, "SELECT COUNT(*) FROM categories WHERE team = $1 AND name = $2", teamId, name)

@@ -5,7 +5,30 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"sync"
+	"time"
 )
+
+var privateCIDRs []*net.IPNet
+
+func init() {
+	cidr := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.0/8",
+		"169.254.0.0/16",
+		"::1/128",
+		"fc00::/7",
+		"fe80::/10",
+	}
+	for _, c := range cidr {
+		_, n, err := net.ParseCIDR(c)
+		if err == nil {
+			privateCIDRs = append(privateCIDRs, n)
+		}
+	}
+}
 
 type IPGeoResponse struct {
 	Country         string  `json:"country"`
@@ -37,23 +60,85 @@ func GetDomainAddress(domain string) (string, error) {
 	return "", errors.New("domain not found")
 }
 
-func GetIPGeoLocation(ip string) (IPGeoResponse, error) {
-	client := &http.Client{}
+func IsPrivateIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+	for _, n := range privateCIDRs {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
 
+type cacheEntry struct {
+	Data   IPGeoResponse
+	Expiry time.Time
+}
+
+var (
+	ipCache         = make(map[string]cacheEntry)
+	ipCacheMu       sync.RWMutex
+	cacheTTL        = 24 * time.Hour
+	janitorInterval = time.Hour
+	cacheOnce       sync.Once
+)
+
+func startCacheJanitor() {
+	go func() {
+		ticker := time.NewTicker(janitorInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			now := time.Now()
+			ipCacheMu.Lock()
+			for k, v := range ipCache {
+				if now.After(v.Expiry) {
+					delete(ipCache, k)
+				}
+			}
+			ipCacheMu.Unlock()
+		}
+	}()
+}
+
+func GetIPGeoLocation(ip string) (IPGeoResponse, error) {
+	cacheOnce.Do(startCacheJanitor)
+
+	ipCacheMu.RLock()
+	if e, ok := ipCache[ip]; ok {
+		if time.Now().Before(e.Expiry) {
+			ipCacheMu.RUnlock()
+			return e.Data, nil
+		}
+	}
+	ipCacheMu.RUnlock()
+
+	if IsPrivateIP(ip) {
+		res := IPGeoResponse{
+			Country:     "Private Network",
+			CountryCode: "UN",
+			IP:          ip,
+		}
+		ipCacheMu.Lock()
+		ipCache[ip] = cacheEntry{Data: res, Expiry: time.Now().Add(cacheTTL)}
+		ipCacheMu.Unlock()
+		return res, nil
+	}
+
+	client := &http.Client{}
 	req, err := http.NewRequest("GET", "https://api.ip.sb/geoip/"+ip, nil)
 	if err != nil {
 		return IPGeoResponse{}, err
 	}
-
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; YourAppName/1.0)")
 
 	resp, err := client.Do(req)
 	if err != nil {
 		return IPGeoResponse{}, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return IPGeoResponse{}, errors.New("failed to get geo location")
@@ -63,6 +148,10 @@ func GetIPGeoLocation(ip string) (IPGeoResponse, error) {
 	if err = json.NewDecoder(resp.Body).Decode(&geoData); err != nil {
 		return IPGeoResponse{}, err
 	}
+
+	ipCacheMu.Lock()
+	ipCache[ip] = cacheEntry{Data: geoData, Expiry: time.Now().Add(cacheTTL)}
+	ipCacheMu.Unlock()
 
 	return geoData, nil
 }
