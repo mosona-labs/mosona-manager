@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/db"
+
+	"github.com/labstack/echo-contrib/session"
+	"github.com/labstack/echo/v4"
 )
 
 func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {

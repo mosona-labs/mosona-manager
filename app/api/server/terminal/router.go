@@ -1,8 +1,12 @@
 package aterminal
 
-import "github.com/labstack/echo/v4"
+import (
+	"mosona-manager/app/middleware"
+
+	"github.com/labstack/echo/v4"
+)
 
 func Router(e *echo.Group) {
 	e.GET("", list)
-	e.GET("/:id/ws", ws)
+	e.GET("/:id/ws", ws, middleware.TerminalAuth)
 }

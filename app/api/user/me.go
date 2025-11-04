@@ -3,9 +3,10 @@ package auser
 import (
 	"database/sql"
 	"errors"
-	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/db"
+
+	"github.com/labstack/echo/v4"
 )
 
 func me(c echo.Context) error {
@@ -52,7 +53,7 @@ func me(c echo.Context) error {
 			},
 		})
 	} else {
-		teamInfo, err := db.GetTeamById(tid)
+		team, err := db.GetTeamById(tid)
 		if err != nil {
 			return c.JSON(500, _type.H{
 				Code: "error",
@@ -65,7 +66,7 @@ func me(c echo.Context) error {
 			Msg:  "Success",
 			Data: map[string]interface{}{
 				"user":  userInfo,
-				"team":  teamInfo,
+				"team":  team,
 				"teams": teams,
 			},
 		})

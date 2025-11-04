@@ -1,43 +1,24 @@
 package ateam
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"mosona-manager/_type"
 	"mosona-manager/db"
 	"mosona-manager/utils"
-	"strconv"
+	"os"
+	"path"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
-func create(c echo.Context) error {
+func edit(c echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 
 	name := c.FormValue("name")
 	description := c.FormValue("description")
 	avatarColor := c.FormValue("avatar_color")
 
-	// Get plan ID
-	planId, _ := strconv.ParseInt(c.FormValue("plan_id"), 10, 64)
-	planInfo, err := db.GetPlanById(planId)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.JSON(400, _type.H{
-				Code: "err",
-				Msg:  "Plan not found",
-			})
-		} else {
-			return c.JSON(500, _type.H{
-				Code: "err",
-				Msg:  "Database error",
-			})
-		}
-	}
-
-	// Parse member IDs
 	var members = make([]_type.TeamUsersRole, 0)
 	if err := json.Unmarshal([]byte(c.FormValue("members")), &members); err != nil {
 		return c.JSON(400, _type.H{
@@ -45,31 +26,47 @@ func create(c echo.Context) error {
 			Msg:  "Invalid member data",
 		})
 	}
-	hasOwner := false
-	for _, m := range members {
-		if m.ID == uid {
-			hasOwner = true
-		}
-	}
-	if !hasOwner {
-		return c.JSON(400, _type.H{
+
+	// Get Team limit
+	var maxMembers int
+	if err := db.Db.QueryRow(
+		`SELECT max_member FROM teams WHERE id = $1`, uid,
+	).Scan(&maxMembers); err != nil {
+		return c.JSON(500, _type.H{
 			Code: "err",
-			Msg:  "You must be the owner of the team",
+			Msg:  "Database error",
 		})
 	}
-	if len(members) > planInfo.MaxMember && planInfo.MaxMember != -1 {
+	if len(members) > maxMembers && maxMembers != -1 {
 		return c.JSON(400, _type.H{
 			Code: "err",
-			Msg:  "Member count exceeds plan limit",
+			Msg:  "Member limit exceeded",
 		})
 	}
 
-	// Validate input
-	if name == "" || avatarColor == "" || planId == 0 {
-		return c.JSON(400, _type.H{
+	// Update team members
+	tx, err := db.Db.Begin()
+	if err != nil {
+		return c.JSON(500, _type.H{
 			Code: "err",
-			Msg:  "Invalid input",
+			Msg:  "Database error",
 		})
+	}
+	if _, err = tx.Exec("DELETE FROM m_team_user WHERE team_id = $1", uid); err != nil {
+		_ = tx.Rollback()
+		return c.JSON(500, _type.H{
+			Code: "err",
+			Msg:  "Database error",
+		})
+	}
+	for _, m := range members {
+		if _, err = tx.Exec("INSERT INTO m_team_user (team_id, user_id, role) VALUES ($1, $2, $3)", uid, m.ID, m.Role); err != nil {
+			_ = tx.Rollback()
+			return c.JSON(500, _type.H{
+				Code: "err",
+				Msg:  "Database error",
+			})
+		}
 	}
 
 	// Get avatar image
@@ -116,33 +113,40 @@ func create(c echo.Context) error {
 			})
 		}
 		avatarUrl = avatarFileName.String() + ".avif"
+
+		// Remove old avatar
+		var oldAvatar string
+		if err = tx.QueryRow("SELECT image FROM teams WHERE id = $1", uid).Scan(&oldAvatar); err == nil {
+			if oldAvatar != "" {
+				if err = os.Remove(path.Join("./avatars", oldAvatar)); err != nil && !os.IsNotExist(err) {
+					return c.JSON(500, _type.H{
+						Code: "err",
+						Msg:  "Failed to remove old avatar image",
+					})
+				}
+			}
+		}
 	}
 
-	teamId, err := db.CreateTeam(
-		name,
-		description,
-		avatarColor,
-		avatarUrl,
-		members,
-		planInfo.MaxServer,
-		planInfo.MaxAlert,
-		planInfo.MaxMember,
-		planId,
-		uid,
-	)
-	if err != nil {
+	if _, err = tx.Exec(
+		"UPDATE teams SET name = $1, description = $2, color = $3, image = $4 WHERE id = $5",
+		name, description, avatarColor, avatarUrl, uid,
+	); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "err",
 			Msg:  "Database error",
 		})
 	}
 
-	// Set Active Team
-	_ = db.SetUserActiveTeam(uid, teamId)
+	if err = tx.Commit(); err != nil {
+		return c.JSON(500, _type.H{
+			Code: "err",
+			Msg:  "Database error",
+		})
+	}
 
 	return c.JSON(200, _type.H{
 		Code: "ok",
-		Msg:  "Team created successfully",
-		Data: teamId,
+		Msg:  "Team updated",
 	})
 }

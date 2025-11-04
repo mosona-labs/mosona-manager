@@ -4,7 +4,11 @@ import "mosona-manager/_type"
 
 func GetTeamById(id int64) (_type.Team, error) {
 	var team _type.Team
-	if err := Db.Get(&team, "SELECT id, name, description, color, image, max_server, max_alert, max_member, updated_at, created_at FROM teams WHERE id = $1", id); err != nil {
+	if err := Db.Get(
+		&team,
+		"SELECT id, name, description, color, image, max_server, max_alert, max_member, updated_at, created_at FROM teams WHERE id = $1",
+		id,
+	); err != nil {
 		return _type.Team{}, err
 	}
 
@@ -16,7 +20,7 @@ func CreateTeam(
 	description string,
 	avatarColor string,
 	avatarUrl string,
-	members []int64,
+	members []_type.TeamUsersRole,
 	maxServer int,
 	maxAlert int,
 	maxMember int,
@@ -39,10 +43,9 @@ func CreateTeam(
 	}
 
 	// Add Members
-	for _, memberId := range members {
-		if _, err = tx.Exec(`INSERT INTO m_team_user (user_id, team_id)
-			 VALUES ($1, $2)`,
-			memberId, teamId,
+	for _, member := range members {
+		if _, err = tx.Exec(`INSERT INTO m_team_user (user_id, team_id, role) VALUES ($1, $2, $3)`,
+			member.ID, teamId, member.Role,
 		); err != nil {
 			_ = tx.Rollback()
 			return 0, err
@@ -70,4 +73,18 @@ func GetTeamsByUserId(uid int64) ([]_type.Team, error) {
 	}
 
 	return teams, nil
+}
+
+func GetTeamMembers(teamId int64) ([]_type.TeamUsersRole, error) {
+	var members = make([]_type.TeamUsersRole, 0)
+	if err := Db.Select(&members, `
+		SELECT user_id as id, u.username, u.email, u.is_admin, u.updated_at, u.created_at, role
+		FROM m_team_user
+		LEFT JOIN users u ON m_team_user.user_id = u.id
+		WHERE team_id = $1
+	`, teamId); err != nil {
+		return nil, err
+	}
+
+	return members, nil
 }

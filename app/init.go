@@ -3,11 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/rbcervilla/redisstore/v9"
 	"log"
 	"mosona-manager/_type"
 	acategory "mosona-manager/app/api/category"
@@ -17,6 +12,12 @@ import (
 	"mosona-manager/app/auth"
 	"mosona-manager/config"
 	"mosona-manager/redis"
+
+	"github.com/gorilla/sessions"
+	"github.com/labstack/echo-contrib/session"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"github.com/rbcervilla/redisstore/v9"
 
 	inMiddleware "mosona-manager/app/middleware"
 )
@@ -57,7 +58,7 @@ func Start() {
 			return c.String(200, "pong!")
 		})
 	}
-	v1 := api.Group("/v1", inMiddleware.UserAuth)
+	v1 := api.Group("/v1", inMiddleware.UserAuth, inMiddleware.UserRole)
 	{
 		auser.Router(v1.Group("/user"))         // User
 		ateam.Router(v1.Group("/team"))         // Team
