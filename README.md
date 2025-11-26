@@ -7,9 +7,10 @@
 
 English | [简体中文](./README_zh_cn.md)
 
-<p align="center">
-  <img src="./images/about.webp" alt="Mosona Manager" width="280" height="280">
-</p>
+<div align="center" style="position: relative">
+  <img alt="home" style="width: 49%" src="https://github.com/user-attachments/assets/0a27bf17-f40c-4fcd-903b-cae9ff9691bb" />
+  <img alt="terminal" style="width: 49%" src="https://github.com/user-attachments/assets/420913b5-db7d-46f3-9942-4cc66c5a728f" />
+</div>
 
 Designed as a team-oriented / personal project management server monitor and terminal management tool, featuring comprehensive project permission control and SSH-driven remote management protocol.
 
@@ -44,3 +45,7 @@ Under development...
 <span id="ii-manual-deployment"></span>
 #### II. Manual Deployment
 Under development...
+
+## Project Logo
+
+<img src="./images/about.webp" alt="Mosona Manager" width="240" height="240">

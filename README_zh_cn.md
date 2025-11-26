@@ -7,9 +7,10 @@
 
 [English](./README.md) | 简体中文
 
-<p align="center">
-  <img src="./images/about.webp" alt="Mosona 管理器" width="280" height="280">
-</p>
+<div align="center" style="position: relative">
+  <img alt="home" style="width: 49%" src="https://github.com/user-attachments/assets/0a27bf17-f40c-4fcd-903b-cae9ff9691bb" />
+  <img alt="terminal" style="width: 49%" src="https://github.com/user-attachments/assets/420913b5-db7d-46f3-9942-4cc66c5a728f" />
+</div>
 
 Mosona Manager 是一款面向团队 / 个人的项目管理、服务器监控和终端管理工具，具备完善的项目权限控制和基于 SSH 的远程管理协议。
 
@@ -44,3 +45,7 @@ Mosona Manager 是一款面向团队 / 个人的项目管理、服务器监控�
 <span id="ii-手动部署"></span>
 #### II. 手动部署
 开发中...
+
+## Logo
+
+<img src="./images/about.webp" alt="Mosona Manager" width="240" height="240">
