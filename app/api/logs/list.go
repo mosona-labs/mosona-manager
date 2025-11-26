@@ -21,7 +21,35 @@ func list(c echo.Context) error {
 		pageSize = 20
 	}
 
-	data, total, err := influx.GetLogsByPage(tid, page, pageSize)
+	category := c.QueryParam("category")
+	level := c.QueryParam("level")
+	email := c.QueryParam("email")
+	message := c.QueryParam("message")
+
+	// User filter
+	var uids []int64
+	if email != "" {
+		var err error
+		uids, err = db.GetTeamUserIdsByEmail(tid, email)
+		if err != nil {
+			return c.JSON(500, _type.H{
+				Code: "error",
+				Msg:  "Database error",
+			})
+		}
+		if len(uids) == 0 {
+			return c.JSON(200, _type.H{
+				Code: "ok",
+				Msg:  "Success",
+				Data: echo.Map{
+					"logs":  []_type.Log{},
+					"total": 0,
+				},
+			})
+		}
+	}
+
+	data, total, err := influx.GetLogsByPage(tid, page, pageSize, category, level, uids, message)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
@@ -30,9 +58,9 @@ func list(c echo.Context) error {
 	}
 
 	var userIDs []int64
-	for _, log := range data {
-		if log.UserID != 0 {
-			userIDs = append(userIDs, log.UserID)
+	for _, logRecord := range data {
+		if logRecord.UserID != 0 {
+			userIDs = append(userIDs, logRecord.UserID)
 		}
 	}
 	userMap, err := db.GetUserByIds(userIDs)
@@ -43,11 +71,11 @@ func list(c echo.Context) error {
 		})
 	}
 
-	for i, log := range data {
-		user, ok := userMap[log.UserID]
+	for i, logRecord := range data {
+		user, ok := userMap[logRecord.UserID]
 		if !ok {
 			user = _type.User{
-				ID:       log.UserID,
+				ID:       logRecord.UserID,
 				Username: "[Deleted]",
 			}
 		}

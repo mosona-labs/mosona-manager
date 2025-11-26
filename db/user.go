@@ -35,6 +35,10 @@ func GetUserAuthByEmail(email string) (_type.UserAuthInfo, error) {
 }
 
 func GetUserByIds(ids []int64) (map[int64]_type.User, error) {
+	if len(ids) == 0 {
+		return make(map[int64]_type.User), nil
+	}
+
 	users := make([]_type.User, 0)
 	query, args, err := sqlx.In("SELECT id, username, email, is_admin, created_at FROM users WHERE id IN (?)", ids)
 	if err != nil {
@@ -51,4 +55,19 @@ func GetUserByIds(ids []int64) (map[int64]_type.User, error) {
 	}
 
 	return userMap, nil
+}
+
+func GetTeamUserIdsByEmail(teamID int64, email string) ([]int64, error) {
+	var userIds []int64
+	err := Db.Select(&userIds, `
+		SELECT u.id
+		FROM users u
+		JOIN m_team_user tu ON u.id = tu.user_id
+		WHERE tu.team_id = $1 AND u.email LIKE $2
+	`, teamID, "%"+email+"%")
+	if err != nil {
+		return nil, err
+	}
+
+	return userIds, nil
 }

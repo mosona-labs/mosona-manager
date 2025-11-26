@@ -7,7 +7,7 @@ import (
 	"mosona-manager/config"
 )
 
-func GetLogsByPage(teamID int64, page, pageSize int) ([]_type.Log, int64, error) {
+func GetLogsByPage(teamID int64, page, pageSize int, category, level string, userIDs []int64, message string) ([]_type.Log, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -18,13 +18,44 @@ func GetLogsByPage(teamID int64, page, pageSize int) ([]_type.Log, int64, error)
 	offset := (page - 1) * pageSize
 	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
 
+	categoryFilter := ""
+	if category != "" && category != "all" {
+		categoryFilter = fmt.Sprintf(`
+			|> filter(fn: (r) => r["category"] == "%s")`, category)
+	}
+	levelFilter := ""
+	if level != "" && level != "all" {
+		levelFilter = fmt.Sprintf(`
+			|> filter(fn: (r) => r["level"] == "%s")`, level)
+	}
+	userFilter := ""
+	if len(userIDs) > 0 {
+		userFilter = "\n|> filter(fn: (r) => ("
+		for i, uid := range userIDs {
+			if i > 0 {
+				userFilter += " or "
+			}
+			userFilter += fmt.Sprintf(`r["user_id"] == %d`, uid)
+		}
+		userFilter += "))"
+	}
+	var messageFilter string
+	if message != "" {
+		messageFilter = fmt.Sprintf(`
+			|> filter(fn: (r) => strings.contains(v: r["message"], substr: ["%s"]))`, message)
+	}
+
+	fmt.Println(messageFilter)
+
 	countQuery := fmt.Sprintf(`
 		from(bucket: "logs")
 			|> range(start: 0)
 			|> filter(fn: (r) => r._measurement == "logs")
 			|> filter(fn: (r) => r["team_id"] == "%d")
-			|> count()
-	`, teamID)
+			|> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")%s%s%s%s
+			|> group()
+			|> count(column: "_measurement")
+	`, teamID, categoryFilter, levelFilter, userFilter, messageFilter)
 	countResult, err := queryAPI.Query(context.Background(), countQuery)
 	if err != nil {
 		return nil, 0, err
@@ -32,8 +63,8 @@ func GetLogsByPage(teamID int64, page, pageSize int) ([]_type.Log, int64, error)
 
 	var total int64
 	for countResult.Next() {
-		if countResult.Record().Field() == "user_id" {
-			if val, ok := countResult.Record().Value().(int64); ok {
+		if count, ok := countResult.Record().Values()["_measurement"]; ok {
+			if val, ok := count.(int64); ok {
 				total = val
 				break
 			}
@@ -46,10 +77,10 @@ func GetLogsByPage(teamID int64, page, pageSize int) ([]_type.Log, int64, error)
 			|> range(start: 0)
 			|> filter(fn: (r) => r._measurement == "logs")
 			|> filter(fn: (r) => r["team_id"] == "%d")
-			|> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+			|> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")%s%s%s%s
 			|> sort(columns: ["_time"], desc: true)
 			|> limit(n: %d, offset: %d)
-	`, teamID, pageSize, offset)
+	`, teamID, categoryFilter, levelFilter, userFilter, messageFilter, pageSize, offset)
 
 	result, err := queryAPI.Query(context.Background(), dataQuery)
 	if err != nil {
