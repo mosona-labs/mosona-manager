@@ -1,16 +1,21 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"log"
+	"mosona-manager/_type"
+	"mosona-manager/config"
+	"mosona-manager/db"
+	"mosona-manager/redis"
+	"mosona-manager/utils"
+	"time"
+
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 	"github.com/pquerna/otp/totp"
-	"mosona-manager/_type"
-	"mosona-manager/config"
-	"mosona-manager/db"
-	"mosona-manager/utils"
 )
 
 func login(c echo.Context) error {
@@ -83,9 +88,20 @@ func login(c echo.Context) error {
 	sess.Values["uid"] = user.ID
 	sess.Values["tid"] = activeTid
 	sess.Values["user_agent"] = c.Request().Header.Get("User-Agent")
+	sess.Values["time"] = time.Now().Unix()
 	if err = sess.Save(c.Request(), c.Response()); err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
 	}
+
+	// Update login time
+	go func() {
+		if _, err = db.Db.Exec("UPDATE users SET login_at=NOW() WHERE id=?", user.ID); err != nil {
+			log.Println(err)
+		}
+		if err = redis.AddSessionID(context.Background(), user.ID, sess.ID); err != nil {
+			log.Println(err)
+		}
+	}()
 
 	return c.JSON(200, _type.H{Code: "ok", Msg: "Login success"})
 }

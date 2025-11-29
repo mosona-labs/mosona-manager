@@ -6,5 +6,10 @@ func Router(e *echo.Group) {
 	e.GET("/me", me)
 	e.POST("/find", find)
 
+	// Switch Team
 	e.POST("/config/active-team/:id", setActiveTeam)
+
+	// Sessions
+	e.GET("/sessions", sessions)
+	e.DELETE("/sessions/:sid", sessionRevoke)
 }

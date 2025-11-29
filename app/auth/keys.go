@@ -1,9 +1,10 @@
 package auth
 
 import (
-	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/config"
+
+	"github.com/labstack/echo/v4"
 )
 
 func keys(c echo.Context) error {

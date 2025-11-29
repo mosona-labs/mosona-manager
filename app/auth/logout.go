@@ -1,9 +1,10 @@
 package auth
 
 import (
+	"mosona-manager/_type"
+
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
-	"mosona-manager/_type"
 )
 
 func logout(c echo.Context) error {

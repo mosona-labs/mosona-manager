@@ -40,6 +40,7 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 
 		c.Set("uid", uid)
 		c.Set("tid", tid)
+		c.Set("sid", sess.ID)
 
 		return next(c)
 	}

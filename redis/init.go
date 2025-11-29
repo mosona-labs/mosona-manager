@@ -2,8 +2,9 @@ package redis
 
 import (
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"mosona-manager/config"
+
+	"github.com/redis/go-redis/v9"
 )
 
 var Client *redis.Client

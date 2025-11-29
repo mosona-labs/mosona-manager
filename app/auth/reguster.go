@@ -1,11 +1,12 @@
 package auth
 
 import (
-	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/config"
 	"mosona-manager/db"
 	"mosona-manager/utils"
+
+	"github.com/labstack/echo/v4"
 )
 
 func register(c echo.Context) error {
