@@ -28,6 +28,7 @@ func Init() {
 		{Name: "server_status_minute", Every: 7 * 24 * 60 * 60},  // 7 Days
 		{Name: "server_status_hourly", Every: 30 * 24 * 60 * 60}, // 30 Days
 		{Name: "server_status_daily", Every: 365 * 24 * 60 * 60}, // 365 Days
+		{Name: "system_usage", Every: 1 * 24 * 60 * 60},          // 1 Days
 		{Name: "logs", Every: 0},                                 // No Retention
 	}
 	ctx := context.Background()

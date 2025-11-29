@@ -8,6 +8,7 @@ import (
 	"mosona-manager/db"
 	"mosona-manager/influx"
 	"mosona-manager/redis"
+	"mosona-manager/task"
 	"os"
 )
 
@@ -25,6 +26,8 @@ func main() {
 	influx.Init()  // InfluxDB
 	redis.Init()   // Redis
 	connect.Init() // SSH Connect
+
+	task.Init() // Background Task
 
 	// Sync
 	if err := db.SyncConfig(); err != nil {

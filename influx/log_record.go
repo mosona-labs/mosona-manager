@@ -45,8 +45,6 @@ func GetLogsByPage(teamID int64, page, pageSize int, category, level string, use
 			|> filter(fn: (r) => strings.contains(v: r["message"], substr: ["%s"]))`, message)
 	}
 
-	fmt.Println(messageFilter)
-
 	countQuery := fmt.Sprintf(`
 		from(bucket: "logs")
 			|> range(start: 0)

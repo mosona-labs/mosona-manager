@@ -236,3 +236,43 @@ func GetServerStatusHistory(serverID int64, start, end time.Time, timeFrame stri
 
 	return history, nil
 }
+
+func GetAllServerRecordCount(bucket string) (int64, error) {
+	query := `from(bucket: "` + bucket + `")
+  |> range(start: -365d)
+  |> filter(fn: (r) => r._measurement == "server_status")
+  |> count()`
+
+	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
+	result, err := queryAPI.Query(context.Background(), query)
+	if err != nil {
+		return 0, err
+	}
+
+	var totalCount int64 = 0
+
+	for result.Next() {
+		if count, ok := result.Record().Value().(int64); ok {
+			totalCount += count
+		}
+	}
+
+	if result.Err() != nil {
+		return 0, result.Err()
+	}
+
+	return totalCount, nil
+}
+
+func GetAllBucketAllServerRecordCount() (int64, error) {
+	var count int64 = 0
+	buckets := []string{"server_status_raw", "server_status_minute", "server_status_hourly", "server_status_daily"}
+	for _, bucket := range buckets {
+		bucketCount, err := GetAllServerRecordCount(bucket)
+		if err != nil {
+			return 0, err
+		}
+		count += bucketCount
+	}
+	return count, nil
+}

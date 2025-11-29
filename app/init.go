@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"mosona-manager/_type"
+	"mosona-manager/app/api/admin"
 	acategory "mosona-manager/app/api/category"
 	alogs "mosona-manager/app/api/logs"
 	aserver "mosona-manager/app/api/server"
@@ -67,6 +68,8 @@ func Start() {
 		aserver.Router(v1.Group("/server"))     // Server
 		alogs.Router(v1.Group("/logs"))         // Logs
 	}
+	// Admin
+	admin.Router(api.Group("/admin", inMiddleware.AdminAuth))
 
 	// NotFound
 	api.Any("/*", func(c echo.Context) error {

@@ -21,7 +21,7 @@ func leave(c echo.Context) error {
 		})
 	}
 
-	isOwner, err := db.IsTeamOwner(targetId, tid)
+	isOwner, err := db.IsTeamOwner(targetId, uid)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
