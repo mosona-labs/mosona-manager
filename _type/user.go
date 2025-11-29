@@ -6,6 +6,7 @@ type User struct {
 	ID        int64     `json:"id"`
 	Username  string    `json:"username"`
 	Email     string    `json:"email"`
+	TOTP      *bool     `json:"totp_enabled,omitempty" db:"totp_enabled"`
 	IsAdmin   bool      `json:"is_admin" db:"is_admin"`
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
