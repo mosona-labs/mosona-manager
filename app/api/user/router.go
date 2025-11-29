@@ -6,6 +6,9 @@ func Router(e *echo.Group) {
 	e.GET("/me", me)
 	e.POST("/find", find)
 
+	// Info
+	e.PUT("/edit/username", changeUsername)
+
 	// Switch Team
 	e.POST("/config/active-team/:id", setActiveTeam)
 

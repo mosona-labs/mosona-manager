@@ -71,3 +71,8 @@ func GetTeamUserIdsByEmail(teamID int64, email string) ([]int64, error) {
 
 	return userIds, nil
 }
+
+func UpdateUsername(userID int64, newUsername string) error {
+	_, err := Db.Exec("UPDATE users SET username = $1 WHERE id = $2", newUsername, userID)
+	return err
+}

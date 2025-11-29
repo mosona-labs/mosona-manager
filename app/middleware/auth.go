@@ -12,7 +12,7 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		sess, err := session.Get("session", c)
 		if err != nil {
-			return c.JSON(500, _type.H{Code: "err", Msg: "Session error"})
+			return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
 		}
 
 		// User ID
@@ -30,7 +30,7 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		if tid == nil || tid == 0 {
 			activeTid, err := db.GetUserActiveTeam(uid.(int64))
 			if err != nil {
-				return c.JSON(500, _type.H{Code: "err", Msg: "Database error"})
+				return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 			}
 			sess.Values["tid"] = activeTid
 			if err = sess.Save(c.Request(), c.Response()); err != nil {
@@ -50,7 +50,7 @@ func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		sess, err := session.Get("session", c)
 		if err != nil {
-			return c.JSON(500, _type.H{Code: "err", Msg: "Session error"})
+			return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
 		}
 
 		uid := sess.Values["uid"]

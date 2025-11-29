@@ -1,0 +1,32 @@
+package auser
+
+import (
+	"mosona-manager/_type"
+	"mosona-manager/db"
+
+	"github.com/labstack/echo/v4"
+)
+
+func changeUsername(c echo.Context) error {
+	uid, _ := c.Get("uid").(int64)
+
+	newUsername := c.FormValue("username")
+	if newUsername == "" {
+		return c.JSON(400, _type.H{
+			Code: "error",
+			Msg:  "Username cannot be empty",
+		})
+	}
+
+	if err := db.UpdateUsername(uid, newUsername); err != nil {
+		return c.JSON(500, _type.H{
+			Code: "error",
+			Msg:  "Database error",
+		})
+	}
+
+	return c.JSON(200, _type.H{
+		Code: "ok",
+		Msg:  "Username updated successfully",
+	})
+}

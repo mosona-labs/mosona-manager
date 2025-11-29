@@ -25,7 +25,7 @@ func edit(c echo.Context) error {
 	var members = make([]_type.TeamUsersRole, 0)
 	if err := json.Unmarshal([]byte(c.FormValue("members")), &members); err != nil {
 		return c.JSON(400, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Invalid member data",
 		})
 	}
@@ -36,13 +36,13 @@ func edit(c echo.Context) error {
 		`SELECT max_member FROM teams WHERE id = $1`, tid,
 	).Scan(&maxMembers); err != nil {
 		return c.JSON(500, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Database error",
 		})
 	}
 	if len(members) > maxMembers && maxMembers != -1 {
 		return c.JSON(400, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Member limit exceeded",
 		})
 	}
@@ -51,14 +51,14 @@ func edit(c echo.Context) error {
 	tx, err := db.Db.Begin()
 	if err != nil {
 		return c.JSON(500, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Database error",
 		})
 	}
 	if _, err = tx.Exec("DELETE FROM m_team_user WHERE team_id = $1", tid); err != nil {
 		_ = tx.Rollback()
 		return c.JSON(500, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Database error",
 		})
 	}
@@ -66,7 +66,7 @@ func edit(c echo.Context) error {
 		if _, err = tx.Exec("INSERT INTO m_team_user (team_id, user_id, role) VALUES ($1, $2, $3)", tid, m.ID, m.Role); err != nil {
 			_ = tx.Rollback()
 			return c.JSON(500, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Database error",
 			})
 		}
@@ -87,14 +87,14 @@ func edit(c echo.Context) error {
 		}
 		if !isImage {
 			return c.JSON(400, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Invalid file type, only images are allowed",
 			})
 		}
 		file, err := avatarImage.Open()
 		if err != nil {
 			return c.JSON(500, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Failed to open avatar image",
 			})
 		}
@@ -105,13 +105,13 @@ func edit(c echo.Context) error {
 		avatarFileName, err := uuid.NewUUID()
 		if err != nil {
 			return c.JSON(500, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Failed to generate avatar filename",
 			})
 		}
 		if err = utils.ConvertAvatar(file, "./avatars", avatarFileName.String()); err != nil {
 			return c.JSON(500, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Failed to process avatar image",
 			})
 		}
@@ -123,7 +123,7 @@ func edit(c echo.Context) error {
 			if oldAvatar != "" {
 				if err = os.Remove(path.Join("./avatars", oldAvatar)); err != nil && !os.IsNotExist(err) {
 					return c.JSON(500, _type.H{
-						Code: "err",
+						Code: "error",
 						Msg:  "Failed to remove old avatar image",
 					})
 				}
@@ -136,14 +136,14 @@ func edit(c echo.Context) error {
 		name, description, avatarColor, avatarUrl, tid,
 	); err != nil {
 		return c.JSON(500, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Database error",
 		})
 	}
 
 	if err = tx.Commit(); err != nil {
 		return c.JSON(500, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Database error",
 		})
 	}

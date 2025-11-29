@@ -66,8 +66,8 @@ func login(c echo.Context) error {
 
 	// Active Team
 	activeTid, err := db.GetUserActiveTeam(user.ID)
-	if err != nil {
-		return c.JSON(500, _type.H{Code: "err", Msg: "Database error"})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
 
 	// Session

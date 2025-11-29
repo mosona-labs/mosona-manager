@@ -4,6 +4,7 @@ import "time"
 
 type Team struct {
 	ID          int64     `json:"id"`
+	OwnerID     int64     `json:"owner_id" db:"owner_id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Color       string    `json:"color"`

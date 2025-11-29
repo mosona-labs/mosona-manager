@@ -3,14 +3,14 @@ package auser
 import (
 	"database/sql"
 	"errors"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
 	"mosona-manager/_type"
 	"mosona-manager/db"
 	"strconv"
+
+	"github.com/labstack/echo-contrib/session"
+	"github.com/labstack/echo/v4"
 )
 
-// TODO: Frequent DB writes, high concurrency optimization require cache layer optimization
 func setActiveTeam(c echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 	teamID, _ := strconv.ParseInt(c.Param("id"), 10, 64)

@@ -11,8 +11,8 @@ func sessions(c echo.Context) error {
 	data, err := redis.GetUserSessions(c.Request().Context(), c.Get("uid").(int64))
 	if err != nil {
 		return c.JSON(500, _type.H{
-			Code: "err",
-			Msg:  "Database error: " + err.Error(),
+			Code: "error",
+			Msg:  "Database error",
 		})
 	}
 
@@ -34,20 +34,20 @@ func sessionRevoke(c echo.Context) error {
 
 	if yes, err := redis.CheckSessionOwnership(ctx, uid, sid); err != nil {
 		return c.JSON(500, _type.H{
-			Code: "err",
-			Msg:  "Database error: " + err.Error(),
+			Code: "error",
+			Msg:  "Database error",
 		})
 	} else if !yes {
 		return c.JSON(400, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Session not found",
 		})
 	}
 
 	if err := redis.RemoveSessionIDs(ctx, []string{sid}); err != nil {
 		return c.JSON(500, _type.H{
-			Code: "err",
-			Msg:  "Database error: " + err.Error(),
+			Code: "error",
+			Msg:  "Database error",
 		})
 	}
 

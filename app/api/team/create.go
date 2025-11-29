@@ -26,12 +26,12 @@ func create(c echo.Context) error {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(400, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Plan not found",
 			})
 		} else {
 			return c.JSON(500, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Database error",
 			})
 		}
@@ -41,7 +41,7 @@ func create(c echo.Context) error {
 	var members = make([]_type.TeamUsersRole, 0)
 	if err = json.Unmarshal([]byte(c.FormValue("members")), &members); err != nil {
 		return c.JSON(400, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Invalid member data",
 		})
 	}
@@ -53,13 +53,13 @@ func create(c echo.Context) error {
 	}
 	if !hasOwner {
 		return c.JSON(400, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "You must be the owner of the team",
 		})
 	}
 	if len(members) > planInfo.MaxMember && planInfo.MaxMember != -1 {
 		return c.JSON(400, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Member count exceeds plan limit",
 		})
 	}
@@ -67,7 +67,7 @@ func create(c echo.Context) error {
 	// Validate input
 	if name == "" || avatarColor == "" || planId == 0 {
 		return c.JSON(400, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Invalid input",
 		})
 	}
@@ -87,14 +87,14 @@ func create(c echo.Context) error {
 		}
 		if !isImage {
 			return c.JSON(400, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Invalid file type, only images are allowed",
 			})
 		}
 		file, err := avatarImage.Open()
 		if err != nil {
 			return c.JSON(500, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Failed to open avatar image",
 			})
 		}
@@ -105,13 +105,13 @@ func create(c echo.Context) error {
 		avatarFileName, err := uuid.NewUUID()
 		if err != nil {
 			return c.JSON(500, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Failed to generate avatar filename",
 			})
 		}
 		if err = utils.ConvertAvatar(file, "./avatars", avatarFileName.String()); err != nil {
 			return c.JSON(500, _type.H{
-				Code: "err",
+				Code: "error",
 				Msg:  "Failed to process avatar image",
 			})
 		}
@@ -132,7 +132,7 @@ func create(c echo.Context) error {
 	)
 	if err != nil {
 		return c.JSON(500, _type.H{
-			Code: "err",
+			Code: "error",
 			Msg:  "Database error",
 		})
 	}
