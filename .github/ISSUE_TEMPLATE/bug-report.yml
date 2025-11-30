@@ -6,7 +6,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug! Please fill out the details below.
+        **Before creating a new issue, please check the issues to see if a similar issue already exists.**
+        **在創建新的 Issue 之前，請先檢查 issues 列表中是否已有相關問題。**
+
+        Thanks for taking the time to report a bug! Please fill out the details below. 
+        多謝閣下回報問題，請填寫以下資訊以協助我們定位 Bug。
 
   - type: textarea
     id: what-happened
