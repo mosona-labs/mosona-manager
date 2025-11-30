@@ -56,3 +56,34 @@ func sessionRevoke(c echo.Context) error {
 		Msg:  "Success",
 	})
 }
+
+func sessionRevokeAll(c echo.Context) error {
+	uid := c.Get("uid").(int64)
+
+	ctx := c.Request().Context()
+
+	sids, err := redis.GetUserSessions(ctx, uid)
+	if err != nil {
+		return c.JSON(500, _type.H{
+			Code: "error",
+			Msg:  "Database error",
+		})
+	}
+
+	var sidList []string
+	for _, s := range sids {
+		sidList = append(sidList, s.ID)
+	}
+
+	if err = redis.RemoveSessionIDs(ctx, sidList); err != nil {
+		return c.JSON(500, _type.H{
+			Code: "error",
+			Msg:  "Database error",
+		})
+	}
+
+	return c.JSON(200, _type.H{
+		Code: "ok",
+		Msg:  "Success",
+	})
+}

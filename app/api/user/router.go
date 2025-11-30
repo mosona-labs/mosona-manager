@@ -15,4 +15,5 @@ func Router(e *echo.Group) {
 	// Sessions
 	e.GET("/sessions", sessions)
 	e.DELETE("/sessions/:sid", sessionRevoke)
+	e.DELETE("/sessions", sessionRevokeAll)
 }
