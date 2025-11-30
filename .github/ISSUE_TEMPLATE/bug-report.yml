@@ -1,0 +1,67 @@
+name: Bug Report (錯誤報告)
+description: Report a bug to help us improve.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the details below.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened? (發生了甚麽事？)
+      description: Describe the bug. What did you expect to happen? (請描述錯誤詳情。你預期會發生什麼情況？)
+      placeholder: Tell us what you saw vs what you expected. 
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce? (如何重現？)
+      description: Step-by-step instructions so we can reproduce the bug. (請提供逐步指示，以便我們重現該錯誤。)
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. A bug happens
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What version are you running? (您正在運行哪個版本？)
+      placeholder: ex. v1.2.4 or commit hash
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device Information (裝置資訊)
+      description: OS, device model, browser, etc. (作業系統、裝置型號、瀏覽器等)
+      placeholder: ex. macOS 14, Chrome 120, Windows 11, Debian 13 ARM etc.
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / Screen Recording (截圖 / 螢幕錄製)
+      description: Upload images or videos to help us understand the problem. (請上載圖像或影片以助我們理解問題。)
+      placeholder: Drag and drop screenshots here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output (相關日誌輸出)
+      description: Paste logs or console output (no backticks needed). (請貼上日誌或控制台輸出（無需使用反引號）。)
+      render: shell
+    validations:
+      required: false
