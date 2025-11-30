@@ -28,10 +28,7 @@ Designed as a team-oriented / personal project management server monitor and ter
 
 ## Get started
 
-### 1. SaaS
-Under development & Planning...
-
-### 2. Self-Hosted Deployment
+### 1. Self-Hosted Deployment
 
 You can deploy Mosona Manager on your own server using either Docker or manual installation methods.
 

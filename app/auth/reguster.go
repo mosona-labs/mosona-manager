@@ -26,14 +26,11 @@ func register(c echo.Context) error {
 	}
 
 	// Check Exist
-	var exist int
-	if err := db.Db.QueryRow(
-		"SELECT COUNT(*) FROM users WHERE email=$1",
-		emailAddress,
-	).Scan(&exist); err != nil {
+	isExist, err := db.CheckEmailExists(emailAddress)
+	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
-	if exist > 0 {
+	if isExist {
 		return c.JSON(400, _type.H{Code: "warning", Msg: "Email already registered"})
 	}
 

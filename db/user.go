@@ -76,3 +76,21 @@ func UpdateUsername(userID int64, newUsername string) error {
 	_, err := Db.Exec("UPDATE users SET username = $1 WHERE id = $2", newUsername, userID)
 	return err
 }
+
+func CheckEmailExists(email string) (bool, error) {
+	var count int
+	err := Db.Get(&count, "SELECT COUNT(1) FROM users WHERE email = $1", email)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func CheckEmailExistsExcludeID(email string, excludeID int64) (bool, error) {
+	var count int
+	err := Db.Get(&count, "SELECT COUNT(1) FROM users WHERE email = $1 AND id != $2", email, excludeID)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
