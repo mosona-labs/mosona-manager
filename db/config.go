@@ -3,6 +3,7 @@ package db
 import (
 	"mosona-manager/config"
 	"mosona-manager/utils"
+	"strconv"
 )
 
 type configType struct {
@@ -20,16 +21,32 @@ func SyncConfig() error {
 		switch item.Key {
 		case "init":
 			config.DynamicConf.Init = item.Value == "true"
+		case "domain":
+			config.DynamicConf.Domain = item.Value
 		case "token":
 			config.DynamicConf.Token = item.Value
 		case "captcha_secret":
 			config.DynamicConf.CaptchaSecret = item.Value
 		case "captcha_site_key":
 			config.DynamicConf.CaptchaSiteKey = item.Value
-		case "google_client_id":
-			config.DynamicConf.GoogleClientID = item.Value
-		case "google_client_secret":
-			config.DynamicConf.GoogleClientSecret = item.Value
+		case "email_verify_login":
+			config.DynamicConf.EmailVerifyLogin = item.Value == "true"
+		case "email_provider":
+			config.DynamicConf.EmailProvider = item.Value
+		case "smtp_host":
+			config.DynamicConf.SMTPHost = item.Value
+		case "smtp_port":
+			config.DynamicConf.SMTPPort, _ = strconv.Atoi(item.Value)
+		case "smtp_username":
+			config.DynamicConf.SMTPUsername = item.Value
+		case "smtp_password":
+			config.DynamicConf.SMTPPassword = item.Value
+		case "smtp_tls":
+			config.DynamicConf.SMTPTls = item.Value == "true"
+		case "registration_enabled":
+			config.DynamicConf.RegistrationEnabled = item.Value == "true" // Default false
+		case "registration_verify_email":
+			config.DynamicConf.RegistrationVerifyEmail = item.Value == "true" // Default false
 		}
 	}
 

@@ -7,6 +7,7 @@ import (
 	"mosona-manager/connect"
 	"mosona-manager/db"
 	"mosona-manager/influx"
+	"mosona-manager/oauth"
 	"mosona-manager/redis"
 	"mosona-manager/task"
 	"os"
@@ -22,12 +23,19 @@ func main() {
 	fmt.Println(Logo)
 	fmt.Println("⇨ Mosona manager " + version + " starting...")
 
-	db.Init()      // Postgres
-	influx.Init()  // InfluxDB
-	redis.Init()   // Redis
-	connect.Init() // SSH Connect
+	// Database
+	db.Init()     // Postgres
+	influx.Init() // InfluxDB
+	redis.Init()  // Redis
 
-	task.Init() // Background Task
+	// OAuth
+	oauth.Init()
+
+	// SSH Connect
+	connect.Init()
+
+	// Other Task
+	task.Init()
 
 	// Sync
 	if err := db.SyncConfig(); err != nil {
@@ -38,6 +46,6 @@ func main() {
 		log.Fatalln("Create avatars dir error:", err)
 	}
 
-	// API
+	// API Server
 	app.Start()
 }

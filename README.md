@@ -5,7 +5,7 @@
 ![Postgres](https://img.shields.io/badge/-Postgres%2018-336791?style=flat-square&logo=postgresql&logoColor=black)
 ![Docker](https://img.shields.io/badge/-Docker-0091e2?style=flat-square&logo=docker&logoColor=white)
 
-English | [简体中文](./README_zh_cn.md)
+English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
 
 <div align="center" style="position: relative">
   <img alt="home" style="width: 49%" src="https://github.com/user-attachments/assets/0a27bf17-f40c-4fcd-903b-cae9ff9691bb" />
@@ -14,7 +14,9 @@ English | [简体中文](./README_zh_cn.md)
 
 Designed as a team-oriented / personal project management server monitor and terminal management tool, featuring comprehensive project permission control and SSH-driven remote management protocol.
 
-> Agentless: No need to install any agents on the managed servers, simplifying deployment and reducing overhead.
+> Agentless Mode: No need to install any agents on the managed servers, simplifying deployment and reducing overhead.
+
+> Agent Mode: Optional lightweight agents can be deployed on managed servers. The Agent reports its status to the central server, or the central server queries the Agent for status.
 
 ## Features
 - **Project Management**: Create and manage multiple projects with ease.
@@ -46,3 +48,7 @@ Under development...
 ## Project Logo
 
 <img src="./images/about.webp" alt="Mosona Manager" width="240" height="240">
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.

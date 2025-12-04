@@ -1,28 +1,23 @@
 package auth
 
 import (
-	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"mosona-manager/_type"
 	"mosona-manager/config"
 	"mosona-manager/db"
-	"mosona-manager/redis"
 	"mosona-manager/utils"
 	"time"
 
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
-	"github.com/pquerna/otp/totp"
 )
 
 func login(c echo.Context) error {
 	email := c.FormValue("email")
 	password := c.FormValue("password")
 	rememberMe := c.FormValue("remember_me") == "true"
-	otp := c.FormValue("otp")
 	if email == "" || password == "" {
 		return c.JSON(400, _type.H{
 			Code: "warning",
@@ -57,19 +52,6 @@ func login(c echo.Context) error {
 		return c.JSON(401, _type.H{Code: "verify", Msg: "Account is not verified"})
 	}
 
-	// TOTP
-	if user.TOTP != nil && *user.TOTP != "" {
-		if !totp.Validate(otp, *user.TOTP) {
-			return c.JSON(401, _type.H{Code: "otp", Msg: "OTP is incorrect"})
-		}
-	}
-
-	// Active Team
-	activeTid, err := db.GetUserActiveTeam(user.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
-	}
-
 	// Session
 	sess, err := session.Get("session", c)
 	if err != nil {
@@ -85,23 +67,30 @@ func login(c echo.Context) error {
 		MaxAge:   maxAge,
 		HttpOnly: true,
 	}
-	sess.Values["uid"] = user.ID
-	sess.Values["tid"] = activeTid
-	sess.Values["user_agent"] = c.Request().Header.Get("User-Agent")
-	sess.Values["time"] = time.Now().Unix()
-	if err = sess.Save(c.Request(), c.Response()); err != nil {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
+
+	if (user.TOTP != nil && *user.TOTP != "") || config.DynamicConf.EmailVerifyLogin {
+		sess.Values["pre_2fa_uid"] = user.ID
+		if err = sess.Save(c.Request(), c.Response()); err != nil {
+			return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
+		}
+		// 2FA Required
+		return c.JSON(200, _type.H{Code: "2fa_required", Msg: "Two-factor authentication required"})
+	} else {
+		// Active Team
+		activeTid, err := db.GetUserActiveTeam(user.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
+		}
+		sess.Values["uid"] = user.ID
+		sess.Values["tid"] = activeTid
+		sess.Values["user_agent"] = c.Request().Header.Get("User-Agent")
+		sess.Values["time"] = time.Now().Unix()
+		if err = sess.Save(c.Request(), c.Response()); err != nil {
+			return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
+		}
 	}
 
-	// Update login time
-	go func() {
-		if _, err = db.Db.Exec("UPDATE users SET login_at=NOW() WHERE id=?", user.ID); err != nil {
-			log.Println(err)
-		}
-		if err = redis.AddSessionID(context.Background(), user.ID, sess.ID); err != nil {
-			log.Println(err)
-		}
-	}()
+	loginEvent(user.ID, sess.ID, c.RealIP(), c.Request().Header.Get("User-Agent"))
 
 	return c.JSON(200, _type.H{Code: "ok", Msg: "Login success"})
 }

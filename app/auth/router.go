@@ -7,5 +7,9 @@ func Router(e *echo.Group) {
 	e.POST("/register", register)
 	e.POST("/logout", logout)
 
-	e.GET("/keys", keys)
+	// OAuth
+	e.GET("/oauth/:id", oauthLogin)
+	e.POST("/oauth/:id", oauthCallback)
+
+	e.GET("/keys", keys) // Key
 }

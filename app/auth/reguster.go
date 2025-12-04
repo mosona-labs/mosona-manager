@@ -20,9 +20,11 @@ func register(c echo.Context) error {
 	}
 
 	// Captcha
-	remoteIp := c.RealIP()
-	if ok, err := utils.VerifyCaptcha(token, remoteIp); err != nil || !ok {
-		return c.JSON(400, _type.H{Code: "warning", Msg: "Captcha verification failed"})
+	if config.DynamicConf.CaptchaSecret != "" && config.DynamicConf.CaptchaSiteKey != "" {
+		remoteIp := c.RealIP()
+		if ok, err := utils.VerifyCaptcha(token, remoteIp); err != nil || !ok {
+			return c.JSON(400, _type.H{Code: "warning", Msg: "Captcha verification failed"})
+		}
 	}
 
 	// Check Exist
@@ -37,8 +39,8 @@ func register(c echo.Context) error {
 	// Register
 	signature := utils.RandomString(32)
 	if _, err := db.Db.Exec(
-		"INSERT INTO users (username, email, password, salt) VALUES ($1, $2, $3, $4)",
-		username, emailAddress, utils.SHA256(password+signature+config.DynamicConf.Token), signature,
+		"INSERT INTO users (username, email, password, salt, verified) VALUES ($1, $2, $3, $4, $5)",
+		username, emailAddress, utils.SHA256(password+signature+config.DynamicConf.Token), signature, !config.DynamicConf.RegistrationVerifyEmail,
 	); err != nil {
 		return c.JSON(400, _type.H{Code: "error", Msg: "Registration failed"})
 	}

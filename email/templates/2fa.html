@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>
+        Two-Factor Authentication (2FA) Code
+    </title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .logo {
+            background-color: #b9f8cf;
+            border-radius: 0.625rem;
+            width: 40px;
+            height: 40px;
+        }
+        .header {
+            background-color: #071507;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 20px 30px;
+        }
+        .header h1 {
+            padding: 0;
+            font-size: 28px;
+            font-weight: 600;
+            margin-top: -0.4rem;
+            margin-bottom: 0;
+        }
+        .header p {
+            font-size: 14px;
+            color: #ccc;
+            margin-top: -0.5rem;
+            margin-bottom: 0;
+        }
+        .content {
+            padding: 10px 20px;
+        }
+        .greeting {
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .activation-code {
+            background-color: #f0f0f0;
+            padding: 20px;
+            border-radius: 6px;
+            text-align: center;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 4px;
+            color: #2d6836;
+        }
+        .info-box {
+            background-color: #e8f4f8;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .footer {
+            background-color: #f9f9f9;
+            border-top: 1px solid #e0e0e0;
+            padding: 10px 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+        .divider {
+            border: none;
+            border-top: 1px solid #e0e0e0;
+            margin: 30px 0;
+        }
+        a {
+            color: #438a48;
+            text-decoration: none;
+        }
+        @media (max-width: 600px) {
+            .container {
+                margin: 10px;
+            }
+            .header {
+                padding: 30px 15px;
+            }
+            .content {
+                padding: 20px;
+            }
+            .header h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <div class="logo"></div>
+        <div>
+            <h1>Mosona Manager</h1>
+            <p>Server Monitor & Remote Management</p>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <p class="greeting">Hi {{USER_NAME}},</p>
+
+        <p>
+            To complete your action, please use the following Two-Factor Authentication (2FA) code:
+        </p>
+
+        <div class="activation-code">{{CODE}}</div>
+
+        <hr class="divider">
+
+        <!-- Info Box -->
+        <div class="info-box">
+            <strong>⏱ This code expires in 15 minutes</strong><br>
+            If you did not request this code, please ignore this email.
+        </div>
+
+        <p>When you will be asked to enter a 2FA code: </p>
+        <ul style="margin: 15px 0; padding-left: 20px;">
+            <li>Logging into your account. (if required by the instance administrator)</li>
+            <li>Performing high-risk operations.</li>
+        </ul>
+        <p>If you want to simplify this step, you can enable TOTP in the Profile page to replace email-based 2FA.</p>
+
+        <p>If you have any questions, please read <a href="https://manager.mosona.cc" target="_blank">documentation</a> or create an issue on <a href="https://github.com/mosona-network/mosona-manager/issues" target="_blank">GitHub</a>.</p>
+
+        <p>Best regards,<br><strong>Mosona Network</strong></p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>
+            This email was sent to you by automated system. Please do not reply directly to this email.<br>
+        </p>
+    </div>
+</div>
+</body>
+</html>

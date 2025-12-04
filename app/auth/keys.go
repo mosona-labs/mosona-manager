@@ -13,7 +13,6 @@ func keys(c echo.Context) error {
 		Msg:  "Success",
 		Data: echo.Map{
 			"captcha": config.DynamicConf.CaptchaSiteKey,
-			"google":  config.DynamicConf.GoogleClientID,
 		},
 	})
 }

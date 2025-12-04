@@ -25,6 +25,9 @@ type configType struct {
 type dynamicConfigType struct {
 	Init bool
 
+	// Domain
+	Domain string
+
 	// Salt & Token
 	Token string
 
@@ -32,7 +35,17 @@ type dynamicConfigType struct {
 	CaptchaSecret  string
 	CaptchaSiteKey string
 
-	// Google OAuth
-	GoogleClientID     string
-	GoogleClientSecret string
+	// Email
+	EmailVerifyLogin bool
+	EmailProvider    string
+	// SMTP
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	SMTPTls      bool
+
+	// Registration
+	RegistrationEnabled     bool
+	RegistrationVerifyEmail bool
 }
