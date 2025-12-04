@@ -12,6 +12,8 @@ English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
   <img alt="terminal" style="width: 49%" src="https://github.com/user-attachments/assets/420913b5-db7d-46f3-9942-4cc66c5a728f" />
 </div>
 
+<br />
+
 Designed as a team-oriented / personal project management server monitor and terminal management tool, featuring comprehensive project permission control and SSH-driven remote management protocol.
 
 > Agentless Mode: No need to install any agents on the managed servers, simplifying deployment and reducing overhead.
