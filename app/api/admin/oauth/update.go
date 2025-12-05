@@ -4,6 +4,7 @@ import (
 	"mosona-manager/_type"
 	"mosona-manager/db"
 	"mosona-manager/influx"
+	"mosona-manager/oauth"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -42,6 +43,9 @@ func update(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	// Update OAuth manager
+	oauth.Init()
 
 	// Log action
 	influx.LogAdd(

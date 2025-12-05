@@ -4,6 +4,7 @@ import (
 	"mosona-manager/_type"
 	"mosona-manager/db"
 	"mosona-manager/influx"
+	"mosona-manager/oauth"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -35,6 +36,20 @@ func add(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	// Add to OAuth manager
+	oauth.AddProvider(_type.AuthProvider{
+		ID:           id,
+		Name:         name,
+		Icon:         icon,
+		AuthUrl:      authUrl,
+		TokenUrl:     tokenUrl,
+		UserinfoUrl:  userinfoUrl,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Skip2FA:      skip2FA,
+		IsEnabled:    isEnabled,
+	})
 
 	// Log action
 	influx.LogAdd(

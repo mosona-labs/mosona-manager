@@ -4,6 +4,7 @@ import (
 	"mosona-manager/_type"
 	"mosona-manager/db"
 	"mosona-manager/influx"
+	"mosona-manager/oauth"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -35,6 +36,9 @@ func del(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	// Remove from OAuth manager
+	oauth.RemoveProvider(id)
 
 	// Log action
 	influx.LogAdd(

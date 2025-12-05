@@ -54,7 +54,7 @@ func Init() {
 	providerLock.Unlock()
 }
 
-func AddProvider(oauth _type.AuthProvider) error {
+func AddProvider(oauth _type.AuthProvider) {
 	oauthConfig := &oauth2.Config{
 		ClientID:     oauth.ClientID,
 		ClientSecret: oauth.ClientSecret,
@@ -73,8 +73,6 @@ func AddProvider(oauth _type.AuthProvider) error {
 		Skip:        oauth.Skip2FA,
 	}
 	providerLock.Unlock()
-
-	return nil
 }
 
 func RemoveProvider(providerID int) {
