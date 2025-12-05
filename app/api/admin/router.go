@@ -1,6 +1,7 @@
 package admin
 
 import (
+	moauth "mosona-manager/app/api/admin/oauth"
 	msettings "mosona-manager/app/api/admin/settings"
 	muser "mosona-manager/app/api/admin/user"
 
@@ -12,4 +13,5 @@ func Router(e *echo.Group) {
 
 	muser.Router(e.Group("/users"))        // Users
 	msettings.Router(e.Group("/settings")) // Settings
+	moauth.Router(e.Group("/oauth"))       // OAuth
 }

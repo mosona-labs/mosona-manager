@@ -3,6 +3,7 @@ package msettings
 import (
 	"mosona-manager/_type"
 	"mosona-manager/db"
+	"mosona-manager/oauth"
 
 	"github.com/labstack/echo/v4"
 )
@@ -34,6 +35,8 @@ func set(c echo.Context) error {
 		// Skip protected keys
 		if item.Key == "init" || item.Key == "token" {
 			continue
+		} else if item.Key == "domain" {
+			oauth.Init()
 		}
 		// Execute upsert
 		if _, err = tx.Exec(stmt, item.Key, item.Value); err != nil {

@@ -27,6 +27,10 @@ func main() {
 	db.Init()     // Postgres
 	influx.Init() // InfluxDB
 	redis.Init()  // Redis
+	// Dynamic Config
+	if err := db.SyncConfig(); err != nil {
+		log.Fatalln("Sync config error:", err)
+	}
 
 	// OAuth
 	oauth.Init()
@@ -37,10 +41,6 @@ func main() {
 	// Other Task
 	task.Init()
 
-	// Sync
-	if err := db.SyncConfig(); err != nil {
-		log.Fatalln("Sync config error:", err)
-	}
 	// Dir
 	if err := os.MkdirAll("./avatars", os.ModePerm); err != nil {
 		log.Fatalln("Create avatars dir error:", err)

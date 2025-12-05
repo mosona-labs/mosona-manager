@@ -12,6 +12,7 @@ import (
 	"mosona-manager/utils"
 	"mosona-manager/utils/store"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -44,7 +45,10 @@ func oauthLogin(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: authURL,
+		Data: echo.Map{
+			"url":   authURL,
+			"state": state,
+		},
 	})
 }
 
@@ -91,6 +95,12 @@ func oauthCallback(c echo.Context) error {
 
 	token, err := cfg.Config.Exchange(ctx, code)
 	if err != nil {
+		if strings.Contains(err.Error(), "bad_verification_code") {
+			return c.JSON(400, _type.H{
+				Code: "invalid",
+				Msg:  "Authorization code is incorrect or expired",
+			})
+		}
 		return c.JSON(400, _type.H{
 			Code: "invalid",
 			Msg:  "Failed to exchange code for token: " + err.Error(),
@@ -124,14 +134,12 @@ func oauthCallback(c echo.Context) error {
 		})
 	}
 
-	fmt.Println(profile)
-
 	identity, err := db.GetAuthIdentityBySubject(oauthID, fmt.Sprint(profile.ID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(404, _type.H{
 				Code: "not_found",
-				Msg:  "OAuth identity not linked",
+				Msg:  "OAuth identity not linked, please bind your account first.",
 			})
 		}
 		return c.JSON(500, _type.H{
@@ -177,7 +185,7 @@ func oauthCallback(c echo.Context) error {
 				return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
 			}
 			// 2FA Required
-			return c.JSON(200, _type.H{Code: "2fa_required", Msg: "Two-factor authentication required"})
+			return c.JSON(400, _type.H{Code: "2fa_required", Msg: "Two-factor authentication required"})
 		}
 	}
 

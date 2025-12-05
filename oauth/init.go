@@ -30,7 +30,7 @@ func Init() {
 		log.Fatalln("Init auth provider error:", err)
 	}
 
-	providerLock.Lock()
+	var tempConfigs = make(map[int]*ProviderConfig)
 	for _, oauth := range oauthList {
 		oauthConfig := &oauth2.Config{
 			ClientID:     oauth.ClientID,
@@ -42,12 +42,15 @@ func Init() {
 			RedirectURL: fmt.Sprintf("%s/oauth/%d", config.DynamicConf.Domain, oauth.ID),
 			Scopes:      strings.Fields("read:user read:email"),
 		}
-		Configs[oauth.ID] = &ProviderConfig{
+		tempConfigs[oauth.ID] = &ProviderConfig{
 			Config:      oauthConfig,
 			UserinfoUrl: oauth.UserinfoUrl,
 			Skip:        oauth.Skip2FA,
 		}
 	}
+
+	providerLock.Lock()
+	Configs = tempConfigs
 	providerLock.Unlock()
 }
 

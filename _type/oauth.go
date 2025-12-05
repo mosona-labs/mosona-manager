@@ -17,6 +17,7 @@ type AuthProvider struct {
 	ClientSecret string `db:"client_secret" json:"client_secret"`
 	Skip2FA      bool   `db:"skip_2fa" json:"skip_2fa"`
 	IsEnabled    bool   `db:"is_enabled" json:"is_enabled"`
+	Sort         int    `db:"sort" json:"sort"`
 	CreatedAt    string `db:"created_at" json:"created_at"`
 	UpdatedAt    string `db:"updated_at" json:"updated_at"`
 }
