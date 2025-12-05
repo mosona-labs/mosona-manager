@@ -10,6 +10,10 @@ import (
 )
 
 func register(c echo.Context) error {
+	if config.DynamicConf.RegistrationEnabled {
+		return c.JSON(403, _type.H{Code: "forbidden", Msg: "Registration is disabled"})
+	}
+
 	username := c.FormValue("username")
 	emailAddress := c.FormValue("email")
 	password := c.FormValue("password")
