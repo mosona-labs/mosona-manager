@@ -1,13 +1,10 @@
 package ateam
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"mosona-manager/_type"
 	"mosona-manager/db"
 	"mosona-manager/utils"
-	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -20,26 +17,9 @@ func create(c echo.Context) error {
 	description := c.FormValue("description")
 	avatarColor := c.FormValue("avatar_color")
 
-	// Get plan ID
-	planId, _ := strconv.ParseInt(c.FormValue("plan_id"), 10, 64)
-	planInfo, err := db.GetPlanById(planId)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.JSON(400, _type.H{
-				Code: "error",
-				Msg:  "Plan not found",
-			})
-		} else {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
-		}
-	}
-
 	// Parse member IDs
 	var members = make([]_type.TeamUsersRole, 0)
-	if err = json.Unmarshal([]byte(c.FormValue("members")), &members); err != nil {
+	if err := json.Unmarshal([]byte(c.FormValue("members")), &members); err != nil {
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid member data",
@@ -57,15 +37,9 @@ func create(c echo.Context) error {
 			Msg:  "You must be the owner of the team",
 		})
 	}
-	if len(members) > planInfo.MaxMember && planInfo.MaxMember != -1 {
-		return c.JSON(400, _type.H{
-			Code: "error",
-			Msg:  "Member count exceeds plan limit",
-		})
-	}
 
 	// Validate input
-	if name == "" || avatarColor == "" || planId == 0 {
+	if name == "" || avatarColor == "" {
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid input",
@@ -124,10 +98,6 @@ func create(c echo.Context) error {
 		avatarColor,
 		avatarUrl,
 		members,
-		planInfo.MaxServer,
-		planInfo.MaxAlert,
-		planInfo.MaxMember,
-		planId,
 		uid,
 	)
 	if err != nil {

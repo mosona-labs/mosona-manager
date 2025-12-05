@@ -11,7 +11,4 @@ func Router(e *echo.Group) {
 	e.POST("", create)
 	e.PUT("/:id", edit, middleware.WriteAuth)
 	e.DELETE("/leave/:id", leave)
-
-	// Plans
-	e.GET("/plans", plans)
 }

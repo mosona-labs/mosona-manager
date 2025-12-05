@@ -30,23 +30,6 @@ func edit(c echo.Context) error {
 		})
 	}
 
-	// Get Team limit
-	var maxMembers int
-	if err := db.Db.QueryRow(
-		`SELECT max_member FROM teams WHERE id = $1`, tid,
-	).Scan(&maxMembers); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
-	}
-	if len(members) > maxMembers && maxMembers != -1 {
-		return c.JSON(400, _type.H{
-			Code: "error",
-			Msg:  "Member limit exceeded",
-		})
-	}
-
 	// Update team members
 	tx, err := db.Db.Begin()
 	if err != nil {

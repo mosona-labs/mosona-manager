@@ -90,33 +90,6 @@ func add(c echo.Context) error {
 		})
 	}
 
-	// Max server limit
-	var maxServers, currentServers int
-	if err = db.Db.QueryRow(
-		"SELECT max_server FROM teams WHERE id = $1",
-		tid,
-	).Scan(&maxServers); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
-	}
-	if err = db.Db.QueryRow(
-		"SELECT COUNT(*) FROM servers WHERE team_id = $1",
-		tid,
-	).Scan(&currentServers); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
-	}
-	if currentServers >= maxServers && maxServers != -1 {
-		return c.JSON(400, _type.H{
-			Code: "error",
-			Msg:  "Server limit reached",
-		})
-	}
-
 	// Insert into database
 	tx, err := db.Db.Begin()
 	if err != nil {

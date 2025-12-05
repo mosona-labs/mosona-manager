@@ -6,7 +6,7 @@ func GetTeamById(id int64) (_type.Team, error) {
 	var team _type.Team
 	if err := Db.Get(
 		&team,
-		"SELECT id, owner_id, name, description, color, image, max_server, max_alert, max_member, updated_at, created_at FROM teams WHERE id = $1",
+		"SELECT id, owner_id, name, description, color, image, updated_at, created_at FROM teams WHERE id = $1",
 		id,
 	); err != nil {
 		return _type.Team{}, err
@@ -21,10 +21,6 @@ func CreateTeam(
 	avatarColor string,
 	avatarUrl string,
 	members []_type.TeamUsersRole,
-	maxServer int,
-	maxAlert int,
-	maxMember int,
-	planId int64,
 	ownerId int64,
 ) (int64, error) {
 	tx, err := Db.Beginx()
@@ -34,9 +30,9 @@ func CreateTeam(
 
 	var teamId int64
 	if err = tx.QueryRow(
-		`INSERT INTO teams (name, description, color, image, max_server, max_alert, max_member, plan_id, owner_id)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-		name, description, avatarColor, avatarUrl, maxServer, maxAlert, maxMember, planId, ownerId,
+		`INSERT INTO teams (name, description, color, image, owner_id)
+		 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+		name, description, avatarColor, avatarUrl, ownerId,
 	).Scan(&teamId); err != nil {
 		_ = tx.Rollback()
 		return 0, err
@@ -64,7 +60,7 @@ func CreateTeam(
 func GetTeamsByUserId(uid int64) ([]_type.Team, error) {
 	var teams = make([]_type.Team, 0)
 	if err := Db.Select(&teams, `
-		SELECT t.id, t.owner_id, t.name, t.description, t.color, t.image, t.max_server, t.max_alert, t.max_member, t.updated_at, t.created_at
+		SELECT t.id, t.owner_id, t.name, t.description, t.color, t.image, t.updated_at, t.created_at
 		FROM teams t
 		JOIN m_team_user mtu ON t.id = mtu.team_id
 		WHERE mtu.user_id = $1
