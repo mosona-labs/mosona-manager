@@ -87,7 +87,7 @@ func oauthCallback(c echo.Context) error {
 	}
 	if ok {
 		store.DeleteAuthSessionState(state)
-		return c.JSON(200, _type.H{
+		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Not Available",
 		})

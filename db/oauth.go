@@ -1,6 +1,9 @@
 package db
 
-import "mosona-manager/_type"
+import (
+	"database/sql"
+	"mosona-manager/_type"
+)
 
 func GetOAuthProvider() ([]_type.AuthProvider, error) {
 	var providers = make([]_type.AuthProvider, 0)
@@ -88,4 +91,104 @@ func DeleteOAuthProvider(id int) error {
 	}
 
 	return tx.Commit()
+}
+
+func GetAuthByUserID(userID int64) ([]_type.PublicAuthIdentity, error) {
+	rows, err := Db.Query(
+		`SELECT ap.id, ap.name, ap.icon, ai.name, ai.email, ai.last_login_at
+		  FROM auth_provider ap
+		  LEFT JOIN auth_identity ai ON ai.provider_id = ap.id AND ai.user_id = $1
+		  WHERE ap.is_enabled = true
+		  ORDER BY ap.sort, ap.id DESC`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	var identities = make([]_type.PublicAuthIdentity, 0)
+	for rows.Next() {
+		var identity _type.PublicAuthIdentity
+		var name, email sql.NullString
+		var lastLoginAt sql.NullTime
+
+		if err := rows.Scan(
+			&identity.Id,
+			&identity.Name,
+			&identity.Icon,
+			&name,
+			&email,
+			&lastLoginAt,
+		); err != nil {
+			return nil, err
+		}
+
+		if name.Valid {
+			identity.Linked.Name = name.String
+		}
+		if email.Valid {
+			identity.Linked.Email = email.String
+		}
+		if lastLoginAt.Valid {
+			identity.Linked.LastLoginAt = lastLoginAt.Time
+		}
+
+		identities = append(identities, identity)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return identities, nil
+}
+func DeleteAuthIdentityByProviderAndUserID(providerID int, userID int64) error {
+	_, err := Db.Exec(
+		"DELETE FROM auth_identity WHERE provider_id=$1 AND user_id=$2",
+		providerID,
+		userID,
+	)
+	return err
+}
+
+func GetBindByProviderAndUserID(providerID int, userID int64) (*_type.AuthIdentity, error) {
+	var identity _type.AuthIdentity
+	if err := Db.Get(
+		&identity,
+		"SELECT id, user_id, provider_id, subject, email, name, last_login_at FROM auth_identity WHERE provider_id=$1 AND user_id=$2",
+		providerID,
+		userID,
+	); err != nil {
+		return nil, err
+	}
+	return &identity, nil
+}
+
+func GetBindByProviderAndSubject(providerID int, subject string) (*_type.AuthIdentity, error) {
+	var identity _type.AuthIdentity
+	if err := Db.Get(
+		&identity,
+		"SELECT id, user_id, provider_id, subject, email, name, last_login_at FROM auth_identity WHERE provider_id=$1 AND subject=$2",
+		providerID,
+		subject,
+	); err != nil {
+		return nil, err
+	}
+	return &identity, nil
+}
+
+func AddAuthIdentity(userID int64, providerID int, subject, email, name string) (int64, error) {
+	var id int64
+	err := Db.QueryRow(
+		`INSERT INTO auth_identity (user_id, provider_id, subject, email, name, last_login_at) 
+		VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING id`,
+		userID, providerID, subject, email, name,
+	).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }

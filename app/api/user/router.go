@@ -16,4 +16,9 @@ func Router(e *echo.Group) {
 	e.GET("/sessions", sessions)
 	e.DELETE("/sessions/:sid", sessionRevoke)
 	e.DELETE("/sessions", sessionRevokeAll)
+
+	// OAuth
+	e.GET("/oauth", oauthIdentities)
+	e.DELETE("/oauth/:id", oauthRevoke)
+	e.POST("/oauth/:id", oauthLink)
 }
