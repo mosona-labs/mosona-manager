@@ -185,7 +185,7 @@ func oauthCallback(c echo.Context) error {
 				return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
 			}
 			// 2FA Required
-			return c.JSON(400, _type.H{Code: "2fa_required", Msg: "Two-factor authentication required"})
+			return c.JSON(200, _type.H{Code: "2fa_required", Msg: "Two-factor authentication required"})
 		}
 	}
 

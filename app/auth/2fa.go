@@ -201,6 +201,8 @@ func verifyMFACode(c echo.Context) error {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
 	}
 
+	loginEvent(user.ID, sess.ID, c.RealIP(), c.Request().Header.Get("User-Agent"))
+
 	return c.JSON(200, _type.H{Code: "ok", Msg: "2FA verification successful"})
 }
 
@@ -256,6 +258,8 @@ func verifyTOTP(c echo.Context) error {
 	if err = sess.Save(c.Request(), c.Response()); err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
 	}
+
+	loginEvent(user.ID, sess.ID, c.RealIP(), c.Request().Header.Get("User-Agent"))
 
 	return c.JSON(200, _type.H{Code: "ok", Msg: "TOTP verification successful"})
 }
