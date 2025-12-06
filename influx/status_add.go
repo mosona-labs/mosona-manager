@@ -32,6 +32,8 @@ func AddServerStatus(serverId int64, status _type.ServerStatusType) error {
 			"tx_kib_s":         status.TxKibS,
 			"rx_total_mb":      status.RxTotalMB,
 			"tx_total_mb":      status.TxTotalMB,
+			"tcp_total":        status.TCPTotal,
+			"udp_total":        status.UDPTotal,
 		},
 		time.Now(),
 	)

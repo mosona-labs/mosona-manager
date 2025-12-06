@@ -19,9 +19,7 @@ func minuteDownsample() {
 	time.Sleep(time.Until(next))
 
 	for {
-		if err := performMinuteDownsample(); err != nil {
-			//log.Printf("Failed to execute minute downsampling query: %v", err)
-		}
+		_ = performMinuteDownsample()
 		time.Sleep(time.Minute)
 	}
 }
@@ -45,7 +43,6 @@ func performMinuteDownsample() error {
 		return err
 	}
 
-	//log.Printf("Complete minute downsampling: %s to %s", start.Format("2006-01-02 15:04"), stop.Format("2006-01-02 15:04"))
 	return nil
 }
 
@@ -55,9 +52,7 @@ func hourlyDownsample() {
 	time.Sleep(time.Until(next))
 
 	for {
-		if err := performHourlyDownsample(); err != nil {
-			//log.Printf("Failed to execute hourly downsampling query: %v", err)
-		}
+		_ = performHourlyDownsample()
 		time.Sleep(time.Hour)
 	}
 }
@@ -81,7 +76,6 @@ func performHourlyDownsample() error {
 		return err
 	}
 
-	//log.Printf("Complete hourly downsampling: %s to %s", start.Format("2006-01-02 15:04"), stop.Format("2006-01-02 15:04"))
 	return nil
 }
 
@@ -91,9 +85,7 @@ func dailyDownsample() {
 	time.Sleep(time.Until(next))
 
 	for {
-		if err := performDailyDownsample(); err != nil {
-			//log.Printf("Failed to execute daily downsampling query: %v", err)
-		}
+		_ = performDailyDownsample()
 		time.Sleep(24 * time.Hour)
 	}
 }
@@ -117,6 +109,5 @@ func performDailyDownsample() error {
 		return err
 	}
 
-	//log.Printf("Complete daily downsampling: %s to %s", start.Format("2006-01-02"), stop.Format("2006-01-02"))
 	return nil
 }

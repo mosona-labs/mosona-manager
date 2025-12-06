@@ -127,25 +127,43 @@ disk_io_task() {
     }' > "$out"
 }
 
+# TCP/UDP connections task
+tcp_udp_task() {
+  local out="$1"
+
+  local tcp_total
+  tcp_total=$(awk 'NR>1' /proc/net/tcp /proc/net/tcp6 2>/dev/null | wc -l)
+
+  local udp_total
+  udp_total=$(awk 'NR>1' /proc/net/udp /proc/net/udp6 2>/dev/null | wc -l)
+
+  {
+    printf "tcp_total=%d\n" "$tcp_total"
+    printf "udp_total=%d\n" "$udp_total"
+  } > "$out"
+}
+
 while true; do
   cpu_f="$tmpdir/cpu"
   mem_f="$tmpdir/mem"
   disk_space_f="$tmpdir/dspace"
   net_f="$tmpdir/net"
   diskio_f="$tmpdir/dio"
+  tcp_udp_f="$tmpdir/tcpudp"
 
-  : > "$cpu_f" "$mem_f" "$disk_space_f" "$net_f" "$diskio_f"
+  : > "$cpu_f" "$mem_f" "$disk_space_f" "$net_f" "$diskio_f" "$tcp_udp_f"
 
   cpu_task "$cpu_f" & pid_cpu=$!
   mem_task "$mem_f" & pid_mem=$!
   disk_space_task "$disk_space_f" & pid_dspace=$!
   net_task "$net_f" & pid_net=$!
   disk_io_task "$diskio_f" & pid_dio=$!
+  tcp_udp_task "$tcp_udp_f" & pid_tcpudp=$!
 
-  wait "$pid_cpu" "$pid_mem" "$pid_dspace" "$pid_net" "$pid_dio"
+  wait "$pid_cpu" "$pid_mem" "$pid_dspace" "$pid_net" "$pid_dio" "$pid_tcpudp"
 
   (
-    cat "$cpu_f" "$mem_f" "$disk_space_f" "$net_f" "$diskio_f"
+    cat "$cpu_f" "$mem_f" "$disk_space_f" "$net_f" "$diskio_f" "$tcp_udp_f"
   ) | awk '
     BEGIN { printf "{"; first=1 }
     /^[[:space:]]*$/ { next }

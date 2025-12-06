@@ -61,6 +61,10 @@ func GetLatestServerStatus(serverID int64) (*_type.ServerStatusType, error) {
 			status.RxTotalMB = value.(float64)
 		case "tx_total_mb":
 			status.TxTotalMB = value.(float64)
+		case "tcp_total":
+			status.TCPTotal = value.(int64)
+		case "udp_total":
+			status.UDPTotal = value.(int64)
 		}
 	}
 	status.Time = latestTime
@@ -148,6 +152,10 @@ func GetLatestServerStatusBatch(serverIDs []int64) (map[int64]*_type.ServerStatu
 			status.RxTotalMB = value.(float64)
 		case "tx_total_mb":
 			status.TxTotalMB = value.(float64)
+		case "tcp_total":
+			status.TCPTotal = value.(int64)
+		case "udp_total":
+			status.UDPTotal = value.(int64)
 		}
 	}
 
@@ -227,6 +235,10 @@ func GetServerStatusHistory(serverID int64, start, end time.Time, timeFrame stri
 			status.RxTotalMB = value.(float64)
 		case "tx_total_mb":
 			status.TxTotalMB = value.(float64)
+		case "tcp_total":
+			status.TCPTotal = value.(int64)
+		case "udp_total":
+			status.UDPTotal = value.(int64)
 		}
 	}
 

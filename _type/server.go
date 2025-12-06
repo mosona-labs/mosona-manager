@@ -51,6 +51,8 @@ type ServerStatusType struct {
 	TxKibS        float64   `json:"tx_kib_s"`
 	RxTotalMB     float64   `json:"rx_total_mb"`
 	TxTotalMB     float64   `json:"tx_total_mb"`
+	TCPTotal      int64     `json:"tcp_total"`
+	UDPTotal      int64     `json:"udp_total"`
 	Time          time.Time `json:"time"`
 }
 
