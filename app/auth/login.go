@@ -47,11 +47,6 @@ func login(c echo.Context) error {
 		})
 	}
 
-	// Verify
-	if !user.Verified {
-		return c.JSON(401, _type.H{Code: "verify", Msg: "Account is not verified"})
-	}
-
 	// Session
 	sess, err := session.Get("session", c)
 	if err != nil {
@@ -68,7 +63,7 @@ func login(c echo.Context) error {
 		HttpOnly: true,
 	}
 
-	if (user.TOTP != nil && *user.TOTP != "") || config.DynamicConf.EmailVerifyLogin {
+	if (user.TOTP != nil && *user.TOTP != "") || config.DynamicConf.EmailVerifyLogin || !user.Verified {
 		sess.Values["pre_2fa_uid"] = user.ID
 		if err = sess.Save(c.Request(), c.Response()); err != nil {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
