@@ -15,6 +15,11 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
 		}
 
+		// 2FA Required
+		if sess.Values["pre_2fa_uid"] != nil {
+			return c.JSON(200, _type.H{Code: "2fa_required", Msg: "Two-factor authentication required"})
+		}
+
 		// User ID
 		uid := sess.Values["uid"]
 		if uid == nil || uid == 0 {
@@ -51,6 +56,11 @@ func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		sess, err := session.Get("session", c)
 		if err != nil {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
+		}
+
+		// 2FA Required
+		if sess.Values["pre_2fa_uid"] != nil {
+			return c.JSON(200, _type.H{Code: "2fa_required", Msg: "Two-factor authentication required"})
 		}
 
 		uid := sess.Values["uid"]

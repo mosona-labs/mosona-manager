@@ -29,18 +29,16 @@ type PublicAuthIdentity struct {
 	Name   string `json:"name"`
 	Icon   string `json:"icon"`
 	Linked struct {
-		Name        string    `json:"name"`
-		Email       string    `json:"email"`
-		LastLoginAt time.Time `json:"last_login_at"`
+		Name  string `json:"name"`
+		Email string `json:"email"`
 	} `json:"linked"`
 }
 
 type AuthIdentity struct {
-	ID          int64     `db:"id" json:"id"`
-	UserID      int64     `db:"user_id" json:"user_id"`
-	ProviderID  int       `db:"provider_id" json:"provider_id"`
-	Subject     string    `db:"subject" json:"subject"`
-	Email       string    `db:"email" json:"email"`
-	Name        string    `db:"name" json:"name"`
-	LastLoginAt time.Time `db:"last_login_at" json:"last_login_at"`
+	ID         int64  `db:"id" json:"id"`
+	UserID     int64  `db:"user_id" json:"user_id"`
+	ProviderID int    `db:"provider_id" json:"provider_id"`
+	Subject    string `db:"subject" json:"subject"`
+	Email      string `db:"email" json:"email"`
+	Name       string `db:"name" json:"name"`
 }

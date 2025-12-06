@@ -13,6 +13,9 @@ type Response struct {
 	SMTPPassword string `json:"smtp_password"`
 	SMTPTls      bool   `json:"smtp_tls"`
 
+	// Login
+	EmailVerifyLogin bool `json:"email_verify_login"`
+
 	// Registration
 	RegistrationEnabled     bool `json:"registration_enabled"`
 	RegistrationVerifyEmail bool `json:"registration_verify_email"`

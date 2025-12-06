@@ -31,7 +31,7 @@ func GetAuthIdentityBySubject(providerID int, subject string) (*_type.AuthIdenti
 	var identity _type.AuthIdentity
 	if err := Db.Get(
 		&identity,
-		"SELECT id, user_id, provider_id, subject, email, name, last_login_at FROM auth_identity WHERE provider_id=$1 AND subject=$2",
+		"SELECT id, user_id, provider_id, subject, email, name FROM auth_identity WHERE provider_id=$1 AND subject=$2",
 		providerID,
 		subject,
 	); err != nil {
@@ -95,7 +95,7 @@ func DeleteOAuthProvider(id int) error {
 
 func GetAuthByUserID(userID int64) ([]_type.PublicAuthIdentity, error) {
 	rows, err := Db.Query(
-		`SELECT ap.id, ap.name, ap.icon, ai.name, ai.email, ai.last_login_at
+		`SELECT ap.id, ap.name, ap.icon, ai.name, ai.email
 		  FROM auth_provider ap
 		  LEFT JOIN auth_identity ai ON ai.provider_id = ap.id AND ai.user_id = $1
 		  WHERE ap.is_enabled = true
@@ -113,7 +113,6 @@ func GetAuthByUserID(userID int64) ([]_type.PublicAuthIdentity, error) {
 	for rows.Next() {
 		var identity _type.PublicAuthIdentity
 		var name, email sql.NullString
-		var lastLoginAt sql.NullTime
 
 		if err := rows.Scan(
 			&identity.Id,
@@ -121,7 +120,6 @@ func GetAuthByUserID(userID int64) ([]_type.PublicAuthIdentity, error) {
 			&identity.Icon,
 			&name,
 			&email,
-			&lastLoginAt,
 		); err != nil {
 			return nil, err
 		}
@@ -131,9 +129,6 @@ func GetAuthByUserID(userID int64) ([]_type.PublicAuthIdentity, error) {
 		}
 		if email.Valid {
 			identity.Linked.Email = email.String
-		}
-		if lastLoginAt.Valid {
-			identity.Linked.LastLoginAt = lastLoginAt.Time
 		}
 
 		identities = append(identities, identity)
@@ -158,7 +153,7 @@ func GetBindByProviderAndUserID(providerID int, userID int64) (*_type.AuthIdenti
 	var identity _type.AuthIdentity
 	if err := Db.Get(
 		&identity,
-		"SELECT id, user_id, provider_id, subject, email, name, last_login_at FROM auth_identity WHERE provider_id=$1 AND user_id=$2",
+		"SELECT id, user_id, provider_id, subject, email, name FROM auth_identity WHERE provider_id=$1 AND user_id=$2",
 		providerID,
 		userID,
 	); err != nil {
@@ -171,7 +166,7 @@ func GetBindByProviderAndSubject(providerID int, subject string) (*_type.AuthIde
 	var identity _type.AuthIdentity
 	if err := Db.Get(
 		&identity,
-		"SELECT id, user_id, provider_id, subject, email, name, last_login_at FROM auth_identity WHERE provider_id=$1 AND subject=$2",
+		"SELECT id, user_id, provider_id, subject, email, name FROM auth_identity WHERE provider_id=$1 AND subject=$2",
 		providerID,
 		subject,
 	); err != nil {
@@ -183,8 +178,8 @@ func GetBindByProviderAndSubject(providerID int, subject string) (*_type.AuthIde
 func AddAuthIdentity(userID int64, providerID int, subject, email, name string) (int64, error) {
 	var id int64
 	err := Db.QueryRow(
-		`INSERT INTO auth_identity (user_id, provider_id, subject, email, name, last_login_at) 
-		VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING id`,
+		`INSERT INTO auth_identity (user_id, provider_id, subject, email, name) 
+		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
 		userID, providerID, subject, email, name,
 	).Scan(&id)
 	if err != nil {

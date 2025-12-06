@@ -19,7 +19,7 @@ func GetActivateTemplate(username, code string) (string, error) {
 	}
 	body := string(data)
 
-	body = replacePlaceholder(body, "{{USERNAME}}", username)
+	body = replacePlaceholder(body, "{{USER_NAME}}", username)
 	body = replacePlaceholder(body, "{{CODE}}", code)
 
 	return body, nil
@@ -32,7 +32,7 @@ func GetTwoFATemplate(username, code string) (string, error) {
 	}
 	body := string(data)
 
-	body = replacePlaceholder(body, "{{USERNAME}}", username)
+	body = replacePlaceholder(body, "{{USER_NAME}}", username)
 	body = replacePlaceholder(body, "{{CODE}}", code)
 
 	return body, nil

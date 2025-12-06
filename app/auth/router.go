@@ -1,6 +1,8 @@
 package auth
 
-import "github.com/labstack/echo/v4"
+import (
+	"github.com/labstack/echo/v4"
+)
 
 func Router(e *echo.Group) {
 	e.POST("/login", login)
@@ -10,6 +12,13 @@ func Router(e *echo.Group) {
 	// OAuth
 	e.GET("/oauth/:id", oauthLogin)
 	e.POST("/oauth/:id", oauthCallback)
+
+	// 2FA
+	tfa := e.Group("/2fa", middlewareFA)
+	tfa.GET("/status", getTwoFAStatus)
+	tfa.POST("/send_code", sendMFACode)
+	tfa.POST("/verify_code", verifyMFACode)
+	tfa.POST("/verify_totp", verifyTOTP)
 
 	e.GET("/keys", keys) // Key
 }

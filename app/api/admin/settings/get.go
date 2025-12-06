@@ -19,6 +19,7 @@ func get(c echo.Context) error {
 			SMTPUsername:            config.DynamicConf.SMTPUsername,
 			SMTPPassword:            config.DynamicConf.SMTPPassword,
 			SMTPTls:                 config.DynamicConf.SMTPTls,
+			EmailVerifyLogin:        config.DynamicConf.EmailVerifyLogin,
 			RegistrationEnabled:     config.DynamicConf.RegistrationEnabled,
 			RegistrationVerifyEmail: config.DynamicConf.RegistrationVerifyEmail,
 			CaptchaSiteKey:          config.DynamicConf.CaptchaSiteKey,
