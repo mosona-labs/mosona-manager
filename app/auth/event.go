@@ -11,6 +11,7 @@ import (
 func loginEvent(
 	uid int64, sessionId string,
 	ip string, ua string,
+	isAdmin bool,
 ) {
 	// Update login time & Save session ID
 	go func() {
@@ -45,6 +46,17 @@ func loginEvent(
 				uid,
 				"login",
 				"User logged in",
+				ip,
+				ua,
+				"medium",
+			)
+		}
+		if isAdmin {
+			influx.LogAdd(
+				0,
+				uid,
+				"login",
+				"Admin logged in",
 				ip,
 				ua,
 				"medium",

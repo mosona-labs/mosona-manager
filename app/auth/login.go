@@ -85,7 +85,7 @@ func login(c echo.Context) error {
 		}
 	}
 
-	loginEvent(user.ID, sess.ID, c.RealIP(), c.Request().Header.Get("User-Agent"))
+	loginEvent(user.ID, sess.ID, c.RealIP(), c.Request().Header.Get("User-Agent"), user.IsAdmin)
 
 	return c.JSON(200, _type.H{Code: "ok", Msg: "Login success"})
 }
