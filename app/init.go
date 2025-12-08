@@ -7,6 +7,7 @@ import (
 	"mosona-manager/_type"
 	"mosona-manager/app/api/admin"
 	acategory "mosona-manager/app/api/category"
+	akeys "mosona-manager/app/api/keys"
 	alogs "mosona-manager/app/api/logs"
 	aserver "mosona-manager/app/api/server"
 	ateam "mosona-manager/app/api/team"
@@ -64,6 +65,7 @@ func Start() {
 	{
 		auser.Router(v1.Group("/user"))         // User
 		ateam.Router(v1.Group("/team"))         // Team
+		akeys.Router(v1.Group("/key"))          // Keys
 		acategory.Router(v1.Group("/category")) // Category
 		aserver.Router(v1.Group("/server"))     // Server
 		alogs.Router(v1.Group("/logs"))         // Logs

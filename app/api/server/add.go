@@ -29,7 +29,7 @@ func add(c echo.Context) error {
 	allowMonitor := c.FormValue("allow_monitor") == "true"
 	allowTerminal := c.FormValue("allow_terminal") == "true"
 
-	if tid == 0 || name == "" || address == "" || port == 0 || username == "" || password == "" || categoryId == 0 {
+	if tid == 0 || name == "" || address == "" || port == 0 || username == "" || categoryId == 0 {
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid server data",
