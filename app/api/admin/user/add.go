@@ -4,6 +4,7 @@ import (
 	"mosona-manager/_type"
 	"mosona-manager/config"
 	"mosona-manager/db"
+	"mosona-manager/influx"
 	"mosona-manager/utils"
 
 	"github.com/labstack/echo/v4"
@@ -44,6 +45,12 @@ func add(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	// Log action
+	influx.LogAdd(
+		0, c.Get("uid").(int64), "user", "create "+email,
+		c.RealIP(), c.Request().UserAgent(), "low",
+	)
 
 	return c.JSON(200, _type.H{
 		Code: "ok",

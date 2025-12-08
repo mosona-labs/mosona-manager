@@ -3,6 +3,7 @@ package muser
 import (
 	"mosona-manager/_type"
 	"mosona-manager/db"
+	"mosona-manager/influx"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -23,6 +24,12 @@ func del(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	// Log action
+	influx.LogAdd(
+		0, c.Get("uid").(int64), "user", "delete user ID "+strconv.FormatInt(id, 10),
+		c.RealIP(), c.Request().UserAgent(), "medium",
+	)
 
 	return c.JSON(200, _type.H{
 		Code: "ok",

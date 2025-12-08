@@ -4,6 +4,7 @@ import (
 	"mosona-manager/_type"
 	"mosona-manager/config"
 	"mosona-manager/db"
+	"mosona-manager/influx"
 	"mosona-manager/utils"
 	"strconv"
 
@@ -61,6 +62,12 @@ func edit(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	// Log action
+	influx.LogAdd(
+		0, c.Get("uid").(int64), "user", "edit user ID "+strconv.FormatInt(id, 10),
+		c.RealIP(), c.Request().UserAgent(), "medium",
+	)
 
 	return c.JSON(200, _type.H{
 		Code: "ok",

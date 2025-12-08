@@ -3,7 +3,9 @@ package msettings
 import (
 	"mosona-manager/_type"
 	"mosona-manager/db"
+	"mosona-manager/influx"
 	"mosona-manager/oauth"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -62,6 +64,16 @@ func set(c echo.Context) error {
 			Msg:  "Failed to reload configuration",
 		})
 	}
+
+	// Log action
+	var settings []string
+	for _, item := range *req {
+		settings = append(settings, item.Key+"="+item.Value)
+	}
+	influx.LogAdd(
+		0, c.Get("uid").(int64), "settings", "updated: "+strings.Join(settings, ", "),
+		c.RealIP(), c.Request().UserAgent(), "medium",
+	)
 
 	return c.JSON(200, _type.H{
 		Code: "ok",
