@@ -18,3 +18,15 @@ func Send(toEmail, subject, content string) error {
 		return ErrNoEmailProvider
 	}
 }
+
+func VerifyEmailProvider() error {
+	switch config.DynamicConf.EmailProvider {
+	case "smtp":
+		if config.DynamicConf.SMTPHost == "" || config.DynamicConf.SMTPPort == 0 || config.DynamicConf.SMTPUsername == "" || config.DynamicConf.SMTPPassword == "" {
+			return ErrEmailProviderNotInit
+		}
+		return nil
+	default:
+		return ErrNoEmailProvider
+	}
+}

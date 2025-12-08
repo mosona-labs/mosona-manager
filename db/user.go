@@ -26,7 +26,7 @@ func GetUserByEmail(email string) (_type.User, error) {
 
 func GetUserAuthById(id int64) (_type.UserAuthInfo, error) {
 	var user _type.UserAuthInfo
-	if err := Db.Get(&user, "SELECT id, email, password, salt, is_admin, verified FROM users WHERE id = $1", id); err != nil {
+	if err := Db.Get(&user, "SELECT id, email, password, totp, salt, is_admin, verified FROM users WHERE id = $1", id); err != nil {
 		return _type.UserAuthInfo{}, err
 	}
 
@@ -101,4 +101,9 @@ func CheckEmailExistsExcludeID(email string, excludeID int64) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func SetUserTOTP(userID int64, totp *string) error {
+	_, err := Db.Exec("UPDATE users SET totp = $1 WHERE id = $2", totp, userID)
+	return err
 }

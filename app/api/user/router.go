@@ -1,6 +1,10 @@
 package auser
 
-import "github.com/labstack/echo/v4"
+import (
+	"mosona-manager/app/middleware"
+
+	"github.com/labstack/echo/v4"
+)
 
 func Router(e *echo.Group) {
 	e.GET("/me", me)
@@ -21,4 +25,9 @@ func Router(e *echo.Group) {
 	e.GET("/oauth", oauthIdentities)
 	e.DELETE("/oauth/:id", oauthRevoke)
 	e.POST("/oauth/:id", oauthLink)
+
+	// TOTP
+	e.POST("/totp/enable", enableTOTP)
+	e.POST("/totp/confirm", confirmTOTP)
+	e.POST("/totp/disable", disableTOTP, middleware.TwoFA)
 }
