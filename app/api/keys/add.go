@@ -18,6 +18,7 @@ func add(c echo.Context) error {
 
 	name := c.FormValue("name")
 	content := c.FormValue("content")
+	password := c.FormValue("password")
 	if name == "" || content == "" {
 		return c.JSON(400, _type.H{
 			Code: "input",
@@ -25,7 +26,7 @@ func add(c echo.Context) error {
 		})
 	}
 
-	if _, err := db.AddKey(tid, name, content); err != nil {
+	if _, err := db.AddKey(tid, name, content, password); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",

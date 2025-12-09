@@ -1,7 +1,9 @@
 package akeys
 
 import (
+	"fmt"
 	"mosona-manager/_type"
+	"mosona-manager/connect"
 	"mosona-manager/db"
 	"strconv"
 
@@ -32,13 +34,34 @@ func edit(c echo.Context) error {
 			Msg:  "Key name cannot be empty",
 		})
 	}
+	password := c.FormValue("password")
 
-	if err := db.UpdateKey(tid, id, name); err != nil {
+	if err := db.UpdateKey(tid, id, name, password); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
 		})
 	}
+
+	go func() {
+		rows, err := db.Db.Query("SELECT id FROM servers WHERE allow_monitor AND key_id=$1 AND team_id=$2", id, tid)
+		if err != nil {
+			return
+		}
+		defer func() {
+			_ = rows.Close()
+		}()
+
+		for rows.Next() {
+			var sid int64
+			if err = rows.Scan(&sid); err != nil {
+				return
+			}
+			if err = connect.StartServer(sid); err != nil {
+				fmt.Println("Failed to restart server connection:", err)
+			}
+		}
+	}()
 
 	return c.JSON(200, _type.H{
 		Code: "ok",

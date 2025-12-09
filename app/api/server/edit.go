@@ -50,7 +50,7 @@ func edit(c echo.Context) error {
 	}
 
 	// Handle monitoring service
-	if lastAllowMonitor != data.AllowMonitor && data.AllowMonitor {
+	if data.AllowMonitor {
 		go func() {
 			if err := connect.StartServer(serverId); err != nil {
 				fmt.Println("Failed to start server connection:", err)

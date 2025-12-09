@@ -35,6 +35,8 @@ type serverEntry struct {
 	port     int
 	user     string
 	password string
+	key      string
+	keyPwd   string
 	callback func(data _type.ServerStatusType)
 	info     infoCallbackType
 }
@@ -42,12 +44,23 @@ type serverEntry struct {
 func StartServer(serverId int64) error {
 	var host, user string
 	var port int
-	var password []byte
-	var pwdStr string
+
+	var (
+		password []byte
+		pwdStr   string
+	)
+	var (
+		key    []byte
+		keyStr string
+	)
+	var (
+		keyPassword []byte
+		keyPwdStr   string
+	)
 
 	if err := db.Db.QueryRow(
-		"SELECT address, port, username, password FROM servers WHERE id = $1", serverId,
-	).Scan(&host, &port, &user, &password); err != nil {
+		"SELECT address, port, username, s.password, k.password, k.content FROM servers s LEFT JOIN keys k ON s.key_id = k.id WHERE s.id = $1", serverId,
+	).Scan(&host, &port, &user, &password, &keyPassword, &key); err != nil {
 		return err
 	}
 	if password != nil {
@@ -56,6 +69,20 @@ func StartServer(serverId int64) error {
 			return err
 		}
 		pwdStr = string(pwd)
+	}
+	if key != nil {
+		k, err := utils.Decrypt(key, config.Key)
+		if err != nil {
+			return err
+		}
+		keyStr = string(k)
+	}
+	if keyPassword != nil {
+		kp, err := utils.Decrypt(keyPassword, config.Key)
+		if err != nil {
+			return err
+		}
+		keyPwdStr = string(kp)
 	}
 
 	var callback = func(data _type.ServerStatusType) {
@@ -131,12 +158,14 @@ func StartServer(serverId int64) error {
 			port:     port,
 			user:     user,
 			password: pwdStr,
+			key:      keyStr,
+			keyPwd:   keyPwdStr,
 			callback: callback,
 			info:     info,
 		}
 		mu.Unlock()
 		go func() {
-			_ = SSH(ctx, host, port, user, pwdStr, callback, info)
+			_ = SSH(ctx, host, port, user, pwdStr, keyStr, keyPwdStr, callback, info)
 		}()
 	} else {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -146,12 +175,14 @@ func StartServer(serverId int64) error {
 			port:     port,
 			user:     user,
 			password: pwdStr,
+			key:      keyStr,
+			keyPwd:   keyPwdStr,
 			callback: callback,
 			info:     info,
 		}
 		mu.Unlock()
 		go func() {
-			_ = SSH(ctx, host, port, user, pwdStr, callback, info)
+			_ = SSH(ctx, host, port, user, pwdStr, keyStr, keyPwdStr, callback, info)
 		}()
 	}
 

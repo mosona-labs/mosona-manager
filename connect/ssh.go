@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"mosona-manager/_type"
+	"strconv"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -11,7 +12,7 @@ import (
 
 func SSH(
 	ctx context.Context,
-	host string, port int, user, password string,
+	host string, port int, user, password, key, keyPwd string,
 	callback func(data _type.ServerStatusType),
 	info infoCallbackType,
 ) error {
@@ -30,14 +31,34 @@ func SSH(
 		default:
 		}
 
+		var authMethods []ssh.AuthMethod
+		if key != "" {
+			var signer ssh.Signer
+			var err error
+
+			if keyPwd != "" {
+				signer, err = ssh.ParsePrivateKeyWithPassphrase([]byte(key), []byte(keyPwd))
+			} else {
+				signer, err = ssh.ParsePrivateKey([]byte(key))
+			}
+			if err != nil {
+				return fmt.Errorf("failed to parse private key: %w", err)
+			}
+			authMethods = []ssh.AuthMethod{ssh.PublicKeys(signer)}
+			if password != "" {
+				authMethods = append(authMethods, ssh.Password(password))
+			}
+		} else {
+			authMethods = []ssh.AuthMethod{ssh.Password(password)}
+		}
+
 		client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host, port), &ssh.ClientConfig{
-			User: user,
-			Auth: []ssh.AuthMethod{
-				ssh.Password(password),
-			},
+			User:            user,
+			Auth:            authMethods,
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout:         dialTimeout,
 		})
+
 		if err != nil {
 			select {
 			case <-ctx.Done():
@@ -70,10 +91,8 @@ func SSH(
 			switch osName {
 			case "Linux":
 				if err = information(client, func(data _type.ServerInfoType) {
-					bootTime, _ := time.Parse(
-						"2006-01-02 15:04",
-						data.Uptime,
-					)
+					u, _ := strconv.ParseInt(data.Uptime, 10, 64)
+					bootTime := time.Unix(time.Now().Unix()-u, 0)
 					info(
 						data.LinuxVersion,
 						bootTime,

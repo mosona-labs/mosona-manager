@@ -3,10 +3,11 @@ package connect
 import (
 	"bufio"
 	"encoding/json"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"mosona-manager/_type"
 	"mosona-manager/connect/script"
+
+	"golang.org/x/crypto/ssh"
 )
 
 func information(client *ssh.Client, callback func(data _type.ServerInfoType)) error {

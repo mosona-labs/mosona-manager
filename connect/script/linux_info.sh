@@ -1,5 +1,5 @@
 linux_version=$([ -f /etc/os-release ] && . /etc/os-release && distro_name="$NAME" || { [ -f /etc/redhat-release ] && distro_name="$(cat /etc/redhat-release)" || distro_name="Linux"; }; echo "$distro_name")
-uptime=$(who -b | awk '{print $3, $4}')
+uptime=$(awk '{print int($1)}' /proc/uptime)
 hostname=$(hostname)
 cpu_name=$(cat /proc/cpuinfo | grep 'model name' | head -1 | awk -F': ' '{print $2}')
 cpu_cores=$(awk '/^processor/ {nproc++} /^physical id/ {phy=$NF} /^core id/ {pair=phy ":" $NF; if (!seen[pair]++) total++} END { for (p in seen) { split(p,a,":"); sockets[a[1]]=1 } sockets_count=0; for (s in sockets) sockets_count++; if (sockets_count==0) sockets_count=1; cores_per_socket = total ? int(total / sockets_count) : 0; print cores_per_socket, nproc }' /proc/cpuinfo)

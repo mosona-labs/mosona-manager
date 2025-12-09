@@ -73,7 +73,6 @@ func sse(c echo.Context) error {
 
 		statusMap, err := influx.GetLatestServerStatusBatch(ids)
 		if err != nil {
-			fmt.Println(err)
 			_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: {\"msg\":\"Failed to get server statuses\"}\n\n")
 			c.Response().Flush()
 			return
