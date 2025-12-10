@@ -4,8 +4,8 @@ import (
 	"mosona-manager/internal/config"
 	db2 "mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/utils"
 	"mosona-manager/pkg/_type"
-	utils2 "mosona-manager/pkg/utils"
 
 	"github.com/labstack/echo/v4"
 )
@@ -34,8 +34,8 @@ func add(c echo.Context) error {
 	}
 
 	// Salt
-	signature := utils2.RandomString(32)
-	newPassword := utils2.SHA256(password + signature + config.DynamicConf.Token)
+	signature := utils.RandomString(32)
+	newPassword := utils.SHA256(password + signature + config.DynamicConf.Token)
 	if _, err = db2.Db.Exec(
 		"INSERT INTO users (username, email, password, salt, verified, is_admin) VALUES ($1, $2, $3, $4, $5, $6)",
 		username, email, newPassword, signature, verified, isAdmin,

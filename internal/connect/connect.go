@@ -6,8 +6,8 @@ import (
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/utils"
 	"mosona-manager/pkg/_type"
-	utils2 "mosona-manager/pkg/utils"
 	"sync"
 	"time"
 )
@@ -64,21 +64,21 @@ func StartServer(serverId int64) error {
 		return err
 	}
 	if password != nil {
-		pwd, err := utils2.Decrypt(password, config.Key)
+		pwd, err := utils.Decrypt(password, config.Key)
 		if err != nil {
 			return err
 		}
 		pwdStr = string(pwd)
 	}
 	if key != nil {
-		k, err := utils2.Decrypt(key, config.Key)
+		k, err := utils.Decrypt(key, config.Key)
 		if err != nil {
 			return err
 		}
 		keyStr = string(k)
 	}
 	if keyPassword != nil {
-		kp, err := utils2.Decrypt(keyPassword, config.Key)
+		kp, err := utils.Decrypt(keyPassword, config.Key)
 		if err != nil {
 			return err
 		}
@@ -109,12 +109,12 @@ func StartServer(serverId int64) error {
 		}
 		if ip == "Unknown" {
 			var err error
-			ip, err = utils2.GetDomainAddress(host)
+			ip, err = utils.GetDomainAddress(host)
 			if err != nil {
 				log.Println("Failed to get domain address:", err)
 			}
 		}
-		geo, err := utils2.GetIPGeoLocation(ip)
+		geo, err := utils.GetIPGeoLocation(ip)
 		if err != nil {
 			log.Println("Failed to get IP geo location:", err)
 			geo.CountryCode = "UN"

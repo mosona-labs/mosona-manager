@@ -16,10 +16,6 @@ English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
 
 Designed as a team-oriented / personal project management server monitor and terminal management tool, featuring comprehensive project permission control and SSH-driven remote management protocol.
 
-> Agentless Mode: No need to install any agents on the managed servers, simplifying deployment and reducing overhead.
-
-> Agent Mode: Optional lightweight agents can be deployed on managed servers. The Agent reports its status to the central server, or the central server queries the Agent for status.
-
 ## Features
 - **Project Management**: Create and manage multiple projects with ease.
 - **User Permissions**: Assign and control user permissions for each project.
@@ -30,6 +26,26 @@ Designed as a team-oriented / personal project management server monitor and ter
 - **Web Interface**: User-friendly web interface for easy navigation and management.
 - **API Access**: RESTful API for integration with other tools and services.
 - **Logging and Auditing**: Keep track of all actions and changes within the system.
+
+## Connection Modes
+
+### Agentless Mode
+
+> This is a forward (active) connection. The managed server must be exposed so that it can be connected by the Hub. In a public network environment, the managed server must have a public IP address.
+
+No need to install any agents on the managed servers, simplifying deployment and reducing overhead.
+
+### Agent Mode (F/R)
+
+Optional lightweight agents can be deployed on managed servers. The Agent reports its status to the central server, or the central server queries the Agent for status.
+
+#### 1. Forward Agent Mode
+
+It is also a forward (active) connection, as detailed above.
+
+#### 2. Reverse Agent Mode
+
+This is a reverse (passive) connection. The Hub must be exposed so that it can be connected by the Agent. In a public network environment, the Hub must have a public IP address.
 
 ## Get started
 

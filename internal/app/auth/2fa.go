@@ -7,9 +7,9 @@ import (
 	"mosona-manager/internal/config"
 	db2 "mosona-manager/internal/db"
 	email2 "mosona-manager/internal/email"
+	"mosona-manager/internal/utils"
+	"mosona-manager/internal/utils/store"
 	"mosona-manager/pkg/_type"
-	"mosona-manager/pkg/utils"
-	store2 "mosona-manager/pkg/utils/store"
 	"strconv"
 	"time"
 
@@ -57,7 +57,7 @@ func getTwoFAStatus(c echo.Context) error {
 		})
 	}
 
-	cooling, ok := store2.GetCooling(preUID)
+	cooling, ok := store.GetCooling(preUID)
 	if !ok {
 		cooling = 0
 	}
@@ -94,7 +94,7 @@ func sendMFACode(c echo.Context) error {
 		})
 	}
 
-	if cooling, ok := store2.GetCooling(preUID); ok && cooling > time.Now().Unix() {
+	if cooling, ok := store.GetCooling(preUID); ok && cooling > time.Now().Unix() {
 		return c.JSON(429, _type.H{
 			Code: "cooling",
 			Msg:  fmt.Sprintf("Please wait %d seconds before requesting another code", cooling-time.Now().Unix()),
@@ -131,10 +131,10 @@ func sendMFACode(c echo.Context) error {
 	}
 
 	// Store code
-	store2.SetTwoFACodeState(code, preUID, time.Now().Unix()+60*60)
+	store.SetTwoFACodeState(code, preUID, time.Now().Unix()+60*60)
 
 	// Set cooling period of 60 seconds
-	store2.SetCooling(preUID, time.Now().Unix()+60)
+	store.SetCooling(preUID, time.Now().Unix()+60)
 
 	return c.JSON(200, _type.H{
 		Code: "ok",
@@ -152,9 +152,9 @@ func verifyMFACode(c echo.Context) error {
 		})
 	}
 
-	storedData, ok := store2.GetTwoFACodeState(code)
+	storedData, ok := store.GetTwoFACodeState(code)
 	if !ok || storedData.UID != uid {
-		store2.DeleteTwoFACodeByUID(uid)
+		store.DeleteTwoFACodeByUID(uid)
 
 		return c.JSON(400, _type.H{
 			Code: "error",
@@ -163,7 +163,7 @@ func verifyMFACode(c echo.Context) error {
 	}
 
 	// Delete used code
-	store2.DeleteTwoFACodeState(code)
+	store.DeleteTwoFACodeState(code)
 
 	user, err := db2.GetUserById(uid)
 	if err != nil {

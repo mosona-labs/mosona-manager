@@ -4,8 +4,8 @@ import (
 	"mosona-manager/internal/config"
 	db2 "mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/utils"
 	"mosona-manager/pkg/_type"
-	utils2 "mosona-manager/pkg/utils"
 	"strconv"
 
 	"github.com/Masterminds/squirrel"
@@ -51,8 +51,8 @@ func edit(c echo.Context) error {
 		"is_admin": isAdmin,
 	})
 	if password != "" {
-		signature := utils2.RandomString(32)
-		newPassword := utils2.SHA256(password + signature + config.DynamicConf.Token)
+		signature := utils.RandomString(32)
+		newPassword := utils.SHA256(password + signature + config.DynamicConf.Token)
 		updates = updates.Set("password", newPassword).Set("salt", signature)
 	}
 	sql, args, _ := updates.ToSql()

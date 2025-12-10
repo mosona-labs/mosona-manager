@@ -2,7 +2,7 @@ package db
 
 import (
 	"mosona-manager/internal/config"
-	"mosona-manager/pkg/utils"
+	"mosona-manager/internal/utils"
 	"strconv"
 )
 

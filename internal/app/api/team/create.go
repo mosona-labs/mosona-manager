@@ -3,8 +3,8 @@ package ateam
 import (
 	"encoding/json"
 	db2 "mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 	_type2 "mosona-manager/pkg/_type"
-	"mosona-manager/pkg/utils"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"

@@ -2,8 +2,8 @@ package db
 
 import (
 	"mosona-manager/internal/config"
+	"mosona-manager/internal/utils"
 	"mosona-manager/pkg/_type"
-	"mosona-manager/pkg/utils"
 
 	"github.com/Masterminds/squirrel"
 )
