@@ -1,0 +1,70 @@
+package akeys
+
+import (
+	"fmt"
+	"mosona-manager/internal/connect"
+	db2 "mosona-manager/internal/db"
+	"mosona-manager/pkg/_type"
+	"strconv"
+
+	"github.com/labstack/echo/v4"
+)
+
+func edit(c echo.Context) error {
+	tid, _ := c.Get("tid").(int64)
+	if tid == 0 {
+		return c.JSON(400, _type.H{
+			Code: "error",
+			Msg:  "Invalid team data",
+		})
+	}
+
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	if id <= 0 {
+		return c.JSON(400, _type.H{
+			Code: "error",
+			Msg:  "Invalid key ID",
+		})
+	}
+
+	name := c.FormValue("name")
+	if name == "" {
+		return c.JSON(400, _type.H{
+			Code: "error",
+			Msg:  "Key name cannot be empty",
+		})
+	}
+	password := c.FormValue("password")
+
+	if err := db2.UpdateKey(tid, id, name, password); err != nil {
+		return c.JSON(500, _type.H{
+			Code: "error",
+			Msg:  "Database error",
+		})
+	}
+
+	go func() {
+		rows, err := db2.Db.Query("SELECT id FROM servers WHERE allow_monitor AND key_id=$1 AND team_id=$2", id, tid)
+		if err != nil {
+			return
+		}
+		defer func() {
+			_ = rows.Close()
+		}()
+
+		for rows.Next() {
+			var sid int64
+			if err = rows.Scan(&sid); err != nil {
+				return
+			}
+			if err = connect.StartServer(sid); err != nil {
+				fmt.Println("Failed to restart server connection:", err)
+			}
+		}
+	}()
+
+	return c.JSON(200, _type.H{
+		Code: "ok",
+		Msg:  "Key updated successfully",
+	})
+}

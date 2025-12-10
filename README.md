@@ -24,6 +24,7 @@ Designed as a team-oriented / personal project management server monitor and ter
 - **Project Management**: Create and manage multiple projects with ease.
 - **User Permissions**: Assign and control user permissions for each project.
 - **SSH Remote Management**: Securely manage servers and terminals via SSH.
+- **Flexible Connection Modes**: Support both agent-based and agentless connection methods.
 - **Real-time Monitoring**: Monitor server performance and project status in real-time.
 - **Notifications**: Receive alerts and notifications for important events.
 - **Web Interface**: User-friendly web interface for easy navigation and management.
