@@ -1,7 +1,6 @@
 package aterminal
 
 import (
-	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 
@@ -13,7 +12,6 @@ func list(c echo.Context) error {
 
 	servers, err := db.ListTerminals(tid)
 	if err != nil {
-		fmt.Println(err)
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Failed to list terminal servers",

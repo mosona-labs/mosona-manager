@@ -9,7 +9,7 @@ import (
 	"path"
 )
 
-func Passive(hub, enrollKey string) error {
+func Passive(hub, enrollKey string, noMonitor, noTerminal bool) error {
 	fmt.Println("Initializing agent in passive mode...")
 
 	if _, err := os.Stat(runtime.InstallDir); !os.IsNotExist(err) {
@@ -54,6 +54,10 @@ func Passive(hub, enrollKey string) error {
 	// Save config
 	conf := config.Config{
 		Mode: "passive",
+
+		NoMonitor:  noMonitor,
+		NoTerminal: noTerminal,
+
 		Hub:  hub,
 		UUID: agentUID,
 	}

@@ -24,26 +24,30 @@ func Run() {
 		log.Fatalln("Failed to connect to hub:", err)
 	}
 
-	monitor := telemetry.NewMonitor()
-	for {
-		start := time.Now()
+	// Monitoring loop
+	if !config.Current.NoMonitor {
+		monitor := telemetry.NewMonitor()
+		for {
+			start := time.Now()
 
-		s, err := monitor.Snapshot()
-		if err != nil {
-			log.Fatalln("Failed to get status:", err)
-		}
-		data, err := msgpack.Marshal(s)
-		if err != nil {
-			log.Fatalln("Failed to marshal status:", err)
-		}
+			s, err := monitor.Snapshot()
+			if err != nil {
+				log.Fatalln("Failed to get status:", err)
+			}
+			data, err := msgpack.Marshal(s)
+			if err != nil {
+				log.Fatalln("Failed to marshal status:", err)
+			}
 
-		if err = client.SendMessage(websocket.BinaryMessage, data); err != nil {
-			log.Fatalln("Failed to send status:", err)
-		}
+			if err = client.SendMessage(websocket.BinaryMessage, data); err != nil {
+				log.Fatalln("Failed to send status:", err)
+			}
 
-		sleepFor := 3*time.Second - time.Since(start)
-		if sleepFor > 0 {
-			time.Sleep(sleepFor)
+			sleepFor := 3*time.Second - time.Since(start)
+			if sleepFor > 0 {
+				time.Sleep(sleepFor)
+			}
 		}
 	}
+
 }
