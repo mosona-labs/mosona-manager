@@ -1,8 +1,9 @@
 package connect
 
 import (
-	"golang.org/x/crypto/ssh"
 	"strings"
+
+	"golang.org/x/crypto/ssh"
 )
 
 func oS(client *ssh.Client) (string, error) {

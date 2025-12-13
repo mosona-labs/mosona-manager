@@ -3,8 +3,8 @@ package auser
 import (
 	"database/sql"
 	"errors"
-	db2 "mosona-manager/internal/db"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/db"
 
 	"github.com/labstack/echo/v4"
 )
@@ -13,7 +13,7 @@ func me(c echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 	tid, _ := c.Get("tid").(int64)
 
-	userInfo, err := db2.GetUserById(uid)
+	userInfo, err := db.GetUserById(uid)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
@@ -22,7 +22,7 @@ func me(c echo.Context) error {
 	}
 
 	if tid == 0 {
-		tid, err = db2.GetUserActiveTeam(uid)
+		tid, err = db.GetUserActiveTeam(uid)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(500, _type.H{
 				Code: "error",
@@ -34,7 +34,7 @@ func me(c echo.Context) error {
 		}
 	}
 
-	teams, err := db2.GetTeamsByUserId(uid)
+	teams, err := db.GetTeamsByUserId(uid)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
@@ -53,7 +53,7 @@ func me(c echo.Context) error {
 			},
 		})
 	} else {
-		team, err := db2.GetTeamById(tid)
+		team, err := db.GetTeamById(tid)
 		if err != nil {
 			return c.JSON(500, _type.H{
 				Code: "error",

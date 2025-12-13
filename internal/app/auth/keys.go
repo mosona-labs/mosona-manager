@@ -1,9 +1,9 @@
 package auth
 
 import (
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
-	_type2 "mosona-manager/pkg/_type"
 	"sync"
 	"time"
 
@@ -11,13 +11,13 @@ import (
 )
 
 var (
-	cachedOAuthList []_type2.PublicAuthProvider
+	cachedOAuthList []_type.PublicAuthProvider
 	cacheTime       int64
 	cacheTTL        = 30 // seconds
 	cacheMutex      sync.RWMutex
 )
 
-func getOAuthListCached() ([]_type2.PublicAuthProvider, error) {
+func getOAuthListCached() ([]_type.PublicAuthProvider, error) {
 	cacheMutex.RLock()
 	if time.Now().Unix()-cacheTime < int64(cacheTTL) && cachedOAuthList == nil {
 		cacheMutex.RUnlock()
@@ -41,10 +41,10 @@ func getOAuthListCached() ([]_type2.PublicAuthProvider, error) {
 func keys(c echo.Context) error {
 	oauthList, err := getOAuthListCached()
 	if err != nil {
-		return c.JSON(500, _type2.H{Code: "error", Msg: "Database Error"})
+		return c.JSON(500, _type.H{Code: "error", Msg: "Database Error"})
 	}
 
-	return c.JSON(200, _type2.H{
+	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
 		Data: echo.Map{

@@ -1,11 +1,11 @@
 package muser
 
 import (
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
-	db2 "mosona-manager/internal/db"
+	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
-	"mosona-manager/pkg/_type"
 	"strconv"
 
 	"github.com/Masterminds/squirrel"
@@ -34,7 +34,7 @@ func edit(c echo.Context) error {
 	}
 
 	// Check Exist
-	isExist, err := db2.CheckEmailExistsExcludeID(email, id)
+	isExist, err := db.CheckEmailExistsExcludeID(email, id)
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
@@ -56,7 +56,7 @@ func edit(c echo.Context) error {
 		updates = updates.Set("password", newPassword).Set("salt", signature)
 	}
 	sql, args, _ := updates.ToSql()
-	if _, err = db2.Db.Exec(sql, args...); err != nil {
+	if _, err = db.Db.Exec(sql, args...); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",

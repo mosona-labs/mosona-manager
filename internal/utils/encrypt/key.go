@@ -1,4 +1,4 @@
-package utils
+package encrypt
 
 import (
 	"bytes"
@@ -7,28 +7,16 @@ import (
 	"crypto/rand"
 	"errors"
 	"io"
-	"log"
-	"mosona-manager/internal/config"
-	"os"
+	"mosona-manager/internal/utils"
+	"path"
 )
-
-func init() {
-	var err error
-	config.Key, err = os.ReadFile(".key")
-	if err != nil || config.Key == nil {
-		config.Key, err = initKey()
-		if err != nil {
-			log.Fatalln("Failed to initialize encryption key:", err)
-		}
-	}
-}
 
 func initKey() ([]byte, error) {
 	key, err := GenerateKey(32)
 	if err != nil {
 		return nil, err
 	}
-	if err = WriteFile(".key", string(key)); err != nil {
+	if err = utils.WriteFile(path.Join(configPath, "key"), string(key)); err != nil {
 		return nil, err
 	}
 

@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect/script"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/influx"
 
 	"golang.org/x/crypto/ssh"
 )
 
-func status(client *ssh.Client, callback func(data _type.ServerStatusType)) error {
+func status(client *ssh.Client, serverId int64) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -36,7 +38,9 @@ func status(client *ssh.Client, callback func(data _type.ServerStatusType)) erro
 			if err = json.Unmarshal([]byte(scanner.Text()), &data); err != nil {
 				continue
 			}
-			callback(data)
+			if err = influx.AddServerStatus(serverId, data); err != nil {
+				log.Println("Failed to add server status:", err)
+			}
 		}
 		close(done)
 	}()

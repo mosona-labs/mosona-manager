@@ -31,38 +31,25 @@ Designed as a team-oriented / personal project management server monitor and ter
 
 ### Agentless Mode
 
-> This is a forward (active) connection. The managed server must be exposed so that it can be connected by the Hub. In a public network environment, the managed server must have a public IP address.
+> This is an active (forward) connection. The managed server must be exposed so that it can be connected by the Hub. In a public network environment, the managed server must have a public IP address.
 
 No need to install any agents on the managed servers, simplifying deployment and reducing overhead.
 
-### Agent Mode (F/R)
+### Agent Mode (A/P)
 
 Optional lightweight agents can be deployed on managed servers. The Agent reports its status to the central server, or the central server queries the Agent for status.
 
 #### 1. Forward Agent Mode
 
-It is also a forward (active) connection, as detailed above.
+It is also an active (forward) connection, as detailed above.
 
 #### 2. Reverse Agent Mode
 
-This is a reverse (passive) connection. The Hub must be exposed so that it can be connected by the Agent. In a public network environment, the Hub must have a public IP address.
+This is a passive (reverse) connection. The Hub must be exposed so that it can be connected by the Agent. In a public network environment, the Hub must have a public IP address.
 
 ## Get started
 
-### 1. Self-Hosted Deployment
-
-You can deploy Mosona Manager on your own server using either Docker or manual installation methods.
-
-- [I. Docker Deployment (Recommended)](#i-docker-deployment-recommended)
-- [II. Manual Deployment](#ii-manual-deployment)
-
-<span id="i-docker-deployment-recommended"></span>
-#### I. Docker Deployment (Recommended)
-Under development...
-
-<span id="ii-manual-deployment"></span>
-#### II. Manual Deployment
-Under development...
+Please refer to the [Quickstart (Docs)](https://manager.mosona.cc/quickstart) for detailed instructions on installation and configuration.
 
 ## Project Logo
 

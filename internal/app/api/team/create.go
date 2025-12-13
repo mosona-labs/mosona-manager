@@ -2,9 +2,9 @@ package ateam
 
 import (
 	"encoding/json"
-	db2 "mosona-manager/internal/db"
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
-	_type2 "mosona-manager/pkg/_type"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -18,9 +18,9 @@ func create(c echo.Context) error {
 	avatarColor := c.FormValue("avatar_color")
 
 	// Parse member IDs
-	var members = make([]_type2.TeamUsersRole, 0)
+	var members = make([]_type.TeamUsersRole, 0)
 	if err := json.Unmarshal([]byte(c.FormValue("members")), &members); err != nil {
-		return c.JSON(400, _type2.H{
+		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid member data",
 		})
@@ -32,7 +32,7 @@ func create(c echo.Context) error {
 		}
 	}
 	if !hasOwner {
-		return c.JSON(400, _type2.H{
+		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "You must be the owner of the team",
 		})
@@ -40,7 +40,7 @@ func create(c echo.Context) error {
 
 	// Validate input
 	if name == "" || avatarColor == "" {
-		return c.JSON(400, _type2.H{
+		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid input",
 		})
@@ -60,14 +60,14 @@ func create(c echo.Context) error {
 			}
 		}
 		if !isImage {
-			return c.JSON(400, _type2.H{
+			return c.JSON(400, _type.H{
 				Code: "error",
 				Msg:  "Invalid file type, only images are allowed",
 			})
 		}
 		file, err := avatarImage.Open()
 		if err != nil {
-			return c.JSON(500, _type2.H{
+			return c.JSON(500, _type.H{
 				Code: "error",
 				Msg:  "Failed to open avatar image",
 			})
@@ -78,13 +78,13 @@ func create(c echo.Context) error {
 
 		avatarFileName, err := uuid.NewUUID()
 		if err != nil {
-			return c.JSON(500, _type2.H{
+			return c.JSON(500, _type.H{
 				Code: "error",
 				Msg:  "Failed to generate avatar filename",
 			})
 		}
 		if err = utils.ConvertAvatar(file, "./avatars", avatarFileName.String()); err != nil {
-			return c.JSON(500, _type2.H{
+			return c.JSON(500, _type.H{
 				Code: "error",
 				Msg:  "Failed to process avatar image",
 			})
@@ -92,7 +92,7 @@ func create(c echo.Context) error {
 		avatarUrl = avatarFileName.String() + ".avif"
 	}
 
-	teamId, err := db2.CreateTeam(
+	teamId, err := db.CreateTeam(
 		name,
 		description,
 		avatarColor,
@@ -101,16 +101,16 @@ func create(c echo.Context) error {
 		uid,
 	)
 	if err != nil {
-		return c.JSON(500, _type2.H{
+		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
 		})
 	}
 
 	// Set Active Team
-	_ = db2.SetUserActiveTeam(uid, teamId)
+	_ = db.SetUserActiveTeam(uid, teamId)
 
-	return c.JSON(200, _type2.H{
+	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Team created successfully",
 		Data: teamId,

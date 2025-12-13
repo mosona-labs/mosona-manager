@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
 )
 
 func ParseSessionData(id, data string) (*_type.SessionData, error) {

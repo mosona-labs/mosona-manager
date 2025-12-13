@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
-	db2 "mosona-manager/internal/db"
+	"mosona-manager/internal/db"
 	"mosona-manager/internal/oauth"
 	"mosona-manager/internal/utils"
 	"mosona-manager/internal/utils/store"
-	"mosona-manager/pkg/_type"
 	"strconv"
 	"strings"
 	"time"
@@ -134,7 +134,7 @@ func oauthCallback(c echo.Context) error {
 		})
 	}
 
-	identity, err := db2.GetAuthIdentityBySubject(oauthID, fmt.Sprint(profile.ID))
+	identity, err := db.GetAuthIdentityBySubject(oauthID, fmt.Sprint(profile.ID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(404, _type.H{
@@ -148,7 +148,7 @@ func oauthCallback(c echo.Context) error {
 		})
 	}
 
-	user, err := db2.GetUserById(identity.UserID)
+	user, err := db.GetUserById(identity.UserID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(404, _type.H{
@@ -175,7 +175,7 @@ func oauthCallback(c echo.Context) error {
 
 	// MFA & TOTP Check
 	if (user.TOTP != nil && *user.TOTP) || config.DynamicConf.EmailVerifyLogin {
-		provider, err := db2.GetAuthProviderByID(identity.ProviderID)
+		provider, err := db.GetAuthProviderByID(identity.ProviderID)
 		if err != nil {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 		}
@@ -190,7 +190,7 @@ func oauthCallback(c echo.Context) error {
 	}
 
 	// Active Team
-	activeTid, err := db2.GetUserActiveTeam(user.ID)
+	activeTid, err := db.GetUserActiveTeam(user.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}

@@ -1,8 +1,8 @@
 package muser
 
 import (
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
-	_type2 "mosona-manager/pkg/_type"
 	"strconv"
 
 	"github.com/Masterminds/squirrel"
@@ -60,9 +60,9 @@ func list(c echo.Context) error {
 	sql, args, _ := query.ToSql()
 	countSql, countArgs, _ := countQuery.ToSql()
 
-	var users = make([]_type2.User, 0)
+	var users = make([]_type.User, 0)
 	if err := db.Db.Select(&users, sql, args...); err != nil {
-		return c.JSON(500, _type2.H{
+		return c.JSON(500, _type.H{
 			Code: "err",
 			Msg:  "Database error",
 		})
@@ -70,13 +70,13 @@ func list(c echo.Context) error {
 
 	var total int64
 	if err := db.Db.QueryRow(countSql, countArgs...).Scan(&total); err != nil {
-		return c.JSON(500, _type2.H{
+		return c.JSON(500, _type.H{
 			Code: "err",
 			Msg:  "Database error",
 		})
 	}
 
-	return c.JSON(200, _type2.H{
+	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
 		Data: echo.Map{

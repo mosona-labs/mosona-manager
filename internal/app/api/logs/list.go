@@ -1,9 +1,9 @@
 package alogs
 
 import (
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
-	_type2 "mosona-manager/pkg/_type"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -32,17 +32,17 @@ func list(c echo.Context) error {
 		var err error
 		uids, err = db.GetTeamUserIdsByEmail(tid, email)
 		if err != nil {
-			return c.JSON(500, _type2.H{
+			return c.JSON(500, _type.H{
 				Code: "error",
 				Msg:  "Database error",
 			})
 		}
 		if len(uids) == 0 {
-			return c.JSON(200, _type2.H{
+			return c.JSON(200, _type.H{
 				Code: "ok",
 				Msg:  "Success",
 				Data: echo.Map{
-					"logs":  []_type2.Log{},
+					"logs":  []_type.Log{},
 					"total": 0,
 				},
 			})
@@ -51,7 +51,7 @@ func list(c echo.Context) error {
 
 	data, total, err := influx.GetLogsByPage(tid, page, pageSize, category, level, uids, message)
 	if err != nil {
-		return c.JSON(500, _type2.H{
+		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
 		})
@@ -65,7 +65,7 @@ func list(c echo.Context) error {
 	}
 	userMap, err := db.GetUserByIds(userIDs)
 	if err != nil {
-		return c.JSON(500, _type2.H{
+		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
 		})
@@ -74,7 +74,7 @@ func list(c echo.Context) error {
 	for i, logRecord := range data {
 		user, ok := userMap[logRecord.UserID]
 		if !ok {
-			user = _type2.User{
+			user = _type.User{
 				ID:       logRecord.UserID,
 				Username: "[Deleted]",
 			}
@@ -83,7 +83,7 @@ func list(c echo.Context) error {
 		data[i].Email = user.Email
 	}
 
-	return c.JSON(200, _type2.H{
+	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
 		Data: echo.Map{

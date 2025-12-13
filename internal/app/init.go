@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/app/agent"
 	"mosona-manager/internal/app/api/admin"
 	"mosona-manager/internal/app/api/category"
 	"mosona-manager/internal/app/api/keys"
@@ -15,7 +17,6 @@ import (
 	middleware2 "mosona-manager/internal/app/middleware"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/redis"
-	"mosona-manager/pkg/_type"
 
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
@@ -71,6 +72,8 @@ func Start() {
 	}
 	// Admin
 	admin.Router(api.Group("/admin", middleware2.AdminAuth))
+	// Agent
+	agent.Router(api.Group("/agent"))
 
 	// NotFound
 	api.Any("/*", func(c echo.Context) error {

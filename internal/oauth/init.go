@@ -3,9 +3,9 @@ package oauth
 import (
 	"fmt"
 	"log"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
-	"mosona-manager/pkg/_type"
 	"strings"
 	"sync"
 

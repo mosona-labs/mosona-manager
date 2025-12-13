@@ -3,8 +3,8 @@ package influx
 import (
 	"context"
 	"fmt"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
-	"mosona-manager/pkg/_type"
 	"strconv"
 	"time"
 )

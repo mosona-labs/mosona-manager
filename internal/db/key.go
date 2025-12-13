@@ -1,9 +1,8 @@
 package db
 
 import (
-	"mosona-manager/internal/config"
-	"mosona-manager/internal/utils"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/utils/encrypt"
 
 	"github.com/Masterminds/squirrel"
 )
@@ -17,13 +16,13 @@ func GetKeysByTeamID(tid int64) ([]_type.Key, error) {
 }
 
 func AddKey(tid int64, name, content, password string) (int64, error) {
-	k, err := utils.Encrypt([]byte(content), config.Key)
+	k, err := encrypt.Encrypt([]byte(content), encrypt.Key)
 	if err != nil {
 		return 0, err
 	}
 	var pwd []byte
 	if password != "" {
-		pwd, err = utils.Encrypt([]byte(password), config.Key)
+		pwd, err = encrypt.Encrypt([]byte(password), encrypt.Key)
 		if err != nil {
 			return 0, err
 		}
@@ -45,7 +44,7 @@ func UpdateKey(tid, id int64, name, password string) error {
 	if password == "!msn!empty!" {
 		query = query.Set("password", nil)
 	} else if password != "" {
-		pwd, err := utils.Encrypt([]byte(password), config.Key)
+		pwd, err := encrypt.Encrypt([]byte(password), encrypt.Key)
 		if err != nil {
 			return err
 		}

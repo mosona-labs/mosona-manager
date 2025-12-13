@@ -5,7 +5,7 @@ import (
 	"log"
 	"mosona-manager/internal/app"
 	"mosona-manager/internal/connect"
-	db2 "mosona-manager/internal/db"
+	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/oauth"
 	"mosona-manager/internal/redis"
@@ -13,7 +13,7 @@ import (
 	"os"
 )
 
-const version = "v0.0.1"
+const version = "0.0.1"
 const Logo = `┳┳┓           ┳┳┓            
 ┃┃┃┏┓┏┏┓┏┓┏┓  ┃┃┃┏┓┏┓┏┓┏┓┏┓┏┓
 ┛ ┗┗┛┛┗┛┛┗┗┻  ┛ ┗┗┻┛┗┗┻┗┫┗ ┛ 
@@ -21,14 +21,14 @@ const Logo = `┳┳┓           ┳┳┓
 
 func main() {
 	fmt.Println(Logo)
-	fmt.Println("⇨ Mosona manager " + version + " starting...")
+	fmt.Println("⇨ Mosona manager v" + version + " starting...")
 
 	// Database
-	db2.Init()    // Postgres
+	db.Init()     // Postgres
 	influx.Init() // InfluxDB
 	redis.Init()  // Redis
 	// Dynamic Config
-	if err := db2.SyncConfig(); err != nil {
+	if err := db.SyncConfig(); err != nil {
 		log.Fatalln("Sync config error:", err)
 	}
 

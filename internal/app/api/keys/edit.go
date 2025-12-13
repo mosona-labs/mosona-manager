@@ -2,9 +2,9 @@ package akeys
 
 import (
 	"fmt"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect"
-	db2 "mosona-manager/internal/db"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/db"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -36,7 +36,7 @@ func edit(c echo.Context) error {
 	}
 	password := c.FormValue("password")
 
-	if err := db2.UpdateKey(tid, id, name, password); err != nil {
+	if err := db.UpdateKey(tid, id, name, password); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
@@ -44,7 +44,7 @@ func edit(c echo.Context) error {
 	}
 
 	go func() {
-		rows, err := db2.Db.Query("SELECT id FROM servers WHERE allow_monitor AND key_id=$1 AND team_id=$2", id, tid)
+		rows, err := db.Db.Query("SELECT id FROM servers WHERE allow_monitor AND key_id=$1 AND team_id=$2", id, tid)
 		if err != nil {
 			return
 		}

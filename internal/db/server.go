@@ -1,9 +1,8 @@
 package db
 
 import (
-	"mosona-manager/internal/config"
-	"mosona-manager/internal/utils"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/utils/encrypt"
 
 	"github.com/Masterminds/squirrel"
 )
@@ -13,7 +12,7 @@ func GetServerInfo(teamId, serverId int64) (_type.ServerFullType, error) {
 	err := Db.Get(
 		&data,
 		`SELECT 
-    		s.id, s.name, s.address, s.port, s.username, s.key_id, s.allow_monitor, s.allow_terminal,
+    		s.id, s.name, s.type, s.allow_monitor, s.allow_terminal,
     		s.weight, s.category,
     		i.note, i.provider, i.cycle, i.start_time, i.end_time, i.amount, i.auto_renew, 
     		i.bandwidth, i.traffic, i.traffic_type, i.note_public
@@ -22,51 +21,50 @@ func GetServerInfo(teamId, serverId int64) (_type.ServerFullType, error) {
 		WHERE s.team_id = $1 AND s.id = $2`,
 		teamId, serverId,
 	)
+	if err != nil {
+		return data, err
+	}
+
+	switch data.Type {
+	case 0:
+		_ = Db.QueryRow("SELECT address, port, username, key_id FROM ssh WHERE server_id = $1", serverId).Scan(
+			&data.Address,
+			&data.Port,
+			&data.Username,
+			&data.KeyID,
+		)
+	}
+
 	return data, err
 }
 
-func EditServer(teamId, serverId int64, data *_type.ServerFullType) error {
+func EditServer(teamId, serverId int64, typ int16, data *_type.ServerFullType) error {
 	tx, err := Db.Begin()
 	if err != nil {
 		return err
 	}
 
+	// Main
 	psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 	qb := psql.Update("servers").
 		Set("name", data.Name).
-		Set("address", data.Address).
-		Set("port", data.Port).
-		Set("username", data.Username).
 		Set("allow_monitor", data.AllowMonitor).
 		Set("allow_terminal", data.AllowTerminal).
 		Set("weight", data.Weight).
 		Set("category", data.Category).
 		Where(squirrel.Eq{"id": serverId, "team_id": teamId})
-
-	if data.KeyID != 0 {
-		qb = qb.Set("key_id", data.KeyID)
-	}
-	if data.Password != "" {
-		pwd, err := utils.Encrypt([]byte(data.Password), config.Key)
-		if err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		qb = qb.Set("password", pwd)
-	}
-
 	query, args, err := qb.ToSql()
 	if err != nil {
 		_ = tx.Rollback()
 		return err
 	}
-
 	_, err = tx.Exec(query, args...)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
 	}
 
+	// Info
 	psql = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 	qb = psql.Update("server_info").
 		Set("note", data.Note).
@@ -81,7 +79,6 @@ func EditServer(teamId, serverId int64, data *_type.ServerFullType) error {
 		Set("traffic_type", data.TrafficType).
 		Set("note_public", data.NotePublic).
 		Where(squirrel.Eq{"sid": serverId})
-
 	query, args, err = qb.ToSql()
 	if err != nil {
 		_ = tx.Rollback()
@@ -93,6 +90,40 @@ func EditServer(teamId, serverId int64, data *_type.ServerFullType) error {
 		return err
 	}
 
+	// Connection
+	switch typ {
+	case 0:
+		psql = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+		qb = psql.Update("ssh").
+			Set("address", data.Address).
+			Set("port", data.Port).
+			Set("username", data.Username).
+			Where(squirrel.Eq{"id": serverId})
+
+		if data.KeyID != 0 {
+			qb = qb.Set("key_id", data.KeyID)
+		}
+		if data.Password != "" {
+			pwd, err := encrypt.Encrypt([]byte(data.Password), encrypt.Key)
+			if err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+			qb = qb.Set("password", pwd)
+		}
+	}
+	query, args, err = qb.ToSql()
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	_, err = tx.Exec(query, args...)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// Commit
 	if err = tx.Commit(); err != nil {
 		return err
 	}

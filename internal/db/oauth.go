@@ -2,7 +2,7 @@ package db
 
 import (
 	"database/sql"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
 )
 
 func GetOAuthProvider() ([]_type.AuthProvider, error) {

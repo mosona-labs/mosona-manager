@@ -1,9 +1,8 @@
 package db
 
 import (
-	"mosona-manager/internal/config"
-	"mosona-manager/internal/utils"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/utils/encrypt"
 
 	"github.com/Masterminds/squirrel"
 )
@@ -39,7 +38,7 @@ func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
 	var password []byte
 
 	if err := Db.QueryRow(
-		"SELECT address, port, username, password FROM servers WHERE id = $1 AND team_id = $2 AND allow_terminal = true",
+		"SELECT address, port, username, password FROM servers s JOIN ssh on s.id = ssh.server_id WHERE s.id = $1 AND team_id = $2 AND allow_terminal = true",
 		serverId, teamId,
 	).Scan(
 		&server.Address, &server.Port, &server.Username, &password,
@@ -47,7 +46,7 @@ func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
 		return server, err
 	}
 
-	pwd, err := utils.Decrypt(password, config.Key)
+	pwd, err := encrypt.Decrypt(password, encrypt.Key)
 	if err != nil {
 		return server, err
 	}

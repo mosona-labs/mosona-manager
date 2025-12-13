@@ -1,0 +1,79 @@
+package service
+
+import (
+	"errors"
+	"os/exec"
+	"runtime"
+)
+
+func Start() ([]byte, error) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("sc", "start", "mosona-agent")
+	case "darwin":
+		cmd = exec.Command("launchctl", "load", "/Library/LaunchDaemons/cc.mosona.agent.plist")
+	case "linux":
+		cmd = exec.Command("systemctl", "start", "mosona-agent")
+	}
+	if cmd != nil {
+		return cmd.CombinedOutput()
+	}
+	return nil, errors.New("unsupported operating system")
+}
+
+func Stop() ([]byte, error) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("sc", "stop", "mosona-agent")
+	case "darwin":
+		cmd = exec.Command("launchctl", "unload", "/Library/LaunchDaemons/cc.mosona.agent.plist")
+	case "linux":
+		cmd = exec.Command("systemctl", "stop", "mosona-agent")
+	}
+	if cmd != nil {
+		return cmd.CombinedOutput()
+	}
+	return nil, errors.New("unsupported operating system")
+}
+
+func Restart() ([]byte, error) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("sc", "stop", "mosona-agent")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return output, err
+		}
+		cmd = exec.Command("sc", "start", "mosona-agent")
+	case "darwin":
+		cmd = exec.Command("launchctl", "unload", "/Library/LaunchDaemons/cc.mosona.agent.plist")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return output, err
+		}
+		cmd = exec.Command("launchctl", "load", "/Library/LaunchDaemons/cc.mosona.agent.plist")
+	case "linux":
+		cmd = exec.Command("systemctl", "restart", "mosona-agent")
+	}
+	if cmd != nil {
+		return cmd.CombinedOutput()
+	}
+	return nil, errors.New("unsupported operating system")
+}
+
+func Status() ([]byte, error) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("sc", "query", "mosona-agent")
+	case "darwin":
+		cmd = exec.Command("launchctl", "list", "cc.mosona.agent")
+	case "linux":
+		cmd = exec.Command("systemctl", "status", "mosona-agent")
+	}
+	if cmd != nil {
+		return cmd.CombinedOutput()
+	}
+	return nil, errors.New("unsupported operating system")
+}

@@ -2,7 +2,7 @@ package db
 
 import (
 	"errors"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
 )
 
 var ErrSameCategoryName = errors.New("duplicate category name")

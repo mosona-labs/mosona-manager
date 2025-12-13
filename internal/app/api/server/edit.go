@@ -2,10 +2,10 @@ package aserver
 
 import (
 	"fmt"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect"
-	db2 "mosona-manager/internal/db"
+	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
-	_type2 "mosona-manager/pkg/_type"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -17,40 +17,41 @@ func edit(c echo.Context) error {
 
 	serverId, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	if tid == 0 || serverId == 0 {
-		return c.JSON(400, _type2.H{
+		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid server data",
 		})
 	}
 
-	var data _type2.ServerFullType
+	var data _type.ServerFullType
 	if err := c.Bind(&data); err != nil {
-		return c.JSON(400, _type2.H{
+		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid request data",
 		})
 	}
 
+	var typ int16
 	var lastAllowMonitor bool
-	if err := db2.Db.QueryRow(
-		"SELECT allow_monitor FROM servers WHERE id=$1 AND team_id=$2",
+	if err := db.Db.QueryRow(
+		"SELECT type, allow_monitor FROM servers WHERE id=$1 AND team_id=$2",
 		serverId, tid,
-	).Scan(&lastAllowMonitor); err != nil {
-		return c.JSON(500, _type2.H{
+	).Scan(&typ, &lastAllowMonitor); err != nil {
+		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
 		})
 	}
 
-	if err := db2.EditServer(tid, serverId, &data); err != nil {
-		return c.JSON(500, _type2.H{
+	if err := db.EditServer(tid, serverId, typ, &data); err != nil {
+		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Failed to edit server",
 		})
 	}
 
 	// Handle monitoring service
-	if data.AllowMonitor {
+	if typ != 1 && data.AllowMonitor {
 		go func() {
 			if err := connect.StartServer(serverId); err != nil {
 				fmt.Println("Failed to start server connection:", err)
@@ -66,7 +67,7 @@ func edit(c echo.Context) error {
 		c.RealIP(), c.Request().UserAgent(), "high",
 	)
 
-	return c.JSON(200, _type2.H{
+	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Server edited successfully",
 	})

@@ -1,9 +1,9 @@
 package acategory
 
 import (
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
-	"mosona-manager/pkg/_type"
 
 	"github.com/labstack/echo/v4"
 )

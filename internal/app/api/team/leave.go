@@ -1,8 +1,8 @@
 package ateam
 
 import (
-	db2 "mosona-manager/internal/db"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/db"
 	"strconv"
 
 	"github.com/labstack/echo-contrib/session"
@@ -21,7 +21,7 @@ func leave(c echo.Context) error {
 		})
 	}
 
-	isOwner, err := db2.IsTeamOwner(targetId, uid)
+	isOwner, err := db.IsTeamOwner(targetId, uid)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
@@ -31,7 +31,7 @@ func leave(c echo.Context) error {
 
 	// If the user is the owner: transfer ownership
 	if isOwner {
-		members, err := db2.GetTeamMembers(targetId)
+		members, err := db.GetTeamMembers(targetId)
 		if err != nil {
 			return c.JSON(500, _type.H{
 				Code: "error",
@@ -48,14 +48,14 @@ func leave(c echo.Context) error {
 		}
 		// Transfer: must have a new owner
 		if newOwnerId != -1 {
-			if err = db2.TransferTeamOwnership(targetId, newOwnerId); err != nil {
+			if err = db.TransferTeamOwnership(targetId, newOwnerId); err != nil {
 				return c.JSON(500, _type.H{
 					Code: "error",
 					Msg:  "Database error",
 				})
 			}
 		} else {
-			if err = db2.RemoveTeam(targetId); err != nil {
+			if err = db.RemoveTeam(targetId); err != nil {
 				return c.JSON(500, _type.H{
 					Code: "error",
 					Msg:  "Database error",
@@ -65,7 +65,7 @@ func leave(c echo.Context) error {
 	}
 
 	// Remove user from team
-	if err = db2.RemoveUserFromTeam(uid, targetId); err != nil {
+	if err = db.RemoveUserFromTeam(uid, targetId); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
@@ -74,7 +74,7 @@ func leave(c echo.Context) error {
 
 	// Current active team check
 	if targetId == tid {
-		teams, err := db2.GetTeamsByUserId(uid)
+		teams, err := db.GetTeamsByUserId(uid)
 		if err != nil {
 			return c.JSON(500, _type.H{
 				Code: "error",
@@ -87,7 +87,7 @@ func leave(c echo.Context) error {
 			newActiveTeamId = teams[0].ID
 		}
 
-		if err = db2.SetUserActiveTeam(uid, newActiveTeamId); err != nil {
+		if err = db.SetUserActiveTeam(uid, newActiveTeamId); err != nil {
 			return c.JSON(500, _type.H{
 				Code: "error",
 				Msg:  "Database error",

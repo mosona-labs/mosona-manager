@@ -3,12 +3,13 @@ package aserver
 import (
 	"database/sql"
 	"fmt"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/connect"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/utils/encrypt"
 	"strconv"
 	"time"
 
@@ -20,16 +21,12 @@ func add(c echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 
 	name := c.FormValue("name")
-	address := c.FormValue("address")
-	port, _ := strconv.Atoi(c.FormValue("port"))
-	username := c.FormValue("username")
-	password := c.FormValue("password")
-	keyId := c.FormValue("key_id")
+	mode, _ := strconv.Atoi(c.FormValue("mode"))
 	categoryId, _ := strconv.ParseInt(c.FormValue("category_id"), 10, 64)
 	allowMonitor := c.FormValue("allow_monitor") == "true"
 	allowTerminal := c.FormValue("allow_terminal") == "true"
 
-	if tid == 0 || name == "" || address == "" || port == 0 || username == "" || categoryId == 0 {
+	if tid == 0 || name == "" || categoryId == 0 {
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid server data",
@@ -81,15 +78,6 @@ func add(c echo.Context) error {
 	trafficType, _ := strconv.Atoi(c.FormValue("traffic_type"))
 	notePublic := c.FormValue("note_public")
 
-	// Encrypt password
-	passwordEncrypt, err := utils.Encrypt([]byte(password), config.Key)
-	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Encryption error",
-		})
-	}
-
 	// Insert into database
 	tx, err := db.Db.Begin()
 	if err != nil {
@@ -99,8 +87,8 @@ func add(c echo.Context) error {
 		})
 	}
 	var serverId int64
-	if err = tx.QueryRow(`INSERT INTO servers (team_id, name, address, port, username, password, key_id, category, allow_monitor, allow_terminal, weight) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-		tid, name, address, port, username, passwordEncrypt, keyId, categoryId, allowMonitor, allowTerminal, weight,
+	if err = tx.QueryRow(`INSERT INTO servers (team_id, name, type, category, allow_monitor, allow_terminal, weight) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+		tid, name, mode, categoryId, allowMonitor, allowTerminal, weight,
 	).Scan(&serverId); err != nil {
 		_ = tx.Rollback()
 		return c.JSON(500, _type.H{
@@ -128,6 +116,72 @@ func add(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	// Response
+	var response echo.Map
+
+	// Connection
+	switch mode {
+	case 0: // SSH
+		address := c.FormValue("address")
+		port, _ := strconv.Atoi(c.FormValue("port"))
+		username := c.FormValue("username")
+		password := c.FormValue("password")
+		keyId := c.FormValue("key_id")
+
+		if address == "" || port == 0 || username == "" {
+			_ = tx.Rollback()
+			return c.JSON(400, _type.H{
+				Code: "error",
+				Msg:  "Incomplete connection information",
+			})
+		}
+
+		// Encrypt password
+		passwordEncrypt, err := encrypt.Encrypt([]byte(password), encrypt.Key)
+		if err != nil {
+			return c.JSON(500, _type.H{
+				Code: "error",
+				Msg:  "Encryption error",
+			})
+		}
+		if _, err = tx.Exec(
+			"INSERT INTO ssh (server_id, address, port, username, key_id, password) VALUES ($1, $2, $3, $4, $5, $6)",
+			serverId, address, port, username, keyId, passwordEncrypt,
+		); err != nil {
+			_ = tx.Rollback()
+			return c.JSON(500, _type.H{
+				Code: "error",
+				Msg:  "Database error",
+			})
+		}
+		response = echo.Map{
+			"id": serverId,
+		}
+	case 1: // Agent (active)
+		//address := c.FormValue("address")
+		//port, _ := strconv.Atoi(c.FormValue("port"))
+	case 2: // Agent (passive)
+		enrollToken := utils.RandomString(32)
+		tokenHash := utils.SHA256(enrollToken + config.DynamicConf.Token)
+		if _, err = tx.Exec(
+			"INSERT INTO enroll_tokens (server_id, token_hash) VALUES ($1, $2)",
+			serverId, tokenHash,
+		); err != nil {
+			_ = tx.Rollback()
+			return c.JSON(500, _type.H{
+				Code: "error",
+				Msg:  "Database error",
+			})
+		}
+
+		response = echo.Map{
+			"id":           serverId,
+			"hub":          config.DynamicConf.Domain,
+			"enroll_token": enrollToken,
+		}
+	}
+
 	if err = tx.Commit(); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
@@ -148,8 +202,7 @@ func add(c echo.Context) error {
 	)
 
 	return c.JSON(200, _type.H{
-		Code: "ok",
 		Msg:  "Server added",
-		Data: serverId,
+		Data: response,
 	})
 }

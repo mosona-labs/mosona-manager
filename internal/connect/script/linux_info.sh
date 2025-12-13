@@ -1,4 +1,4 @@
-linux_version=$([ -f /etc/os-release ] && . /etc/os-release && distro_name="$NAME" || { [ -f /etc/redhat-release ] && distro_name="$(cat /etc/redhat-release)" || distro_name="Linux"; }; echo "$distro_name")
+system_version=$([ -f /etc/os-release ] && . /etc/os-release && distro_name="$NAME" || { [ -f /etc/redhat-release ] && distro_name="$(cat /etc/redhat-release)" || distro_name="Linux"; }; echo "$distro_name")
 uptime=$(awk '{print int($1)}' /proc/uptime)
 hostname=$(hostname)
 cpu_name=$(cat /proc/cpuinfo | grep 'model name' | head -1 | awk -F': ' '{print $2}')
@@ -7,9 +7,9 @@ kernel_version=$(uname -r)
 ip_address=$(command -v curl >/dev/null 2>&1 || { if command -v apt >/dev/null 2>&1; then sudo apt update -y && sudo apt install -y curl; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y curl; elif command -v yum >/dev/null 2>&1; then sudo yum install -y curl; elif command -v pacman >/dev/null 2>&1; then sudo pacman -Sy --noconfirm curl; elif command -v zypper >/dev/null 2>&1; then sudo zypper install -y curl; fi; }; curl -s https://api.ip.sb/ip -A Mozilla)
 arch=$(uname -m)
 
-linux_version=$(echo "$linux_version" | awk '{print $1}')
+system_version=$(echo "$system_version" | awk '{print $1}')
 cpu_c_core=$(echo "$cpu_cores" | awk '{print $1}')
 cpu_t_core=$(echo "$cpu_cores" | awk '{print $2}')
 
-printf '{"linux_version": "%s", "uptime": "%s", "hostname": "%s", "cpu_name": "%s", "cpu_c": %d, "cpu_t": %d, "kernel_version": "%s", "ip_address": "%s", "architecture": "%s"}\n' \
-  "$linux_version" "$uptime" "$hostname" "$cpu_name" "$cpu_c_core" "$cpu_t_core" "$kernel_version" "$ip_address" "$arch"
+printf '{"system_version": "%s", "uptime": "%s", "hostname": "%s", "cpu_name": "%s", "cpu_c": %d, "cpu_t": %d, "kernel_version": "%s", "ip_address": "%s", "architecture": "%s"}\n' \
+  "$system_version" "$uptime" "$hostname" "$cpu_name" "$cpu_c_core" "$cpu_t_core" "$kernel_version" "$ip_address" "$arch"

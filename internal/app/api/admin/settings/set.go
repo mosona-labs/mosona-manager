@@ -1,10 +1,10 @@
 package msettings
 
 import (
-	db2 "mosona-manager/internal/db"
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/oauth"
-	"mosona-manager/pkg/_type"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -24,7 +24,7 @@ func set(c echo.Context) error {
 		})
 	}
 
-	tx, err := db2.Db.Begin()
+	tx, err := db.Db.Begin()
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "err",
@@ -58,7 +58,7 @@ func set(c echo.Context) error {
 	}
 
 	// Reload dynamic configuration
-	if err = db2.SyncConfig(); err != nil {
+	if err = db.SyncConfig(); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "err",
 			Msg:  "Failed to reload configuration",

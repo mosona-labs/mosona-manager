@@ -1,8 +1,8 @@
 package msettings
 
 import (
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
-	"mosona-manager/pkg/_type"
 
 	"github.com/labstack/echo/v4"
 )

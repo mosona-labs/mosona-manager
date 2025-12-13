@@ -4,12 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
-	db2 "mosona-manager/internal/db"
+	"mosona-manager/internal/db"
 	email2 "mosona-manager/internal/email"
 	"mosona-manager/internal/utils"
 	"mosona-manager/internal/utils/store"
-	"mosona-manager/pkg/_type"
 	"strconv"
 	"time"
 
@@ -49,7 +49,7 @@ func getTwoFAStatus(c echo.Context) error {
 		})
 	}
 
-	user, err := db2.GetUserById(preUID)
+	user, err := db.GetUserById(preUID)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
@@ -86,7 +86,7 @@ func sendMFACode(c echo.Context) error {
 	mode := c.FormValue("mode")
 
 	// User
-	user, err := db2.GetUserById(preUID)
+	user, err := db.GetUserById(preUID)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
@@ -105,11 +105,13 @@ func sendMFACode(c echo.Context) error {
 	code := strconv.Itoa(utils.RandomNumber(100000, 999999))
 
 	// Email
-	var content string
+	var subject, content string
 	switch mode {
 	case "activation":
+		subject = "Activate Your Account"
 		content, err = email2.GetActivateTemplate(user.Username, fmt.Sprintf("%s-%s", code[0:3], code[3:6]))
 	case "2fa":
+		subject = "Your Two-Factor Authentication Code"
 		content, err = email2.GetTwoFATemplate(user.Username, fmt.Sprintf("%s-%s", code[0:3], code[3:6]))
 	default:
 		return c.JSON(400, _type.H{
@@ -123,7 +125,7 @@ func sendMFACode(c echo.Context) error {
 			Msg:  "Failed to generate email content: " + err.Error(),
 		})
 	}
-	if err = email2.Send(user.Email, "Activate Your Account", content); err != nil {
+	if err = email2.Send(user.Email, subject, content); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Failed to send email: " + err.Error(),
@@ -165,7 +167,7 @@ func verifyMFACode(c echo.Context) error {
 	// Delete used code
 	store.DeleteTwoFACodeState(code)
 
-	user, err := db2.GetUserById(uid)
+	user, err := db.GetUserById(uid)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
@@ -173,7 +175,7 @@ func verifyMFACode(c echo.Context) error {
 		})
 	}
 	if user.Verified != nil && !*user.Verified {
-		if _, err = db2.Db.Exec("UPDATE users SET verified = true WHERE id = $1", uid); err != nil {
+		if _, err = db.Db.Exec("UPDATE users SET verified = true WHERE id = $1", uid); err != nil {
 			return c.JSON(500, _type.H{
 				Code: "error",
 				Msg:  "Database error",
@@ -188,7 +190,7 @@ func verifyMFACode(c echo.Context) error {
 	}
 
 	// Active Team
-	activeTid, err := db2.GetUserActiveTeam(user.ID)
+	activeTid, err := db.GetUserActiveTeam(user.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
@@ -216,7 +218,7 @@ func verifyTOTP(c echo.Context) error {
 		})
 	}
 
-	user, err := db2.GetUserAuthById(uid)
+	user, err := db.GetUserAuthById(uid)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
@@ -246,7 +248,7 @@ func verifyTOTP(c echo.Context) error {
 	}
 
 	// Active Team
-	activeTid, err := db2.GetUserActiveTeam(user.ID)
+	activeTid, err := db.GetUserActiveTeam(user.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}

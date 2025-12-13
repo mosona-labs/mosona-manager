@@ -1,10 +1,10 @@
 package moauth
 
 import (
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/oauth"
-	_type2 "mosona-manager/pkg/_type"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -23,7 +23,7 @@ func add(c echo.Context) error {
 	isEnabled := c.FormValue("is_enabled") == "true"
 
 	if name == "" || authUrl == "" || tokenUrl == "" || userinfoUrl == "" || clientID == "" || clientSecret == "" {
-		return c.JSON(400, _type2.H{
+		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Missing required fields",
 		})
@@ -31,14 +31,14 @@ func add(c echo.Context) error {
 
 	id, err := db.CreateOAuthProvider(name, icon, authUrl, tokenUrl, userinfoUrl, clientID, clientSecret, skip2FA, isEnabled)
 	if err != nil {
-		return c.JSON(500, _type2.H{
+		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
 		})
 	}
 
 	// Add to OAuth manager
-	oauth.AddProvider(_type2.AuthProvider{
+	oauth.AddProvider(_type.AuthProvider{
 		ID:           id,
 		Name:         name,
 		Icon:         icon,
@@ -57,7 +57,7 @@ func add(c echo.Context) error {
 		c.RealIP(), c.Request().UserAgent(), "medium",
 	)
 
-	return c.JSON(200, _type2.H{
+	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "OAuth provider added",
 		Data: id,

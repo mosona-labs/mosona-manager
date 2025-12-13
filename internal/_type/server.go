@@ -4,35 +4,12 @@ import (
 	"time"
 )
 
-type Server struct {
-	ID            int64     `json:"id"`
-	TeamID        int64     `json:"team_id" db:"team_id"`
-	Name          string    `json:"name"`
-	Address       string    `json:"address"`
-	Port          int       `json:"port"`
-	AllowMonitor  bool      `json:"allow_monitor" db:"allow_monitor"`
-	AllowTerminal bool      `json:"allow_terminal" db:"allow_terminal"`
-	Weight        int       `json:"weight"`
-	Category      int64     `json:"category"`
-	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
-	CreatedAt     time.Time `json:"created_at" db:"created_at"`
-}
-
 type ServerMinimal struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
+	Type     int16  `json:"type"` // 0: SSH, 1: Agent (a), 2: Agent (p)
 	Weight   int    `json:"weight"`
 	Category int64  `json:"category"`
-}
-
-type ServerConnect struct {
-	ID       int64  `json:"id"`
-	TeamID   int64  `json:"team_id" db:"team_id"`
-	Name     string `json:"name"`
-	Address  string `json:"address"`
-	Port     int    `json:"port"`
-	Key      string `json:"key"`
-	Password string `json:"password"`
 }
 
 type ServerStatusType struct {
@@ -57,7 +34,7 @@ type ServerStatusType struct {
 }
 
 type ServerInfoType struct {
-	LinuxVersion  string `json:"linux_version"`
+	SystemVersion string `json:"system_version"`
 	Uptime        string `json:"uptime"`
 	Hostname      string `json:"hostname"`
 	CpuName       string `json:"cpu_name"`
@@ -71,12 +48,8 @@ type ServerInfoType struct {
 type ServerFullType struct {
 	ID            int64      `json:"id" db:"id"`
 	Category      int64      `json:"category" db:"category"`
+	Type          int16      `json:"type" db:"type"`
 	Name          string     `json:"name" db:"name"`
-	Address       string     `json:"address" db:"address"`
-	Port          int        `json:"port" db:"port"`
-	Username      string     `json:"username" db:"username"`
-	Password      string     `json:"password" db:"password"`
-	KeyID         int64      `json:"key_id" db:"key_id"`
 	AllowMonitor  bool       `json:"allow_monitor" db:"allow_monitor"`
 	AllowTerminal bool       `json:"allow_terminal" db:"allow_terminal"`
 	Weight        int        `json:"weight" db:"weight"`
@@ -91,4 +64,11 @@ type ServerFullType struct {
 	Traffic       *string    `json:"traffic" db:"traffic"`
 	TrafficType   *int       `json:"traffic_type" db:"traffic_type"`
 	NotePublic    *string    `json:"note_public" db:"note_public"`
+
+	// SSH
+	Address  string `json:"address" db:"address"`
+	Port     int    `json:"port" db:"port"`
+	Username string `json:"username" db:"username"`
+	Password string `json:"password" db:"password"`
+	KeyID    int64  `json:"key_id" db:"key_id"`
 }

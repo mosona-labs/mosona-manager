@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"errors"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/email"
 	"mosona-manager/internal/utils/store"
-	"mosona-manager/pkg/_type"
 
 	"github.com/labstack/echo/v4"
 	"github.com/pquerna/otp/totp"

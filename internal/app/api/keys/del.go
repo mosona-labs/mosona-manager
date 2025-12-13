@@ -1,8 +1,8 @@
 package akeys
 
 import (
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
-	"mosona-manager/pkg/_type"
 	"strconv"
 
 	"github.com/labstack/echo/v4"

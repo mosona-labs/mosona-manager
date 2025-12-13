@@ -3,10 +3,10 @@ package auth
 import (
 	"database/sql"
 	"errors"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
-	db2 "mosona-manager/internal/db"
+	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
-	"mosona-manager/pkg/_type"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -26,7 +26,7 @@ func login(c echo.Context) error {
 	}
 
 	// Find
-	user, err := db2.GetUserAuthByEmail(email)
+	user, err := db.GetUserAuthByEmail(email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(500, _type.H{
@@ -72,7 +72,7 @@ func login(c echo.Context) error {
 		return c.JSON(200, _type.H{Code: "2fa_required", Msg: "Two-factor authentication required"})
 	} else {
 		// Active Team
-		activeTid, err := db2.GetUserActiveTeam(user.ID)
+		activeTid, err := db.GetUserActiveTeam(user.ID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 		}

@@ -1,10 +1,10 @@
 package auth
 
 import (
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
-	db2 "mosona-manager/internal/db"
+	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
-	"mosona-manager/pkg/_type"
 
 	"github.com/labstack/echo/v4"
 )
@@ -32,7 +32,7 @@ func register(c echo.Context) error {
 	}
 
 	// Check Exist
-	isExist, err := db2.CheckEmailExists(emailAddress)
+	isExist, err := db.CheckEmailExists(emailAddress)
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
@@ -42,7 +42,7 @@ func register(c echo.Context) error {
 
 	// Register
 	signature := utils.RandomString(32)
-	if _, err := db2.Db.Exec(
+	if _, err := db.Db.Exec(
 		"INSERT INTO users (username, email, password, salt, verified) VALUES ($1, $2, $3, $4, $5)",
 		username, emailAddress, utils.SHA256(password+signature+config.DynamicConf.Token), signature, !config.DynamicConf.RegistrationVerifyEmail,
 	); err != nil {

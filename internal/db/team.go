@@ -1,7 +1,7 @@
 package db
 
 import (
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
 )
 
 func GetTeamById(id int64) (_type.Team, error) {

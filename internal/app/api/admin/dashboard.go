@@ -1,9 +1,9 @@
 package admin
 
 import (
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
-	influx2 "mosona-manager/internal/influx"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/influx"
 
 	"github.com/labstack/echo/v4"
 )
@@ -35,7 +35,7 @@ func dashboard(c echo.Context) error {
 		})
 	}
 	var err error
-	if records, err = influx2.GetAllBucketAllServerRecordCount(); err != nil {
+	if records, err = influx.GetAllBucketAllServerRecordCount(); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "err",
 			Msg:  "Database error",
@@ -43,7 +43,7 @@ func dashboard(c echo.Context) error {
 	}
 
 	// System Usage
-	usageData, err := influx2.GetSystemUsage()
+	usageData, err := influx.GetSystemUsage()
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "err",

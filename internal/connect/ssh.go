@@ -3,7 +3,7 @@ package connect
 import (
 	"context"
 	"fmt"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
 	"strconv"
 	"time"
 
@@ -13,8 +13,7 @@ import (
 func SSH(
 	ctx context.Context,
 	host string, port int, user, password, key, keyPwd string,
-	callback func(data _type.ServerStatusType),
-	info infoCallbackType,
+	serverId int64,
 ) error {
 	const (
 		initialBackoff = 1 * time.Second
@@ -93,8 +92,10 @@ func SSH(
 				if err = information(client, func(data _type.ServerInfoType) {
 					u, _ := strconv.ParseInt(data.Uptime, 10, 64)
 					bootTime := time.Unix(time.Now().Unix()-u, 0)
-					info(
-						data.LinuxVersion,
+					CallbackInformation(
+						serverId,
+						host,
+						data.SystemVersion,
 						bootTime,
 						data.Hostname,
 						data.CpuName,
@@ -107,7 +108,7 @@ func SSH(
 				}); err != nil {
 					return err
 				}
-				if err = status(client, callback); err != nil {
+				if err = status(client, serverId); err != nil {
 					return err
 				}
 			}

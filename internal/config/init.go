@@ -10,7 +10,6 @@ import (
 
 var Conf configType
 var DynamicConf dynamicConfigType
-var Key []byte
 
 func init() {
 	_ = godotenv.Load(".env")

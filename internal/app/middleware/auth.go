@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	db2 "mosona-manager/internal/db"
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/db"
 
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
@@ -33,7 +33,7 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		// Team ID
 		tid, _ := sess.Values["tid"]
 		if tid == nil || tid == 0 {
-			activeTid, err := db2.GetUserActiveTeam(uid.(int64))
+			activeTid, err := db.GetUserActiveTeam(uid.(int64))
 			if err != nil {
 				return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 			}
@@ -72,7 +72,7 @@ func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
 			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
 		}
 
-		userInfo, err := db2.GetUserById(uid.(int64))
+		userInfo, err := db.GetUserById(uid.(int64))
 		if err != nil || userInfo.ID == 0 {
 			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
 		}

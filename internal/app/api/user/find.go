@@ -3,8 +3,8 @@ package auser
 import (
 	"database/sql"
 	"errors"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
-	"mosona-manager/pkg/_type"
 
 	"github.com/labstack/echo/v4"
 )

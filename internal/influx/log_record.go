@@ -3,8 +3,8 @@ package influx
 import (
 	"context"
 	"fmt"
+	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
-	"mosona-manager/pkg/_type"
 )
 
 func GetLogsByPage(teamID int64, page, pageSize int, category, level string, userIDs []int64, message string) ([]_type.Log, int64, error) {

@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"mosona-manager/pkg/_type"
+	"mosona-manager/internal/_type"
 
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
