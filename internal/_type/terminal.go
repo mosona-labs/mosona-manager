@@ -2,10 +2,12 @@ package _type
 
 type Terminal struct {
 	ServerMinimal
-	Username string  `db:"username" json:"username"`
-	Address  string  `db:"address" json:"address"`
-	Port     int     `db:"port" json:"port"`
-	OS       *string `json:"os"`
+	OS *string `json:"os"`
+
+	// SSH
+	Username *string `db:"username" json:"username,omitempty"`
+	Address  *string `db:"address" json:"address,omitempty"`
+	Port     *int    `db:"port" json:"port,omitempty"`
 }
 
 type TerminalDetail struct {
