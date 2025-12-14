@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func connectHub() (*WSClient, error) {
+func connectHub(path string) (*WSClient, error) {
 	nonceBytes := make([]byte, 16)
 	if _, err := rand.Read(nonceBytes); err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func connectHub() (*WSClient, error) {
 		1,
 	)
 
-	if err := client.Connect(context.Background(), url+"/api/agent/ws"); err != nil {
+	if err := client.Connect(context.Background(), url+path); err != nil {
 		return nil, err
 	}
 

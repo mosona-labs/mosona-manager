@@ -18,6 +18,7 @@ type WSClient struct {
 	maxRetries    int
 	retryInterval time.Duration
 	onReconnect   func()
+	ctx           context.Context
 }
 
 func NewWSClient() *WSClient {
@@ -43,6 +44,7 @@ func (c *WSClient) OnReconnect(fn func()) {
 
 func (c *WSClient) Connect(ctx context.Context, url string) error {
 	c.url = url
+	c.ctx = ctx
 	return c.dial(ctx)
 }
 
@@ -57,63 +59,42 @@ func (c *WSClient) dial(ctx context.Context) error {
 	c.conn = conn
 	c.mu.Unlock()
 
-	go c.monitorConnection(ctx)
 	return nil
 }
 
-func (c *WSClient) monitorConnection(ctx context.Context) {
-	for {
-		c.mu.RLock()
-		conn := c.conn
-		c.mu.RUnlock()
-
-		if conn == nil {
-			return
-		}
-
-		_, _, err := conn.ReadMessage()
-		if err != nil {
-			c.reconnect(ctx)
-			return
-		}
-	}
-}
-
-func (c *WSClient) reconnect(ctx context.Context) {
+func (c *WSClient) reconnect() error {
 	c.mu.Lock()
 	if c.reconnecting {
 		c.mu.Unlock()
-		return
+		return websocket.ErrCloseSent
 	}
 	c.reconnecting = true
 	c.mu.Unlock()
 
+	defer func() {
+		c.mu.Lock()
+		c.reconnecting = false
+		c.mu.Unlock()
+	}()
+
 	retries := 0
 	for {
 		if c.maxRetries >= 0 && retries >= c.maxRetries {
-			break
+			return websocket.ErrCloseSent
 		}
 
 		time.Sleep(c.retryInterval)
 
-		err := c.dial(ctx)
+		err := c.dial(c.ctx)
 		if err == nil {
-			c.mu.Lock()
-			c.reconnecting = false
-			c.mu.Unlock()
-
 			if c.onReconnect != nil {
 				c.onReconnect()
 			}
-			return
+			return nil
 		}
 
 		retries++
 	}
-
-	c.mu.Lock()
-	c.reconnecting = false
-	c.mu.Unlock()
 }
 
 func (c *WSClient) Close() error {
@@ -130,20 +111,39 @@ func (c *WSClient) Close() error {
 
 func (c *WSClient) SendMessage(messageType int, data []byte) error {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	conn := c.conn
+	c.mu.RUnlock()
 
-	if c.conn == nil {
+	if conn == nil {
 		return websocket.ErrCloseSent
 	}
-	return c.conn.WriteMessage(messageType, data)
+
+	err := conn.WriteMessage(messageType, data)
+	if err != nil {
+		_ = c.reconnect()
+	}
+	return err
 }
 
 func (c *WSClient) ReadMessage() (int, []byte, error) {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	conn := c.conn
+	c.mu.RUnlock()
 
-	if c.conn == nil {
+	if conn == nil {
 		return 0, nil, websocket.ErrCloseSent
 	}
-	return c.conn.ReadMessage()
+
+	msgType, data, err := conn.ReadMessage()
+	if err != nil {
+		if reconnectErr := c.reconnect(); reconnectErr == nil {
+			c.mu.RLock()
+			conn = c.conn
+			c.mu.RUnlock()
+			if conn != nil {
+				return conn.ReadMessage()
+			}
+		}
+	}
+	return msgType, data, err
 }

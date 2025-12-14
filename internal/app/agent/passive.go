@@ -2,8 +2,9 @@ package agent
 
 import (
 	"log"
-	agentType "mosona-manager/agent/types"
+	agentTypes "mosona-manager/agent/types"
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/app/agent/connection"
 	"mosona-manager/internal/connect"
 	"mosona-manager/internal/influx"
 	"net/http"
@@ -52,8 +53,12 @@ func passiveWS(c echo.Context) error {
 		return err
 	}
 	defer func() {
+		connection.MainRemove(serverId)
+
 		_ = ws.Close()
 	}()
+
+	connection.MainSet(serverId, ws)
 
 	// Heartbeat
 	go func() {
@@ -77,7 +82,7 @@ func passiveWS(c echo.Context) error {
 			return nil
 		}
 
-		var data agentType.Status
+		var data agentTypes.Status
 		if err = msgpack.Unmarshal(msg, &data); err != nil {
 			continue
 		}

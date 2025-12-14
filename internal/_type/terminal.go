@@ -11,8 +11,13 @@ type Terminal struct {
 }
 
 type TerminalDetail struct {
-	Address  string `db:"address"`
-	Port     int    `db:"port"`
-	Username string `db:"username"`
-	Password string `db:"password,omitempty"`
+	Type int16 `json:"type"`
+
+	// SSH
+	Address  *string `db:"address"`
+	Port     *int    `db:"port"`
+	Username *string `db:"username"`
+	Password *string `db:"password"`
+	Key      *string `db:"key"`
+	KeyPwd   *string `db:"key_pwd"`
 }

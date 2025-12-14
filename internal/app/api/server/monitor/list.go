@@ -29,7 +29,6 @@ func list(c echo.Context) error {
 	}
 	statusMap, err := influx.GetLatestServerStatusBatch(ids)
 	if err != nil {
-		fmt.Println(err)
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Failed to get server statuses",

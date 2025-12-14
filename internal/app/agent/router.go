@@ -11,4 +11,5 @@ func Router(e *echo.Group) {
 
 	e.POST("/info", passiveInfo, middleware.PassiveAuth)
 	e.GET("/ws", passiveWS, middleware.PassiveAuth)
+	e.GET("/terminal/:session_id", terminal, middleware.PassiveAuth)
 }

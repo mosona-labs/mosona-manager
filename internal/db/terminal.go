@@ -59,21 +59,60 @@ func ListTerminals(teamId int64) ([]_type.Terminal, error) {
 func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
 	var server _type.TerminalDetail
 	var password []byte
+	var keyContent []byte
+	var keyPassword []byte
 
 	if err := Db.QueryRow(
-		"SELECT address, port, username, password FROM servers s JOIN ssh on s.id = ssh.server_id WHERE s.id = $1 AND team_id = $2 AND allow_terminal = true",
+		`SELECT 
+    		s.type, 
+    		COALESCE(address, NULL),
+			COALESCE(port, NULL),
+			COALESCE(username, NULL),
+			COALESCE(ssh.password, NULL),
+			COALESCE(keys.content, NULL),
+			COALESCE(keys.password, NULL)
+		FROM servers s 
+		    LEFT JOIN ssh on s.id = ssh.server_id 
+			LEFT JOIN keys on ssh.key_id = keys.id
+		WHERE s.id = $1 AND s.team_id = $2 AND allow_terminal = true`,
 		serverId, teamId,
 	).Scan(
+		&server.Type,
 		&server.Address, &server.Port, &server.Username, &password,
+		&keyContent, &keyPassword,
 	); err != nil {
 		return server, err
 	}
 
-	pwd, err := encrypt.Decrypt(password, encrypt.Key)
-	if err != nil {
-		return server, err
+	// Server Password
+	if len(password) != 0 {
+		pwd, err := encrypt.Decrypt(password, encrypt.Key)
+		if err != nil {
+			return server, err
+		}
+		serverPwd := string(pwd)
+		server.Password = &serverPwd
 	}
-	server.Password = string(pwd)
+
+	// Server Key
+	if len(keyContent) != 0 {
+		key, err := encrypt.Decrypt(keyContent, encrypt.Key)
+		if err != nil {
+			return server, err
+		}
+		keyStr := string(key)
+		server.Key = &keyStr
+	}
+
+	// Server Key Password
+	if len(keyPassword) != 0 {
+		kp, err := encrypt.Decrypt(keyPassword, encrypt.Key)
+		if err != nil {
+			return server, err
+		}
+		keyPwdStr := string(kp)
+		server.KeyPwd = &keyPwdStr
+	}
 
 	return server, nil
 }
