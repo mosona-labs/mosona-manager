@@ -67,7 +67,9 @@ func Run() {
 
 			switch msg.Code {
 			case "terminal":
-				go terminal(string(msg.Data))
+				if !config.Current.NoTerminal {
+					go terminal(string(msg.Data))
+				}
 			}
 		}
 	}
