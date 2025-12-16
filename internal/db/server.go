@@ -131,11 +131,7 @@ func EditServer(teamId, serverId int64, typ int16, data *_type.ServerFullType) e
 	return nil
 }
 
-func GetServerMode(serverId int64) (int16, error) {
-	var mode int16
-	err := Db.Get(&mode, "SELECT type FROM servers WHERE id=$1", serverId)
-	if err != nil {
-		return 0, err
-	}
-	return mode, nil
+func DeleteServer(teamId, serverId int64) error {
+	_, err := Db.Exec("DELETE FROM servers WHERE id = $1 AND team_id = $2", serverId, teamId)
+	return err
 }

@@ -33,7 +33,7 @@ func info(c echo.Context) error {
 	// Log action
 	influx.LogAdd(
 		tid, uid, "server", "View Server Info (ID"+strconv.FormatInt(serverId, 10)+")",
-		c.RealIP(), c.Request().UserAgent(), "medium",
+		c.RealIP(), c.Request().UserAgent(), "low",
 	)
 
 	return c.JSON(200, _type.H{

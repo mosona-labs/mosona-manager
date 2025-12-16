@@ -228,7 +228,7 @@ func add(c echo.Context) error {
 	// Log action
 	influx.LogAdd(
 		tid, uid, "server", "Create Server: "+name+" (ID"+strconv.FormatInt(serverId, 10)+")",
-		c.RealIP(), c.Request().UserAgent(), "high",
+		c.RealIP(), c.Request().UserAgent(), "medium",
 	)
 
 	return c.JSON(200, _type.H{

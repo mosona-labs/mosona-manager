@@ -12,9 +12,8 @@ import (
 )
 
 func edit(c echo.Context) error {
-	tid, _ := c.Get("tid").(int64)
 	uid, _ := c.Get("uid").(int64)
-
+	tid, _ := c.Get("tid").(int64)
 	serverId, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	if tid == 0 || serverId == 0 {
 		return c.JSON(400, _type.H{
@@ -64,7 +63,7 @@ func edit(c echo.Context) error {
 	// Log action
 	influx.LogAdd(
 		tid, uid, "server", "Edit Server: "+data.Name+" (ID"+strconv.FormatInt(serverId, 10)+")",
-		c.RealIP(), c.Request().UserAgent(), "high",
+		c.RealIP(), c.Request().UserAgent(), "medium",
 	)
 
 	return c.JSON(200, _type.H{

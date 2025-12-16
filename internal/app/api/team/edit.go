@@ -134,7 +134,7 @@ func edit(c echo.Context) error {
 	// Log action
 	influx.LogAdd(
 		tid, uid, "team", "Edit Team: "+name+" (ID"+strconv.FormatInt(tid, 10)+")",
-		c.RealIP(), c.Request().UserAgent(), "high",
+		c.RealIP(), c.Request().UserAgent(), "medium",
 	)
 
 	return c.JSON(200, _type.H{
