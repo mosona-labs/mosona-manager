@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdh"
 	"crypto/ed25519"
-	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"log"
@@ -42,14 +41,7 @@ func Connect(
 	if block == nil {
 		return errors.New("failed to decode PEM block")
 	}
-	pKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		return err
-	}
-	privateKey, ok := pKey.(ed25519.PrivateKey)
-	if !ok {
-		return errors.New("not an ed25519 private key")
-	}
+	privateKey := ed25519.NewKeyFromSeed(block.Bytes)
 
 	a := &auth{
 		serverID: serverId,
@@ -78,64 +70,61 @@ func Connect(
 		return err
 	}
 
-	// Ping
+	// Read loop
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(30 * time.Second):
-				if err := client.SendMessage(websocket.PingMessage, nil); err != nil {
-					log.Println("ping:", err)
-					return
-				}
+			default:
+			}
+
+			_, originData, err := client.ReadMessage()
+			if err != nil {
+				return
+			}
+			data, err := sc.Decrypt(originData)
+			if err != nil {
+				continue
+			}
+
+			var state types.Status
+			if err = msgpack.Unmarshal(data, &state); err != nil {
+				continue
+			}
+
+			if err = influx.AddServerStatus(serverId, _type.ServerStatusType{
+				CPU:           state.CPU,
+				MemTotalMB:    state.MemTotalMB,
+				MemUsedMB:     state.MemUsedMB,
+				SwapTotalMB:   state.SwapTotalMB,
+				SwapUsedMB:    state.SwapUsedMB,
+				DiskTotalGB:   state.DiskTotalGB,
+				DiskUsedGB:    state.DiskUsedGB,
+				DiskReadKibS:  state.DiskReadKibS,
+				DiskWriteKibS: state.DiskWriteKibS,
+				DiskReadIOPS:  state.DiskReadIOPS,
+				DiskWriteIOPS: state.DiskWriteIOPS,
+				RxKibS:        state.RxKibS,
+				TxKibS:        state.TxKibS,
+				RxTotalMB:     state.RxTotalMB,
+				TxTotalMB:     state.TxTotalMB,
+				TCPTotal:      state.TCPTotal,
+				UDPTotal:      state.UDPTotal,
+				Time:          time.Now(),
+			}); err != nil {
+				log.Println("Failed to add server status:", err)
 			}
 		}
 	}()
 
-	// Read loop
+	// Ping
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
-		}
-
-		_, originData, err := client.ReadMessage()
-		if err != nil {
-			continue
-		}
-		data, err := sc.Decrypt(originData)
-		if err != nil {
-			continue
-		}
-
-		var state types.Status
-		if err = msgpack.Unmarshal(data, &state); err != nil {
-			continue
-		}
-
-		if err = influx.AddServerStatus(serverId, _type.ServerStatusType{
-			CPU:           state.CPU,
-			MemTotalMB:    state.MemTotalMB,
-			MemUsedMB:     state.MemUsedMB,
-			SwapTotalMB:   state.SwapTotalMB,
-			SwapUsedMB:    state.SwapUsedMB,
-			DiskTotalGB:   state.DiskTotalGB,
-			DiskUsedGB:    state.DiskUsedGB,
-			DiskReadKibS:  state.DiskReadKibS,
-			DiskWriteKibS: state.DiskWriteKibS,
-			DiskReadIOPS:  state.DiskReadIOPS,
-			DiskWriteIOPS: state.DiskWriteIOPS,
-			RxKibS:        state.RxKibS,
-			TxKibS:        state.TxKibS,
-			RxTotalMB:     state.RxTotalMB,
-			TxTotalMB:     state.TxTotalMB,
-			TCPTotal:      state.TCPTotal,
-			UDPTotal:      state.UDPTotal,
-			Time:          time.Now(),
-		}); err != nil {
-			log.Println("Failed to add server status:", err)
+		case <-time.After(30 * time.Second):
+			_ = client.SendMessage(websocket.PingMessage, nil)
 		}
 	}
 }

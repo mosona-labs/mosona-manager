@@ -14,7 +14,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		ts := r.Header.Get("X-Agent-Timestamp")
 		nonce := r.Header.Get("X-Agent-Nonce")
 		signature := r.Header.Get("X-Agent-Signature")
-		if uid == "" || ts == "" || len(nonce) > 16 || signature == "" {
+		if uid == "" || ts == "" || len(nonce) < 16 || signature == "" {
 			http.Error(w, "Missing authentication headers", http.StatusUnauthorized)
 			return
 		}

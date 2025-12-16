@@ -2,10 +2,12 @@ package conn
 
 import (
 	"context"
+	"log"
 	"mosona-manager/internal/connect/active"
 	"mosona-manager/internal/connect/ssh"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils/encrypt"
+	"time"
 )
 
 func StartServer(serverId int64, mode int16) error {
@@ -88,7 +90,17 @@ func StartServer(serverId int64, mode int16) error {
 		mu.Unlock()
 
 		go func() {
-			_ = active.Connect(ctx, host, port, privKey, agentUid, serverId)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+					err := active.Connect(ctx, host, port, privKey, agentUid, serverId)
+					if err != nil {
+						log.Println(err)
+					}
+				}
+			}
 		}()
 	}
 

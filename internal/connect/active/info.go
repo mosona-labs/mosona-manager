@@ -38,14 +38,14 @@ func (a *auth) getInformation() error {
 
 	var info infoResponse
 	if err = utils.PostForm(
-		fmt.Sprintf("http://%s:%s/api/info", a.host, a.port),
-		map[string]interface{}{
+		fmt.Sprintf("http://%s:%d/api/info", a.host, a.port),
+		map[string]interface{}{},
+		map[string]string{
 			"X-Agent-Id":        a.agentUID,
 			"X-Agent-Timestamp": fmt.Sprintf("%d", ts),
 			"X-Agent-Nonce":     nonce,
 			"X-Agent-Signature": signature,
 		},
-		map[string]string{},
 		&info,
 	); err != nil {
 		return err

@@ -3,7 +3,6 @@ package active
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"mosona-manager/internal/db"
@@ -20,7 +19,7 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 		host string
 		port int
 	)
-	if err := db.Db.QueryRow("SELECT private_key, agent_uid, host, port FROM agents WHERE server_id = ?", serverId).Scan(
+	if err := db.Db.QueryRow("SELECT private_key, agent_uid, host, port FROM agents WHERE server_id = $1", serverId).Scan(
 		&privKey,
 		&agentUid,
 		&host,
@@ -33,14 +32,7 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 	if block == nil {
 		return errors.New("failed to decode PEM block")
 	}
-	pKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		return err
-	}
-	privateKey, ok := pKey.(ed25519.PrivateKey)
-	if !ok {
-		return errors.New("not an ed25519 private key")
-	}
+	privateKey := ed25519.NewKeyFromSeed(block.Bytes)
 	a := &auth{
 		serverID: serverId,
 		agentUID: agentUid,

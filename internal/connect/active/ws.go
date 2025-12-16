@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"mosona-manager/agent/config"
 	"mosona-manager/internal/runtime"
 	"mosona-manager/pkg/identity"
 	pbTypes "mosona-manager/pkg/types"
@@ -27,10 +26,10 @@ func (a *auth) connectAgent(ctx context.Context, path string) (*ws.Client, error
 	ts := time.Now().Unix()
 
 	client := ws.NewClient()
-	client.SetHeader("X-Agent-Id", config.Current.UUID)
+	client.SetHeader("X-Agent-Id", a.agentUID)
 	client.SetHeader("X-Agent-Timestamp", fmt.Sprintf("%d", ts))
 	client.SetHeader("X-Agent-Nonce", nonce)
-	signature, err := identity.SignHeaders(config.PrivateKey, config.Current.UUID, ts, nonce)
+	signature, err := identity.SignHeaders(*a.privKey, a.agentUID, ts, nonce)
 	if err != nil {
 		return nil, err
 	}
@@ -38,9 +37,9 @@ func (a *auth) connectAgent(ctx context.Context, path string) (*ws.Client, error
 
 	client.SetHeader("User-Agent", "mosona-manager-hub/"+runtime.Version)
 
-	client.SetReconnectConfig(-1, 10*time.Second)
+	//client.SetReconnectConfig(-1, 10*time.Second)
 
-	if err = client.Connect(ctx, fmt.Sprintf("%s:%d%s", a.host, a.port, path)); err != nil {
+	if err = client.Connect(ctx, fmt.Sprintf("ws://%s:%d%s", a.host, a.port, path)); err != nil {
 		return nil, err
 	}
 

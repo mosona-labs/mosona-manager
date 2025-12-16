@@ -21,8 +21,7 @@ func Run() {
 	handler := middleware.AuthMiddleware(mux)
 
 	addr := fmt.Sprintf("%s:%d", config.Current.Host, config.Current.Port)
-	log.Printf("Listening on %s...\n", handler)
-	if err := http.ListenAndServe(addr, nil); err != nil {
+	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalln("Failed to start HTTP server:", err)
 	}
 }

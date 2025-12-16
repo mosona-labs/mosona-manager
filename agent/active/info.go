@@ -2,16 +2,19 @@ package active
 
 import (
 	"encoding/json"
+	"mosona-manager/agent/runtime"
 	"mosona-manager/agent/telemetry"
 	"net/http"
 	"os"
-	"runtime"
 	"time"
 )
 
 func handleInfo(resp http.ResponseWriter, req *http.Request) {
 	data := telemetry.CollectHostInfo(req.Context())
-	hostname, _ := os.Hostname()
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
 
 	response := map[string]interface{}{
 		"system":     data.SystemVersion,
@@ -24,9 +27,9 @@ func handleInfo(resp http.ResponseWriter, req *http.Request) {
 		"arch":       data.Architecture,
 		"version":    runtime.Version,
 	}
-	responseJson, _ := json.Marshal(response)
 
 	resp.Header().Set("Content-Type", "application/json")
 
+	responseJson, _ := json.Marshal(response)
 	_, _ = resp.Write(responseJson)
 }

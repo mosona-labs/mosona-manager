@@ -38,7 +38,7 @@ func WsMiddleware(next HandlerWSFunc) http.HandlerFunc {
 
 		// Error handler
 		handleError := func(message string) {
-			http.Error(w, message, http.StatusBadRequest)
+			_ = conn.WriteMessage(websocket.TextMessage, []byte(message))
 			_ = conn.Close()
 		}
 
