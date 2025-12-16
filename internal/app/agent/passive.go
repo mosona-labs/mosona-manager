@@ -5,7 +5,8 @@ import (
 	agentTypes "mosona-manager/agent/types"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/app/agent/connection"
-	"mosona-manager/internal/connect"
+	"mosona-manager/internal/connect/callback"
+	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"net/http"
 	"strconv"
@@ -27,10 +28,22 @@ func passiveInfo(c echo.Context) error {
 	coreT, _ := strconv.Atoi(c.FormValue("core_t"))
 	kernel := c.FormValue("kernel")
 	arch := c.FormValue("arch")
+	version := c.FormValue("version")
 
-	connect.CallbackInformation(
+	callback.Information(
 		serverId, "", system, time.Unix(start, 0), hostName, cpuName, coreC, coreT, kernel, c.RealIP(), arch,
 	)
+
+	// Update agent info
+	if _, err := db.Db.Exec(
+		"UPDATE agents SET last_ip = $1, last_version = $2, last_seen_at = NOW() WHERE server_id = $3",
+		c.RealIP(), version, serverId,
+	); err != nil {
+		return c.JSON(400, _type.H{
+			Code: "err",
+			Msg:  "Database error",
+		})
+	}
 
 	return c.JSON(200, _type.H{
 		Code: "ok",

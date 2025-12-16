@@ -37,8 +37,6 @@ func set(c echo.Context) error {
 		// Skip protected keys
 		if item.Key == "init" || item.Key == "token" {
 			continue
-		} else if item.Key == "domain" {
-			oauth.Init()
 		}
 		// Execute upsert
 		if _, err = tx.Exec(stmt, item.Key, item.Value); err != nil {
@@ -63,6 +61,14 @@ func set(c echo.Context) error {
 			Code: "err",
 			Msg:  "Failed to reload configuration",
 		})
+	}
+
+	// Reinitialize OAuth if domain changed
+	for _, item := range *req {
+		switch item.Key {
+		case "domain":
+			oauth.Init()
+		}
 	}
 
 	// Log action

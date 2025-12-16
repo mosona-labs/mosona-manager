@@ -6,12 +6,14 @@ import (
 	"encoding/base64"
 	"fmt"
 	"mosona-manager/agent/config"
-	"mosona-manager/agent/identity"
+	"mosona-manager/agent/runtime"
+	"mosona-manager/pkg/identity"
+	"mosona-manager/pkg/ws"
 	"strings"
 	"time"
 )
 
-func connectHub(path string) (*WSClient, error) {
+func connectHub(path string) (*ws.Client, error) {
 	nonceBytes := make([]byte, 16)
 	if _, err := rand.Read(nonceBytes); err != nil {
 		return nil, err
@@ -20,7 +22,7 @@ func connectHub(path string) (*WSClient, error) {
 
 	ts := time.Now().Unix()
 
-	client := NewWSClient()
+	client := ws.NewClient()
 	client.SetHeader("X-Agent-Id", config.Current.UUID)
 	client.SetHeader("X-Agent-Timestamp", fmt.Sprintf("%d", ts))
 	client.SetHeader("X-Agent-Nonce", nonce)
@@ -28,8 +30,9 @@ func connectHub(path string) (*WSClient, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	client.SetHeader("X-Agent-Signature", signature)
+
+	client.SetHeader("User-Agent", "mosona-manager-agent/"+runtime.Version)
 
 	client.SetReconnectConfig(-1, 10*time.Second)
 

@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"mosona-manager/agent/config"
 	"mosona-manager/agent/runtime"
-	"mosona-manager/pkg/identity"
 	"os"
 	"path"
 )
 
-func Passive(hub, enrollKey string, noMonitor, noTerminal bool) error {
-	fmt.Println("Initializing agent in passive mode...")
+func Active(uid, publicKey, host string, port int, noMonitor, noTerminal bool) error {
+	fmt.Println("Initializing agent in active mode...")
+	fmt.Printf("Will be listening on %s:%d\n", host, port)
 
 	if _, err := os.Stat(runtime.InstallDir); !os.IsNotExist(err) {
 		fmt.Print("Do you want to reinstall agent? (y/N): ")
@@ -27,39 +27,30 @@ func Passive(hub, enrollKey string, noMonitor, noTerminal bool) error {
 		return err
 	}
 
-	privateKey, publicKey, err := identity.GenerateEd25519KeyPair()
-	if err != nil {
-		return err
-	}
-
-	agentUID, err := EnrollPassive(hub, enrollKey, publicKey)
-	if err != nil {
-		return err
-	}
-
-	// Save private key
-	privateKeyFile, err := os.Create(
-		path.Join(runtime.InstallDir, "private_key.pem"),
+	// Save public key
+	publicKeyFile, err := os.Create(
+		path.Join(runtime.InstallDir, "public_key.pem"),
 	)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		_ = privateKeyFile.Close()
+		_ = publicKeyFile.Close()
 	}()
-	if _, err = privateKeyFile.WriteString(privateKey); err != nil {
+	if _, err = publicKeyFile.WriteString(publicKey); err != nil {
 		return err
 	}
 
 	// Save config
 	conf := config.Config{
-		Mode: "passive",
+		Mode: "active",
 
 		NoMonitor:  noMonitor,
 		NoTerminal: noTerminal,
 
-		Hub:  hub,
-		UUID: agentUID,
+		Uid:  uid,
+		Host: host,
+		Port: port,
 	}
 	if err = conf.Save(); err != nil {
 		return err

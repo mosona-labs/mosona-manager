@@ -1,11 +1,11 @@
-package passive
+package active
 
 import (
+	"crypto/ecdh"
 	"encoding/json"
-	"fmt"
 	"log"
+	secureWS "mosona-manager/pkg/securews"
 	pbTypes "mosona-manager/pkg/types"
-	"mosona-manager/pkg/ws"
 	"os"
 	"os/exec"
 	"runtime"
@@ -14,15 +14,22 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func terminal(sessionID string) {
-	client, err := connectHub(fmt.Sprintf("/api/agent/terminal/%s", sessionID))
+func handleTerminalWebSocket(
+	conn *websocket.Conn,
+	xHubPubKey *ecdh.PublicKey,
+	xAgentPrivKey *ecdh.PrivateKey,
+	hubNonce string,
+	agentNonce string,
+) {
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	sc, err := secureWS.NewSessionCrypto(secureWS.RoleAgent, xHubPubKey, xAgentPrivKey, hubNonce, agentNonce)
 	if err != nil {
-		log.Printf("Failed to connect terminal session %s: %v", sessionID, err)
+		_ = conn.WriteMessage(websocket.CloseMessage, []byte("crypto init failed"))
 		return
 	}
-	defer func(client *ws.Client) {
-		_ = client.Close()
-	}(client)
 
 	var shell string
 	var args []string
@@ -42,7 +49,7 @@ func terminal(sessionID string) {
 	cmd := exec.Command(shell, args...)
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
-		log.Printf("Failed to start pty for session %s: %v", sessionID, err)
+		log.Printf("Failed to start pty for session: %v", err)
 		return
 	}
 	defer func() {
@@ -66,7 +73,11 @@ func terminal(sessionID string) {
 			}
 
 			if n > 0 {
-				_ = client.SendMessage(websocket.TextMessage, buf[:n])
+				data, err := sc.Encrypt(buf[:n])
+				if err != nil {
+					return
+				}
+				_ = conn.WriteMessage(websocket.BinaryMessage, data)
 			}
 		}
 	}()
@@ -74,7 +85,12 @@ func terminal(sessionID string) {
 	// Handle websocket input -> pty
 	go func() {
 		for {
-			_, msg, err := client.ReadMessage()
+			_, originMsg, err := conn.ReadMessage()
+			if err != nil {
+				_ = ptmx.Close()
+				return
+			}
+			msg, err := sc.Decrypt(originMsg)
 			if err != nil {
 				_ = ptmx.Close()
 				return

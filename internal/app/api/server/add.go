@@ -2,17 +2,20 @@ package aserver
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
-	"mosona-manager/internal/connect"
+	"mosona-manager/internal/connect/conn"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
 	"mosona-manager/internal/utils/encrypt"
+	"mosona-manager/pkg/identity"
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -159,8 +162,35 @@ func add(c echo.Context) error {
 			"id": serverId,
 		}
 	case 1: // Agent (active)
-		//address := c.FormValue("address")
-		//port, _ := strconv.Atoi(c.FormValue("port"))
+		agentUUID, _ := uuid.NewUUID()
+		privateKey, publicKey, err := identity.GenerateEd25519KeyPair()
+		if err != nil {
+			return c.JSON(500, _type.H{
+				Code: "error",
+				Msg:  "Key generation error",
+			})
+		}
+
+		address := c.FormValue("address")
+		port, _ := strconv.Atoi(c.FormValue("port"))
+		if _, err = tx.Exec(
+			"INSERT INTO agents (server_id, agent_uid, status, host, port, private_key) VALUES ($1, $2, $3)",
+			serverId, agentUUID.String(), 0, address, port, privateKey,
+		); err != nil {
+			_ = tx.Rollback()
+			return c.JSON(500, _type.H{
+				Code: "error",
+				Msg:  "Database error",
+			})
+		}
+
+		response = echo.Map{
+			"id":         serverId,
+			"host":       address,
+			"port":       port,
+			"agent_uid":  agentUUID.String(),
+			"public_key": base64.StdEncoding.EncodeToString([]byte(publicKey)),
+		}
 	case 2: // Agent (passive)
 		enrollToken := utils.RandomString(32)
 		tokenHash := utils.SHA256(enrollToken + config.DynamicConf.Token)
@@ -190,7 +220,7 @@ func add(c echo.Context) error {
 	}
 
 	go func() {
-		if err = connect.StartServer(serverId); err != nil {
+		if err = conn.StartServer(serverId, int16(mode)); err != nil {
 			fmt.Println("Failed to start server connection:", err)
 		}
 	}()

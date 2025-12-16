@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"mosona-manager/agent/config"
 	"mosona-manager/agent/httpclient"
-	"mosona-manager/agent/identity"
+	"mosona-manager/agent/runtime"
 	"mosona-manager/agent/telemetry"
+	"mosona-manager/pkg/identity"
 	"os"
 	"time"
 )
@@ -38,10 +39,12 @@ func reportInfo() error {
 		"core_t":     data.CpuT,
 		"kernel":     data.KernelVersion,
 		"arch":       data.Architecture,
+		"version":    runtime.Version,
 	}, map[string]string{
 		"X-Agent-Id":        config.Current.UUID,
 		"X-Agent-Timestamp": fmt.Sprintf("%d", ts),
 		"X-Agent-Nonce":     nonce,
 		"X-Agent-Signature": signature,
+		"User-Agent":        "mosona-manager-agent/" + runtime.Version,
 	}, nil)
 }

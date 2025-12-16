@@ -1,6 +1,7 @@
 package aterminal
 
 import (
+	"mosona-manager/internal/connect/active"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"net/http"
@@ -53,6 +54,7 @@ func ws(c echo.Context) error {
 		}
 		return terminalSSH(serverAuth, wsConn)
 	case 1: // Active Agent
+		return active.ConnectShell(c.Request().Context(), serverId, wsConn)
 	case 2: // Passive Agent
 		return terminalPassive(serverId, wsConn)
 	}

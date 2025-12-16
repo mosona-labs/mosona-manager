@@ -1,9 +1,10 @@
-package connect
+package ssh
 
 import (
 	"context"
 	"fmt"
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/connect/callback"
 	"strconv"
 	"time"
 
@@ -92,7 +93,7 @@ func SSH(
 				if err = information(client, func(data _type.ServerInfoType) {
 					u, _ := strconv.ParseInt(data.Uptime, 10, 64)
 					bootTime := time.Unix(time.Now().Unix()-u, 0)
-					CallbackInformation(
+					callback.Information(
 						serverId,
 						host,
 						data.SystemVersion,

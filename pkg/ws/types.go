@@ -1,0 +1,22 @@
+package ws
+
+import (
+	"context"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/gorilla/websocket"
+)
+
+type Client struct {
+	conn          *websocket.Conn
+	header        http.Header
+	url           string
+	mu            sync.RWMutex
+	reconnecting  bool
+	maxRetries    int
+	retryInterval time.Duration
+	onReconnect   func()
+	ctx           context.Context
+}

@@ -2,28 +2,36 @@ package connect
 
 import (
 	"log"
+	"mosona-manager/internal/connect/conn"
 	"mosona-manager/internal/db"
 )
 
 func Init() {
-	initSSH()
-}
-
-func initSSH() {
-	var servers []int64
-	err := db.Db.Select(&servers, "SELECT id FROM servers WHERE type = 0 AND allow_monitor = true")
+	rows, err := db.Db.Query("SELECT id, type FROM servers WHERE type <> 2 AND allow_monitor = true")
 	if err != nil {
 		log.Fatalln("Failed to load monitor servers:", err)
 	}
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	semaphore := make(chan struct{}, 5)
 
-	for _, serverId := range servers {
+	for rows.Next() {
+		var serverId int64
+		var serverType int16
+		if err = rows.Scan(&serverId, &serverType); err != nil {
+			log.Println("Failed to scan server row:", err)
+			continue
+		}
+		if serverType != 0 {
+			continue
+		}
 		semaphore <- struct{}{}
 		go func(id int64) {
 			defer func() { <-semaphore }()
 			for {
-				if err := StartServer(id); err != nil {
+				if err := conn.StartServer(id, serverType); err != nil {
 					log.Printf("Failed to start monitoring for server %d: %v\n", id, err)
 				} else {
 					break

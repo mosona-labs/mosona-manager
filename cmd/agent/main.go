@@ -1,14 +1,18 @@
 package main
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
+	"mosona-manager/agent/active"
 	"mosona-manager/agent/config"
 	"mosona-manager/agent/install"
 	"mosona-manager/agent/passive"
 	"mosona-manager/agent/runtime"
 	"mosona-manager/agent/service"
 	"os"
+	"strconv"
+	"strings"
 )
 
 const Logo = `┳┳┓           ┳┳┓            
@@ -71,6 +75,9 @@ func handleRun() {
 	case "passive":
 		fmt.Println("⇨ Running in passive mode, connecting to hub:", config.Current.Hub)
 		passive.Run()
+	case "active":
+		fmt.Printf("⇨ Running in active mode, listening on %s:%d\n", config.Current.Host, config.Current.Port)
+		active.Run()
 	default:
 		fmt.Println("Unknown mode:", config.Current.Mode)
 		os.Exit(1)
@@ -128,7 +135,32 @@ func handleInstall() {
 
 	switch mode {
 	case "active":
-		// TODO
+		args := fs.Args()
+		if len(args) < 4 {
+			fmt.Println("Usage: agent install active [--no-monitor] [--no-terminal] <uid> <public_key> <host> <port>")
+			os.Exit(1)
+		}
+
+		uid := args[0]
+		publicKey := args[1]
+		host := args[2]
+		port, _ := strconv.Atoi(args[3])
+
+		// Validation
+		if uid == "" || publicKey == "" || host == "" || port == 0 {
+			fmt.Println("Invalid args")
+			os.Exit(1)
+		}
+		pubKey, err := base64.StdEncoding.DecodeString(publicKey)
+		if err != nil || len(pubKey) == 0 {
+			fmt.Println("Invalid public key")
+			os.Exit(1)
+		}
+
+		if err := install.Active(uid, string(pubKey), host, port, *noMonitor, *noTerminal); err != nil {
+			fmt.Printf("Installation failed: %v\n", err)
+			os.Exit(1)
+		}
 	case "passive":
 		args := fs.Args()
 		if len(args) < 2 {
@@ -140,6 +172,16 @@ func handleInstall() {
 		token := args[1]
 		if hub[len(hub)-1] == '/' {
 			hub = hub[:len(hub)-1]
+		}
+
+		// Validation
+		if !strings.HasPrefix(hub, "http://") && !strings.HasPrefix(hub, "https://") {
+			fmt.Println("Invalid hub URL")
+			os.Exit(1)
+		}
+		if token == "" {
+			fmt.Println("Invalid enroll key")
+			os.Exit(1)
 		}
 
 		if err := install.Passive(hub, token, *noMonitor, *noTerminal); err != nil {

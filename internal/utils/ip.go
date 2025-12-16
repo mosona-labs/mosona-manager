@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"errors"
+	"mosona-manager/internal/runtime"
 	"net"
 	"net/http"
 	"sync"
@@ -132,7 +133,7 @@ func GetIPGeoLocation(ip string) (IPGeoResponse, error) {
 	if err != nil {
 		return IPGeoResponse{}, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; YourAppName/1.0)")
+	req.Header.Set("User-Agent", "mosona-manager-hub/"+runtime.Version)
 
 	resp, err := client.Do(req)
 	if err != nil {

@@ -1,4 +1,4 @@
-package connect
+package ssh
 
 import (
 	"bufio"
@@ -7,7 +7,7 @@ import (
 	"io"
 	"log"
 	"mosona-manager/internal/_type"
-	"mosona-manager/internal/connect/script"
+	"mosona-manager/internal/connect/ssh/script"
 	"mosona-manager/internal/influx"
 
 	"golang.org/x/crypto/ssh"

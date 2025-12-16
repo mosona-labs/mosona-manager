@@ -39,11 +39,11 @@ No need to install any agents on the managed servers, simplifying deployment and
 
 Optional lightweight agents can be deployed on managed servers. The Agent reports its status to the central server, or the central server queries the Agent for status.
 
-#### 1. Forward Agent Mode
+#### 1. Active Mode
 
 It is also an active (forward) connection, as detailed above.
 
-#### 2. Reverse Agent Mode
+#### 2. Passive Mode
 
 This is a passive (reverse) connection. The Hub must be exposed so that it can be connected by the Agent. In a public network environment, the Hub must have a public IP address.
 

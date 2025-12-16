@@ -19,7 +19,7 @@ func PassiveAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		ts := c.Request().Header.Get("X-Agent-Timestamp")
 		nonce := c.Request().Header.Get("X-Agent-Nonce")
 		signature := c.Request().Header.Get("X-Agent-Signature")
-		if uid == "" || ts == "" || nonce == "" || signature == "" {
+		if uid == "" || ts == "" || len(nonce) < 16 || signature == "" {
 			return c.JSON(400, _type.H{
 				Code: "unauthorized",
 				Msg:  "Missing authentication headers",

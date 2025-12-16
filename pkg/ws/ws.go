@@ -1,54 +1,41 @@
-package passive
+package ws
 
 import (
 	"context"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
-type WSClient struct {
-	conn          *websocket.Conn
-	header        http.Header
-	url           string
-	mu            sync.RWMutex
-	reconnecting  bool
-	maxRetries    int
-	retryInterval time.Duration
-	onReconnect   func()
-	ctx           context.Context
-}
-
-func NewWSClient() *WSClient {
-	return &WSClient{
+func NewClient() *Client {
+	return &Client{
 		header:        make(http.Header),
 		maxRetries:    -1,
 		retryInterval: 5 * time.Second,
 	}
 }
 
-func (c *WSClient) SetHeader(key, value string) {
+func (c *Client) SetHeader(key, value string) {
 	c.header.Set(key, value)
 }
 
-func (c *WSClient) SetReconnectConfig(maxRetries int, interval time.Duration) {
+func (c *Client) SetReconnectConfig(maxRetries int, interval time.Duration) {
 	c.maxRetries = maxRetries
 	c.retryInterval = interval
 }
 
-func (c *WSClient) OnReconnect(fn func()) {
+func (c *Client) OnReconnect(fn func()) {
 	c.onReconnect = fn
 }
 
-func (c *WSClient) Connect(ctx context.Context, url string) error {
+func (c *Client) Connect(ctx context.Context, url string) error {
 	c.url = url
 	c.ctx = ctx
 	return c.dial(ctx)
 }
 
-func (c *WSClient) dial(ctx context.Context) error {
+func (c *Client) dial(ctx context.Context) error {
 	dialer := websocket.Dialer{}
 	conn, _, err := dialer.DialContext(ctx, c.url, c.header)
 	if err != nil {
@@ -62,7 +49,7 @@ func (c *WSClient) dial(ctx context.Context) error {
 	return nil
 }
 
-func (c *WSClient) reconnect() error {
+func (c *Client) reconnect() error {
 	c.mu.Lock()
 	if c.reconnecting {
 		c.mu.Unlock()
@@ -97,7 +84,7 @@ func (c *WSClient) reconnect() error {
 	}
 }
 
-func (c *WSClient) Close() error {
+func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -109,7 +96,7 @@ func (c *WSClient) Close() error {
 	return nil
 }
 
-func (c *WSClient) SendMessage(messageType int, data []byte) error {
+func (c *Client) SendMessage(messageType int, data []byte) error {
 	c.mu.RLock()
 	conn := c.conn
 	c.mu.RUnlock()
@@ -125,7 +112,7 @@ func (c *WSClient) SendMessage(messageType int, data []byte) error {
 	return err
 }
 
-func (c *WSClient) ReadMessage() (int, []byte, error) {
+func (c *Client) ReadMessage() (int, []byte, error) {
 	c.mu.RLock()
 	conn := c.conn
 	c.mu.RUnlock()

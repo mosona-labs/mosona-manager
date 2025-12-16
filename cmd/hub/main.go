@@ -9,11 +9,11 @@ import (
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/oauth"
 	"mosona-manager/internal/redis"
+	"mosona-manager/internal/runtime"
 	"mosona-manager/internal/task"
 	"os"
 )
 
-const version = "0.0.1"
 const Logo = `┳┳┓           ┳┳┓            
 ┃┃┃┏┓┏┏┓┏┓┏┓  ┃┃┃┏┓┏┓┏┓┏┓┏┓┏┓
 ┛ ┗┗┛┛┗┛┛┗┗┻  ┛ ┗┗┻┛┗┗┻┗┫┗ ┛ 
@@ -21,7 +21,7 @@ const Logo = `┳┳┓           ┳┳┓
 
 func main() {
 	fmt.Println(Logo)
-	fmt.Println("⇨ Mosona manager v" + version + " starting...")
+	fmt.Println("⇨ Mosona manager v" + runtime.Version + " starting...")
 
 	// Database
 	db.Init()     // Postgres

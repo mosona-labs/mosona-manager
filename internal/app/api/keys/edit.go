@@ -3,7 +3,7 @@ package akeys
 import (
 	"fmt"
 	"mosona-manager/internal/_type"
-	"mosona-manager/internal/connect"
+	"mosona-manager/internal/connect/conn"
 	"mosona-manager/internal/db"
 	"strconv"
 
@@ -44,7 +44,10 @@ func edit(c echo.Context) error {
 	}
 
 	go func() {
-		rows, err := db.Db.Query("SELECT id FROM servers WHERE allow_monitor AND key_id=$1 AND team_id=$2", id, tid)
+		rows, err := db.Db.Query(
+			"SELECT id FROM servers s JOIN ssh ON s.id = ssh.server_id WHERE type = 0 AND allow_monitor AND ssh.key_id=$1 AND team_id=$2",
+			id, tid,
+		)
 		if err != nil {
 			return
 		}
@@ -57,7 +60,7 @@ func edit(c echo.Context) error {
 			if err = rows.Scan(&sid); err != nil {
 				return
 			}
-			if err = connect.StartServer(sid); err != nil {
+			if err = conn.StartServer(sid, 0); err != nil {
 				fmt.Println("Failed to restart server connection:", err)
 			}
 		}
