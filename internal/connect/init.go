@@ -24,9 +24,6 @@ func Init() {
 			log.Println("Failed to scan server row:", err)
 			continue
 		}
-		if serverType != 0 {
-			continue
-		}
 		semaphore <- struct{}{}
 		go func(id int64) {
 			defer func() { <-semaphore }()

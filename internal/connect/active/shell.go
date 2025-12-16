@@ -3,6 +3,9 @@ package active
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"mosona-manager/internal/db"
 	secureWS "mosona-manager/pkg/securews"
 	"sync"
@@ -26,7 +29,18 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 		return err
 	}
 
-	privateKey := ed25519.PrivateKey(privKey)
+	block, _ := pem.Decode([]byte(privKey))
+	if block == nil {
+		return errors.New("failed to decode PEM block")
+	}
+	pKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return err
+	}
+	privateKey, ok := pKey.(ed25519.PrivateKey)
+	if !ok {
+		return errors.New("not an ed25519 private key")
+	}
 	a := &auth{
 		serverID: serverId,
 		agentUID: agentUid,

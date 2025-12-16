@@ -4,6 +4,9 @@ import (
 	"context"
 	"crypto/ecdh"
 	"crypto/ed25519"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"log"
 	"mosona-manager/agent/types"
 	"mosona-manager/internal/_type"
@@ -35,7 +38,19 @@ func Connect(
 	privKey string, agentUid string,
 	serverId int64,
 ) error {
-	privateKey := ed25519.PrivateKey(privKey)
+	block, _ := pem.Decode([]byte(privKey))
+	if block == nil {
+		return errors.New("failed to decode PEM block")
+	}
+	pKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return err
+	}
+	privateKey, ok := pKey.(ed25519.PrivateKey)
+	if !ok {
+		return errors.New("not an ed25519 private key")
+	}
+
 	a := &auth{
 		serverID: serverId,
 		agentUID: agentUid,

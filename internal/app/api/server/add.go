@@ -174,9 +174,10 @@ func add(c echo.Context) error {
 		address := c.FormValue("address")
 		port, _ := strconv.Atoi(c.FormValue("port"))
 		if _, err = tx.Exec(
-			"INSERT INTO agents (server_id, agent_uid, status, host, port, private_key) VALUES ($1, $2, $3)",
+			"INSERT INTO agents (server_id, agent_uid, status, host, port, private_key) VALUES ($1, $2, $3, $4, $5, $6)",
 			serverId, agentUUID.String(), 0, address, port, privateKey,
 		); err != nil {
+			fmt.Println(err)
 			_ = tx.Rollback()
 			return c.JSON(500, _type.H{
 				Code: "error",
