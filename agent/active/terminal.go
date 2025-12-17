@@ -8,6 +8,7 @@ import (
 	pbTypes "mosona-manager/pkg/types"
 	"os"
 	"os/exec"
+	"os/user"
 	"runtime"
 
 	"github.com/creack/pty"
@@ -35,18 +36,48 @@ func handleTerminalWebSocket(
 	var args []string
 	switch runtime.GOOS {
 	case "windows":
-		shell = "cmd.exe"
+		shell = "powershell.exe"
 	case "darwin", "linux":
-		shell = os.Getenv("SHELL")
+		for _, sh := range []string{
+			"bash", "zsh", "ksh", "ash", "dash",
+		} {
+			path, err := exec.LookPath("/bin/" + sh)
+			if err == nil {
+				shell = "/bin/" + path
+				break
+			}
+		}
 		if shell == "" {
 			shell = "/bin/sh"
 		}
-		args = []string{"-l"}
 	default:
 		shell = "/bin/sh"
 	}
 
 	cmd := exec.Command(shell, args...)
+
+	u, err := user.Current()
+	if err == nil {
+		switch runtime.GOOS {
+		case "windows":
+			cmd.Dir = u.HomeDir
+			cmd.Env = append(os.Environ(), []string{
+				"USERPROFILE=" + u.HomeDir,
+				"USERNAME=" + u.Username,
+				"TERM=xterm-256color",
+			}...)
+		case "darwin", "linux":
+			cmd.Dir = u.HomeDir
+			cmd.Env = append(os.Environ(), []string{
+				"HOME=" + u.HomeDir,
+				"USER=" + u.Name,
+				"LOGNAME=" + u.Name,
+				"SHELL=" + shell,
+				"TERM=xterm-256color",
+			}...)
+		}
+	}
+
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		log.Printf("Failed to start pty for session: %v", err)
@@ -55,29 +86,31 @@ func handleTerminalWebSocket(
 	defer func() {
 		_ = ptmx.Close()
 		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
 	}()
 
 	done := make(chan struct{})
 
 	// Handle pty output -> websocket
 	go func() {
-		defer close(done)
 		buf := make([]byte, 1024)
 		for {
 			n, err := ptmx.Read(buf)
 			if err != nil {
-				//if err != io.EOF {
-				//	log.Printf("Error reading from pty: %v", err)
-				//}
+				done <- struct{}{}
 				return
 			}
 
 			if n > 0 {
 				data, err := sc.Encrypt(buf[:n])
 				if err != nil {
+					done <- struct{}{}
 					return
 				}
-				_ = conn.WriteMessage(websocket.BinaryMessage, data)
+				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+					done <- struct{}{}
+					return
+				}
 			}
 		}
 	}()
@@ -87,12 +120,12 @@ func handleTerminalWebSocket(
 		for {
 			_, originMsg, err := conn.ReadMessage()
 			if err != nil {
-				_ = ptmx.Close()
+				done <- struct{}{}
 				return
 			}
 			msg, err := sc.Decrypt(originMsg)
 			if err != nil {
-				_ = ptmx.Close()
+				done <- struct{}{}
 				return
 			}
 

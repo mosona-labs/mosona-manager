@@ -8,6 +8,7 @@ import (
 	"mosona-manager/pkg/ws"
 	"os"
 	"os/exec"
+	"os/user"
 	"runtime"
 
 	"github.com/creack/pty"
@@ -28,18 +29,48 @@ func terminal(sessionID string) {
 	var args []string
 	switch runtime.GOOS {
 	case "windows":
-		shell = "cmd.exe"
+		shell = "powershell.exe"
 	case "darwin", "linux":
-		shell = os.Getenv("SHELL")
+		for _, sh := range []string{
+			"bash", "zsh", "ksh", "ash", "dash",
+		} {
+			path, err := exec.LookPath("/bin/" + sh)
+			if err == nil {
+				shell = "/bin/" + path
+				break
+			}
+		}
 		if shell == "" {
 			shell = "/bin/sh"
 		}
-		args = []string{"-l"}
 	default:
 		shell = "/bin/sh"
 	}
 
 	cmd := exec.Command(shell, args...)
+
+	u, err := user.Current()
+	if err == nil {
+		switch runtime.GOOS {
+		case "windows":
+			cmd.Dir = u.HomeDir
+			cmd.Env = append(os.Environ(), []string{
+				"USERPROFILE=" + u.HomeDir,
+				"USERNAME=" + u.Username,
+				"TERM=xterm-256color",
+			}...)
+		case "darwin", "linux":
+			cmd.Dir = u.HomeDir
+			cmd.Env = append(os.Environ(), []string{
+				"HOME=" + u.HomeDir,
+				"USER=" + u.Name,
+				"LOGNAME=" + u.Name,
+				"SHELL=" + shell,
+				"TERM=xterm-256color",
+			}...)
+		}
+	}
+
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		log.Printf("Failed to start pty for session %s: %v", sessionID, err)
@@ -48,25 +79,27 @@ func terminal(sessionID string) {
 	defer func() {
 		_ = ptmx.Close()
 		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
 	}()
 
 	done := make(chan struct{})
 
 	// Handle pty output -> websocket
 	go func() {
-		defer close(done)
 		buf := make([]byte, 1024)
 		for {
 			n, err := ptmx.Read(buf)
 			if err != nil {
-				//if err != io.EOF {
-				//	log.Printf("Error reading from pty: %v", err)
-				//}
+				done <- struct{}{}
 				return
 			}
 
 			if n > 0 {
-				_ = client.SendMessage(websocket.TextMessage, buf[:n])
+				err = client.SendMessage(websocket.TextMessage, buf[:n])
+				if err != nil {
+					done <- struct{}{}
+					return
+				}
 			}
 		}
 	}()
@@ -77,6 +110,7 @@ func terminal(sessionID string) {
 			_, msg, err := client.ReadMessage()
 			if err != nil {
 				_ = ptmx.Close()
+				done <- struct{}{}
 				return
 			}
 

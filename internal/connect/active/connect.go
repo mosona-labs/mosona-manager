@@ -123,8 +123,10 @@ func Connect(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(30 * time.Second):
-			_ = client.SendMessage(websocket.PingMessage, nil)
+		case <-time.After(15 * time.Second):
+			if err := client.SendMessage(websocket.PingMessage, nil); err != nil {
+				return err
+			}
 		}
 	}
 }
