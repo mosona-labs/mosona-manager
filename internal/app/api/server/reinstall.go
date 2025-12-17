@@ -2,8 +2,10 @@ package aserver
 
 import (
 	"encoding/base64"
+	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
+	"mosona-manager/internal/connect/conn"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
@@ -131,6 +133,12 @@ func reinstall(c echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+
+	go func() {
+		if err = conn.StartServer(id, int16(mode)); err != nil {
+			fmt.Println("Failed to start server connection:", err)
+		}
+	}()
 
 	// Log action
 	influx.LogAdd(
