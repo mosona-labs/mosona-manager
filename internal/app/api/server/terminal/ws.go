@@ -1,7 +1,6 @@
 package aterminal
 
 import (
-	"log"
 	"mosona-manager/internal/connect/active"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
@@ -56,7 +55,6 @@ func ws(c echo.Context) error {
 		return terminalSSH(serverAuth, wsConn)
 	case 1: // Active Agent
 		if err := active.ConnectShell(c.Request().Context(), serverId, wsConn); err != nil {
-			log.Panicln(err)
 			return err
 		}
 		return nil

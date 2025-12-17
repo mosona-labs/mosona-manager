@@ -24,56 +24,49 @@ func terminal(c echo.Context) error {
 		log.Println("upgrade:", err)
 		return err
 	}
-	defer func() {
-		_ = ws.Close()
-		ws = nil
-	}()
 
 	userConn, ok := connection.UserGet(sessionID)
 	if !ok || userConn == nil {
 		_ = ws.WriteMessage(websocket.TextMessage, []byte("Terminal session not found or has expired.\n"))
+		_ = ws.Close()
 		return err
 	}
-	defer func() {
-		connection.UserRemove(sessionID)
-		userConn = nil
-	}()
 
 	var once sync.Once
 	done := make(chan struct{})
 
+	cleanup := func() {
+		once.Do(func() {
+			close(done)
+			_ = ws.Close()
+			connection.UserRemove(sessionID)
+		})
+	}
+
+	// User WS -> Agent WS
 	go func() {
-		defer func() {
-			once.Do(func() { close(done) })
-		}()
+		defer cleanup()
 		for {
-			if ws == nil || userConn == nil {
-				return
-			}
 			mt, message, err := ws.ReadMessage()
 			if err != nil {
 				return
 			}
 			if err := userConn.WriteMessage(mt, message); err != nil {
-				break
+				return
 			}
 		}
 	}()
 
+	// Agent WS -> User WS
 	go func() {
-		defer func() {
-			once.Do(func() { close(done) })
-		}()
+		defer cleanup()
 		for {
-			if ws == nil || userConn == nil {
-				return
-			}
 			mt, message, err := userConn.ReadMessage()
 			if err != nil {
 				return
 			}
 			if err := ws.WriteMessage(mt, message); err != nil {
-				break
+				return
 			}
 		}
 	}()

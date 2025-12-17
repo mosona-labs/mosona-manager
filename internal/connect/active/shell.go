@@ -58,15 +58,18 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 	var once sync.Once
 	done := make(chan struct{})
 
+	cleanup := func() {
+		once.Do(func() {
+			close(done)
+			_ = client.Close()
+			_ = wsConn.Close()
+		})
+	}
+
 	// Agent WS -> Client WS
 	go func() {
-		defer func() {
-			once.Do(func() { close(done) })
-		}()
+		defer cleanup()
 		for {
-			if wsConn == nil || client == nil {
-				return
-			}
 			_, message, err := client.ReadMessage()
 			if err != nil {
 				return
@@ -77,20 +80,15 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 			}
 
 			if err := wsConn.WriteMessage(websocket.TextMessage, data); err != nil {
-				break
+				return
 			}
 		}
 	}()
 
 	// Client WS -> Agent WS
 	go func() {
-		defer func() {
-			once.Do(func() { close(done) })
-		}()
+		defer cleanup()
 		for {
-			if wsConn == nil || client == nil {
-				return
-			}
 			_, message, err := wsConn.ReadMessage()
 			if err != nil {
 				return
@@ -100,7 +98,7 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 				return
 			}
 			if err := client.SendMessage(websocket.TextMessage, data); err != nil {
-				break
+				return
 			}
 		}
 	}()
