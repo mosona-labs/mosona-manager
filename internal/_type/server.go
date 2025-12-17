@@ -65,10 +65,20 @@ type ServerFullType struct {
 	TrafficType   *int       `json:"traffic_type" db:"traffic_type"`
 	NotePublic    *string    `json:"note_public" db:"note_public"`
 
+	// Connection
+	Address string `json:"address" db:"address"`
+	Port    int    `json:"port" db:"port"`
+
 	// SSH
-	Address  string `json:"address" db:"address"`
-	Port     int    `json:"port" db:"port"`
 	Username string `json:"username" db:"username"`
 	Password string `json:"password" db:"password"`
 	KeyID    int64  `json:"key_id" db:"key_id"`
+
+	// Agent
+	AgentStatus     int        `json:"agent_status"` // 0: Not installed, 1: Installed
+	AgentVersion    *string    `json:"agent_version"`
+	AgentLastSeenAt *time.Time `json:"agent_last_seen_at"`
+
+	// Active
+	AgentUUID *string `json:"agent_uuid"`
 }

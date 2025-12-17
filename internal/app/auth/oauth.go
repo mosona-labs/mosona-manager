@@ -173,6 +173,11 @@ func oauthCallback(c echo.Context) error {
 		HttpOnly: true,
 	}
 
+	// Already logged in
+	if sess.Values["uid"] != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Already logged in"})
+	}
+
 	// MFA & TOTP Check
 	if (user.TOTP != nil && *user.TOTP) || config.DynamicConf.EmailVerifyLogin {
 		provider, err := db.GetAuthProviderByID(identity.ProviderID)

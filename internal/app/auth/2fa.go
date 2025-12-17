@@ -1,8 +1,6 @@
 package auth
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
@@ -183,27 +181,10 @@ func verifyMFACode(c echo.Context) error {
 		}
 	}
 
-	// Session
-	sess, err := session.Get("session", c)
-	if err != nil {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Session init error"})
+	// Create login session
+	if res := loginSession(c, user.ID, user.IsAdmin); res != nil {
+		return c.JSON(500, res)
 	}
-
-	// Active Team
-	activeTid, err := db.GetUserActiveTeam(user.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
-	}
-	sess.Values["uid"] = user.ID
-	sess.Values["tid"] = activeTid
-	sess.Values["user_agent"] = c.Request().Header.Get("User-Agent")
-	sess.Values["time"] = time.Now().Unix()
-	delete(sess.Values, "pre_2fa_uid")
-	if err = sess.Save(c.Request(), c.Response()); err != nil {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
-	}
-
-	loginEvent(user.ID, sess.ID, c.RealIP(), c.Request().Header.Get("User-Agent"), user.IsAdmin)
 
 	return c.JSON(200, _type.H{Code: "ok", Msg: "2FA verification successful"})
 }
@@ -241,27 +222,10 @@ func verifyTOTP(c echo.Context) error {
 		})
 	}
 
-	// Session
-	sess, err := session.Get("session", c)
-	if err != nil {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Session init error"})
+	// Create login session
+	if res := loginSession(c, user.ID, user.IsAdmin); res != nil {
+		return c.JSON(500, res)
 	}
-
-	// Active Team
-	activeTid, err := db.GetUserActiveTeam(user.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
-	}
-	sess.Values["uid"] = user.ID
-	sess.Values["tid"] = activeTid
-	sess.Values["user_agent"] = c.Request().Header.Get("User-Agent")
-	sess.Values["time"] = time.Now().Unix()
-	delete(sess.Values, "pre_2fa_uid")
-	if err = sess.Save(c.Request(), c.Response()); err != nil {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
-	}
-
-	loginEvent(user.ID, sess.ID, c.RealIP(), c.Request().Header.Get("User-Agent"), user.IsAdmin)
 
 	return c.JSON(200, _type.H{Code: "ok", Msg: "TOTP verification successful"})
 }

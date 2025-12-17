@@ -33,6 +33,21 @@ func GetServerInfo(teamId, serverId int64) (_type.ServerFullType, error) {
 			&data.Username,
 			&data.KeyID,
 		)
+	case 1:
+		_ = Db.QueryRow("SELECT host, port, agent_uid, status, last_version, last_seen_at FROM agents WHERE server_id = $1", serverId).Scan(
+			&data.Address,
+			&data.Port,
+			&data.AgentUUID,
+			&data.AgentStatus,
+			&data.AgentVersion,
+			&data.AgentLastSeenAt,
+		)
+	case 2:
+		_ = Db.QueryRow("SELECT status, last_version, last_seen_at FROM agents WHERE server_id = $1", serverId).Scan(
+			&data.AgentStatus,
+			&data.AgentVersion,
+			&data.AgentLastSeenAt,
+		)
 	}
 
 	return data, err

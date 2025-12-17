@@ -36,7 +36,7 @@ func passiveInfo(c echo.Context) error {
 
 	// Update agent info
 	if _, err := db.Db.Exec(
-		"UPDATE agents SET last_ip = $1, last_version = $2, last_seen_at = NOW() WHERE server_id = $3",
+		"UPDATE agents SET status = 1, last_ip = $1, last_version = $2, last_seen_at = NOW() WHERE server_id = $3",
 		c.RealIP(), version, serverId,
 	); err != nil {
 		return c.JSON(400, _type.H{

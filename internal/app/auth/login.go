@@ -53,6 +53,11 @@ func login(c echo.Context) error {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session init error"})
 	}
 
+	// Already logged in
+	if sess.Values["uid"] != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Already logged in"})
+	}
+
 	var maxAge = 86400 * 3 // 3 days
 	if rememberMe {
 		maxAge = 86400 * 30 // 30 days

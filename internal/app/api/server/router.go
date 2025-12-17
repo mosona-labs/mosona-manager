@@ -14,6 +14,7 @@ func Router(e *echo.Group) {
 	e.POST("", add, middleware.WriteAuth)
 	e.DELETE("/:id", del, middleware.WriteAuth)
 
+	e.POST(":id/reinstall", reinstall, middleware.WriteAuth)
 	e.PUT("/:id/category", category, middleware.WriteAuth)
 
 	// Monitor
