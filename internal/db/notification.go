@@ -25,6 +25,9 @@ func UpdateNotificationsByTeamId(teamID int64, notifications []_type.TeamNotific
 		return err
 	}
 	for _, n := range notifications {
+		if n.Module == "" || n.Target == "" {
+			continue
+		}
 		_, err = tx.Exec(
 			"INSERT INTO teams_notifications (team_id, module, target) VALUES ($1, $2, $3)",
 			teamID, n.Module, n.Target,
