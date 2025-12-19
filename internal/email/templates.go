@@ -9,7 +9,7 @@ import (
 var templateFS embed.FS
 
 func replacePlaceholder(body, placeholder, value string) string {
-	return strings.Replace(body, placeholder, value, -1)
+	return strings.ReplaceAll(body, placeholder, value)
 }
 
 func GetActivateTemplate(username, code string) (string, error) {
@@ -34,6 +34,21 @@ func GetTwoFATemplate(username, code string) (string, error) {
 
 	body = replacePlaceholder(body, "{{USER_NAME}}", username)
 	body = replacePlaceholder(body, "{{CODE}}", code)
+
+	return body, nil
+}
+
+func GetNotificationTemplate(username, title, description, link string) (string, error) {
+	data, err := templateFS.ReadFile("templates/notification.html")
+	if err != nil {
+		return "", err
+	}
+	body := string(data)
+
+	body = replacePlaceholder(body, "{{USER_NAME}}", username)
+	body = replacePlaceholder(body, "{{TITLE}}", title)
+	body = replacePlaceholder(body, "{{DESCRIPTION}}", description)
+	body = replacePlaceholder(body, "{{LINK}}", link)
 
 	return body, nil
 }
