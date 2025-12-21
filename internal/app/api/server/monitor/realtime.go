@@ -20,18 +20,14 @@ func realTime(c echo.Context) error {
 		})
 	}
 
-	var exist int
-	if err := db.Db.Get(
-		&exist,
-		"SELECT COUNT(1) FROM servers WHERE team_id=$1 AND id=$2",
-		tid, serverId,
-	); err != nil {
+	exist, err := db.IsServerExists(tid, serverId)
+	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
 		})
 	}
-	if exist == 0 {
+	if !exist {
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Server not found",

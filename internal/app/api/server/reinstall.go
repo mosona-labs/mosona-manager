@@ -29,18 +29,14 @@ func reinstall(c echo.Context) error {
 	mode, _ := strconv.Atoi(c.FormValue("mode"))
 
 	// Exists
-	var exists bool
-	err := db.Db.QueryRow(
-		"SELECT EXISTS(SELECT 1 FROM servers WHERE id = $1 AND team_id = $2)",
-		id, tid,
-	).Scan(&exists)
+	exist, err := db.IsServerExists(tid, id)
 	if err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
 		})
 	}
-	if !exists {
+	if !exist {
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Server not found",

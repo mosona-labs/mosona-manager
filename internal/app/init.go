@@ -11,6 +11,7 @@ import (
 	"mosona-manager/internal/app/api/keys"
 	"mosona-manager/internal/app/api/logs"
 	"mosona-manager/internal/app/api/server"
+	aalert "mosona-manager/internal/app/api/server/alert"
 	"mosona-manager/internal/app/api/team"
 	"mosona-manager/internal/app/api/user"
 	"mosona-manager/internal/app/auth"
@@ -68,6 +69,7 @@ func Start() {
 		akeys.Router(v1.Group("/key"))          // Keys
 		acategory.Router(v1.Group("/category")) // Category
 		aserver.Router(v1.Group("/server"))     // Server
+		aalert.Router(v1.Group("/alert"))       // Alert
 		alogs.Router(v1.Group("/logs"))         // Logs
 	}
 	// Admin

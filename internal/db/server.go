@@ -150,3 +150,12 @@ func DeleteServer(teamId, serverId int64) error {
 	_, err := Db.Exec("DELETE FROM servers WHERE id = $1 AND team_id = $2", serverId, teamId)
 	return err
 }
+
+func IsServerExists(teamId, serverId int64) (bool, error) {
+	var exists bool
+	err := Db.QueryRow(
+		"SELECT EXISTS(SELECT 1 FROM servers WHERE id = $1 AND team_id = $2)",
+		serverId, teamId,
+	).Scan(&exists)
+	return exists, err
+}
