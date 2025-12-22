@@ -2,6 +2,7 @@ package aalert
 
 import (
 	"errors"
+	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"strconv"
@@ -23,14 +24,24 @@ func set(c echo.Context) error {
 	threshold, _ := strconv.Atoi(c.FormValue("threshold"))
 	forDuration, _ := strconv.Atoi(c.FormValue("for_duration"))
 
+	override := c.FormValue("override") == "true"
+
 	// Update alert
-	if err := db.UpsertServerAlert(tid, id, item, threshold, forDuration); err != nil {
+	var err error
+	var affected int64 = 1
+	if id > 0 {
+		err = db.UpsertServerAlert(tid, id, item, threshold, forDuration)
+	} else {
+		affected, err = db.UpsertTeamAlert(tid, item, threshold, forDuration, override)
+	}
+	if err != nil {
 		if errors.Is(err, db.ErrAlertNotFound) {
 			return c.JSON(400, _type.H{
 				Code: "invalid",
 				Msg:  "Alert item not found",
 			})
 		}
+		fmt.Println(err)
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
@@ -40,5 +51,6 @@ func set(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Alert updated successfully",
+		Data: affected,
 	})
 }

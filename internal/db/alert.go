@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"mosona-manager/internal/_type"
 )
@@ -38,6 +39,80 @@ func UpsertServerAlert(teamId, serverId int64, item string, threshold, forDurati
 	return nil
 }
 
+func UpsertTeamAlert(teamId int64, item string, threshold, forDuration int, override bool) (int64, error) {
+	if !allowedAlertItems[item] {
+		return 0, ErrAlertNotFound
+	}
+
+	tx, err := Db.Begin()
+	if err != nil {
+		return 0, err
+	}
+
+	_, err = tx.Exec(`
+  INSERT INTO team_alerts (team_id, item, threshold, for_duration)
+  VALUES ($1, $2, $3, $4)
+  ON CONFLICT (team_id, item) DO UPDATE
+  SET threshold = EXCLUDED.threshold,
+      for_duration = EXCLUDED.for_duration
+ `, teamId, item, threshold, forDuration)
+	if err != nil {
+		_ = tx.Rollback()
+		return 0, err
+	}
+
+	rows, err := tx.Query("SELECT id FROM servers WHERE team_id = $1", teamId)
+	if err != nil {
+		_ = tx.Rollback()
+		return 0, err
+	}
+
+	var serverIds []int64
+	for rows.Next() {
+		var serverId int64
+		if err = rows.Scan(&serverId); err != nil {
+			_ = rows.Close()
+			_ = tx.Rollback()
+			return 0, err
+		}
+		serverIds = append(serverIds, serverId)
+	}
+	_ = rows.Close()
+
+	if err = rows.Err(); err != nil {
+		_ = tx.Rollback()
+		return 0, err
+	}
+
+	var affectedCount int64 = 0
+	for _, serverId := range serverIds {
+		var result sql.Result
+		if override {
+			result, err = tx.Exec(`
+    INSERT INTO server_alerts (server_id, item, threshold, for_duration)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (server_id, item) DO UPDATE
+    SET threshold = EXCLUDED.threshold,
+        for_duration = EXCLUDED.for_duration
+   `, serverId, item, threshold, forDuration)
+		} else {
+			result, err = tx.Exec(`
+    INSERT INTO server_alerts (server_id, item, threshold, for_duration)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (server_id, item) DO NOTHING
+   `, serverId, item, threshold, forDuration)
+		}
+		if err != nil {
+			_ = tx.Rollback()
+			return 0, err
+		}
+		affected, _ := result.RowsAffected()
+		affectedCount += affected
+	}
+
+	return affectedCount, tx.Commit()
+}
+
 func DeleteServerAlert(teamId, serverId int64, item string) error {
 	if !allowedAlertItems[item] {
 		return ErrAlertNotFound
@@ -51,6 +126,65 @@ func DeleteServerAlert(teamId, serverId int64, item string) error {
 		)
 	`, serverId, item, teamId)
 	return err
+}
+
+func DeleteTeamAlert(teamId int64, item string, override bool) (int64, error) {
+	if !allowedAlertItems[item] {
+		return 0, ErrAlertNotFound
+	}
+
+	tx, err := Db.Begin()
+	if err != nil {
+		return 0, err
+	}
+
+	var data _type.ServerAlert
+	if !override {
+		if err = tx.QueryRow(
+			"SELECT threshold, for_duration FROM team_alerts WHERE team_id = $1 AND item = $2",
+			teamId, item,
+		).Scan(&data.Threshold, &data.ForDuration); err != nil {
+			return 0, err
+		}
+	}
+
+	_, err = tx.Exec(`
+		DELETE FROM team_alerts
+		WHERE team_id = $1 AND item = $2
+	`, teamId, item)
+	if err != nil {
+		_ = tx.Rollback()
+		return 0, err
+	}
+
+	var result sql.Result
+	if override {
+		result, err = tx.Exec(`
+			DELETE FROM server_alerts
+			WHERE item = $1 AND server_id IN (
+				SELECT id FROM servers WHERE team_id = $2
+			)
+		`, item, teamId)
+		if err != nil {
+			_ = tx.Rollback()
+			return 0, err
+		}
+	} else {
+		result, err = tx.Exec(`
+			DELETE FROM server_alerts
+			WHERE item = $1 AND threshold = $2 AND for_duration = $3
+			AND server_id IN (
+				SELECT id FROM servers WHERE team_id = $4
+			)
+		`, item, data.Threshold, data.ForDuration, teamId)
+		if err != nil {
+			_ = tx.Rollback()
+			return 0, err
+		}
+	}
+	affectedCount, _ := result.RowsAffected()
+
+	return affectedCount, tx.Commit()
 }
 
 func GetServerAlertsByTeamId(teamId int64) (map[int64]map[string]_type.ServerAlert, error) {
