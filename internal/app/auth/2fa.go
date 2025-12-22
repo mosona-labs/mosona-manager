@@ -5,7 +5,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
-	email2 "mosona-manager/internal/email"
+	"mosona-manager/internal/email"
 	"mosona-manager/internal/utils"
 	"mosona-manager/internal/utils/store"
 	"strconv"
@@ -107,10 +107,10 @@ func sendMFACode(c echo.Context) error {
 	switch mode {
 	case "activation":
 		subject = "Activate Your Account"
-		content, err = email2.GetActivateTemplate(user.Username, fmt.Sprintf("%s-%s", code[0:3], code[3:6]))
+		content, err = email.GetActivateTemplate(user.Username, fmt.Sprintf("%s-%s", code[0:3], code[3:6]))
 	case "2fa":
 		subject = "Your Two-Factor Authentication Code"
-		content, err = email2.GetTwoFATemplate(user.Username, fmt.Sprintf("%s-%s", code[0:3], code[3:6]))
+		content, err = email.GetTwoFATemplate(user.Username, fmt.Sprintf("%s-%s", code[0:3], code[3:6]))
 	default:
 		return c.JSON(400, _type.H{
 			Code: "error",
@@ -123,7 +123,7 @@ func sendMFACode(c echo.Context) error {
 			Msg:  "Failed to generate email content: " + err.Error(),
 		})
 	}
-	if err = email2.Send(user.Email, subject, content); err != nil {
+	if err = email.Send(user.Email, subject, content); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Failed to send email: " + err.Error(),

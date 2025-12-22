@@ -191,7 +191,7 @@ func GetServerAlertsByTeamId(teamId int64) (map[int64]map[string]_type.ServerAle
 	alerts := make(map[int64]map[string]_type.ServerAlert)
 
 	rows, err := Db.Query(`
-		SELECT sa.id, sa.server_id, sa.item, sa.threshold, sa.for_duration
+		SELECT sa.id, sa.server_id, sa.item, sa.threshold, sa.for_duration, sa.last_status, sa.last_notify_at
 		FROM server_alerts sa
 		JOIN servers s ON sa.server_id = s.id
 		WHERE s.team_id = $1
@@ -213,7 +213,7 @@ func GetServerAlertsByTeamId(teamId int64) (map[int64]map[string]_type.ServerAle
 		}
 
 		if _, exists := alerts[serverId]; !exists {
-			alerts[serverId] = make(map[string]_type.ServerAlert, 0)
+			alerts[serverId] = make(map[string]_type.ServerAlert)
 		}
 		alerts[serverId][item] = _type.ServerAlert{
 			ID:          id,

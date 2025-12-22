@@ -38,14 +38,14 @@ func GetTwoFATemplate(username, code string) (string, error) {
 	return body, nil
 }
 
-func GetNotificationTemplate(username, title, description, link string) (string, error) {
+func GetNotificationTemplate(serverName, title, description, link string) (string, error) {
 	data, err := templateFS.ReadFile("templates/notification.html")
 	if err != nil {
 		return "", err
 	}
 	body := string(data)
 
-	body = replacePlaceholder(body, "{{USER_NAME}}", username)
+	body = replacePlaceholder(body, "{{SERVER_NAME}}", serverName)
 	body = replacePlaceholder(body, "{{TITLE}}", title)
 	body = replacePlaceholder(body, "{{DESCRIPTION}}", description)
 	body = replacePlaceholder(body, "{{LINK}}", link)
