@@ -5,6 +5,7 @@ import (
 	"log"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/email"
+	"strings"
 
 	"github.com/nicholas-fedor/shoutrrr"
 )
@@ -35,7 +36,15 @@ func (a *alertInstance) notifyAll(serverId int64, item, message string) {
 				}
 			}
 		case "shoutrrr":
-			if err := shoutrrr.Send(n.Target, fmt.Sprintf("%s %s\n\n%s\n%s", serverName, item, message, uri)); err != nil {
+			target := n.Target
+			if strings.Contains(target, "telegram://") && !strings.Contains(target, "parsemode=") {
+				if strings.Contains(target, "?") {
+					target += "&parsemode=HTML"
+				} else {
+					target += "?parsemode=HTML"
+				}
+			}
+			if err := shoutrrr.Send(target, fmt.Sprintf("<b>%s – %s</b>\n%s\n\n%s", serverName, item, message, uri)); err != nil {
 				log.Println("failed to send alert shoutrrr notification:", err)
 			}
 		}

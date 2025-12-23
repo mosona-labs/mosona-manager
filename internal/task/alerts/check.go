@@ -93,7 +93,7 @@ func (a *alertInstance) checkCPUUsageAlert(serverId int64, r *alertRule) (bool, 
 		var count int
 		for _, item := range statuses {
 			if item.Time.After(startTime) {
-				sum += item.CPU * 100 // Convert to percentage
+				sum += item.CPU
 				count++
 			}
 		}
@@ -106,8 +106,8 @@ func (a *alertInstance) checkCPUUsageAlert(serverId int64, r *alertRule) (bool, 
 		calculator,
 		"CPU usage exceeded threshold",
 		func(value float64, duration int, threshold int) string {
-			return fmt.Sprintf("%.2f%% CPU usage over the last %d minutes exceeded the threshold of %d%%.",
-				value, duration, threshold)
+			return fmt.Sprintf("The %d-minutes average CPU usage reached %.2f%%, exceeding the configured threshold of %d%%",
+				duration, value, threshold)
 		},
 	)
 }
@@ -131,8 +131,8 @@ func (a *alertInstance) checkMemoryUsageAlert(serverId int64, r *alertRule) (boo
 		calculator,
 		"Memory usage exceeded threshold",
 		func(value float64, duration int, threshold int) string {
-			return fmt.Sprintf("%.2f%% Memory usage over the last %d minutes exceeded the threshold of %d%%.",
-				value, duration, threshold)
+			return fmt.Sprintf("The %d-minutes average Memory usage reached %.2f%%, exceeding the configured threshold of %d%%",
+				duration, value, threshold)
 		},
 	)
 }
@@ -156,8 +156,8 @@ func (a *alertInstance) checkDiskUsageAlert(serverId int64, r *alertRule) (bool,
 		calculator,
 		"Disk usage exceeded threshold",
 		func(value float64, duration int, threshold int) string {
-			return fmt.Sprintf("%.2f%% Disk usage over the last %d minutes exceeded the threshold of %d%%.",
-				value, duration, threshold)
+			return fmt.Sprintf("The %d-minutes average Disk usage reached %.2f%%, exceeding the configured threshold of %d%%",
+				duration, value, threshold)
 		},
 	)
 }
@@ -181,8 +181,8 @@ func (a *alertInstance) checkReadIOPSAlert(serverId int64, r *alertRule) (bool, 
 		calculator,
 		"Read IOPS exceeded threshold",
 		func(value float64, duration int, threshold int) string {
-			return fmt.Sprintf("%.1f Read IOPS over the last %d minutes exceeded the threshold of %d IOPS.",
-				value, duration, threshold)
+			return fmt.Sprintf("The %d-minutes average Read IOPS reached %.1f, exceeding the configured threshold of %d IOPS",
+				duration, value, threshold)
 		},
 	)
 }
@@ -206,8 +206,8 @@ func (a *alertInstance) checkWriteIOPSAlert(serverId int64, r *alertRule) (bool,
 		calculator,
 		"Write IOPS exceeded threshold",
 		func(value float64, duration int, threshold int) string {
-			return fmt.Sprintf("%.1f Write IOPS over the last %d minutes exceeded the threshold of %d IOPS.",
-				value, duration, threshold)
+			return fmt.Sprintf("The %d-minutes average Write IOPS reached %.1f, exceeding the configured threshold of %d IOPS",
+				duration, value, threshold)
 		},
 	)
 }
@@ -231,8 +231,8 @@ func (a *alertInstance) checkBandwidthAlert(serverId int64, r *alertRule) (bool,
 		calculator,
 		"Bandwidth usage exceeded threshold",
 		func(value float64, duration int, threshold int) string {
-			return fmt.Sprintf("%.2f Mbps Bandwidth usage over the last %d minutes exceeded the threshold of %d Mbps.",
-				value, duration, threshold)
+			return fmt.Sprintf("The %d-minutes average Bandwidth usage reached %.2f Mbps, exceeding the configured threshold of %d Mbps",
+				duration, value, threshold)
 		},
 	)
 }

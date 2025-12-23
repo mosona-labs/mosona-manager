@@ -21,7 +21,7 @@ func teamNotificationsByIds(teamIds []int64) (map[int64][]*_type.TeamNotificatio
 	}
 
 	query, args, err := sqlx.In(
-		"SELECT team_id, module, target FROM teams_notifications WHERE team_id = ANY($1)",
+		"SELECT team_id, module, target FROM teams_notifications WHERE team_id IN (?)",
 		teamIds,
 	)
 	if err != nil {
@@ -49,7 +49,7 @@ func allServerAlerts() (map[int64]map[int64]map[string]_type.ServerAlert, map[in
 		TeamId       int64        `db:"team_id"`
 		ID           int64        `db:"id"`
 		ServerID     int64        `db:"server_id"`
-		ServerName   string       `db:"server_name"`
+		ServerName   string       `db:"name"`
 		Item         string       `db:"item"`
 		Threshold    int          `db:"threshold"`
 		ForDuration  int          `db:"for_duration"`

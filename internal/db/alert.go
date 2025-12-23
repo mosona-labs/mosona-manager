@@ -191,7 +191,7 @@ func GetServerAlertsByTeamId(teamId int64) (map[int64]map[string]_type.ServerAle
 	alerts := make(map[int64]map[string]_type.ServerAlert)
 
 	rows, err := Db.Query(`
-		SELECT sa.id, sa.server_id, sa.item, sa.threshold, sa.for_duration, sa.last_status, sa.last_notify_at
+		SELECT sa.id, sa.server_id, sa.item, sa.threshold, sa.for_duration
 		FROM server_alerts sa
 		JOIN servers s ON sa.server_id = s.id
 		WHERE s.team_id = $1
