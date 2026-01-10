@@ -80,6 +80,20 @@ func GetTeamUserIdsByEmail(teamID int64, email string) ([]int64, error) {
 	return userIds, nil
 }
 
+func GetAdminUserIdsByEmail(email string) ([]int64, error) {
+	var userIds []int64
+	err := Db.Select(&userIds, `
+		SELECT id
+		FROM users
+		WHERE is_admin = true AND email LIKE $1
+	`, "%"+email+"%")
+	if err != nil {
+		return nil, err
+	}
+
+	return userIds, nil
+}
+
 func UpdateUsername(userID int64, newUsername string) error {
 	_, err := Db.Exec("UPDATE users SET username = $1 WHERE id = $2", newUsername, userID)
 	return err

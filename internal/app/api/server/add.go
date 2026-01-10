@@ -212,6 +212,32 @@ func add(c echo.Context) error {
 		}
 	}
 
+	// Team alerts
+	teamAlerts, err := db.GetTeamAlertsByTeamIdTx(tx, tid)
+	if err != nil {
+		_ = tx.Rollback()
+		return c.JSON(500, _type.H{
+			Code: "error",
+			Msg:  "Database error",
+		})
+	}
+	for _, alert := range teamAlerts {
+		_, err = tx.Exec(`
+			INSERT INTO server_alerts (server_id, item, threshold, for_duration)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT (server_id, item) DO UPDATE
+			SET threshold = EXCLUDED.threshold,
+			    for_duration = EXCLUDED.for_duration
+		`, serverId, alert.Item, alert.Threshold, alert.ForDuration)
+		if err != nil {
+			_ = tx.Rollback()
+			return c.JSON(500, _type.H{
+				Code: "error",
+				Msg:  "Database error",
+			})
+		}
+	}
+
 	if err = tx.Commit(); err != nil {
 		return c.JSON(500, _type.H{
 			Code: "error",

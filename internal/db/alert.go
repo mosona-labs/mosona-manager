@@ -246,20 +246,43 @@ func GetTeamAlertsByTeamId(teamId int64) (map[string]_type.ServerAlert, error) {
 	}()
 
 	for rows.Next() {
-		var id int64
-		var item string
-		var threshold, forDuration int
-
-		if err = rows.Scan(&id, &item, &threshold, &forDuration); err != nil {
+		var data _type.ServerAlert
+		if err = rows.Scan(&data.ID, &data.Item, &data.Threshold, &data.ForDuration); err != nil {
 			return nil, err
 		}
 
-		alerts[item] = _type.ServerAlert{
-			ID:          id,
-			Item:        item,
-			Threshold:   threshold,
-			ForDuration: forDuration,
+		alerts[data.Item] = data
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return alerts, nil
+}
+
+func GetTeamAlertsByTeamIdTx(tx *sql.Tx, teamId int64) (map[string]_type.ServerAlert, error) {
+	alerts := make(map[string]_type.ServerAlert)
+
+	rows, err := Db.Query(`
+		SELECT id, item, threshold, for_duration
+		FROM team_alerts
+		WHERE team_id = $1
+	`, teamId)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	for rows.Next() {
+		var data _type.ServerAlert
+		if err = rows.Scan(&data.ID, &data.Item, &data.Threshold, &data.ForDuration); err != nil {
+			return nil, err
 		}
+
+		alerts[data.Item] = data
 	}
 
 	if err = rows.Err(); err != nil {
