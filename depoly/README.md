@@ -19,7 +19,7 @@ Open the `.env` file and modify the following variables as needed:
 ### Start Services
 
 ```bash
-docker-compose up -d
+docker compose up -d
 docker compose logs -f bootstrap app
 ```
 

@@ -45,8 +45,8 @@ func initialize(c echo.Context) error {
 
 	signature := utils.RandomString(32)
 	if _, err = tx.Exec(
-		"INSERT INTO users (username, email, password, salt, verified) VALUES ($1, $2, $3, $4, $5)",
-		username, email, utils.SHA256(password+signature+config.DynamicConf.Token), signature, true,
+		"INSERT INTO users (username, email, password, salt, verified, is_admin) VALUES ($1, $2, $3, $4, $5)",
+		username, email, utils.SHA256(password+signature+config.DynamicConf.Token), signature, true, true,
 	); err != nil {
 		_ = tx.Rollback()
 		return c.JSON(400, _type.H{Code: "error", Msg: "Registration failed"})
