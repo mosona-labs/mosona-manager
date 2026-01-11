@@ -1,8 +1,12 @@
 package init
 
-import "github.com/labstack/echo/v4"
+import (
+	"mosona-manager/internal/app/middleware"
+
+	"github.com/labstack/echo/v4"
+)
 
 func Router(e *echo.Group) {
 	e.GET("", status)
-	e.POST("", initialize)
+	e.POST("", initialize, middleware.InitAuth)
 }

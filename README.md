@@ -51,9 +51,14 @@ This is a passive (reverse) connection. The Hub must be exposed so that it can b
 
 Please refer to the [Quickstart (Docs)](https://manager.mosona.cc/quickstart) for detailed instructions on installation and configuration.
 
-## Project Logo
+## Changelog
 
-<img src="./images/about.webp" alt="Mosona Manager" width="240" height="240">
+See [CHANGELOG.md](./CHANGELOG.md) for history of changes.
+
+## Community
+
+- [Discord](https://discord.gg/NzKFaZGe)
+- [GitHub Discussions](https://github.com/mosona-labs/mosona-manager/discussions)
 
 ## License
 
