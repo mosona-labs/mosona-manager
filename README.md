@@ -51,6 +51,10 @@ This is a passive (reverse) connection. The Hub must be exposed so that it can b
 
 Please refer to the [Quickstart (Docs)](https://manager.mosona.cc/quickstart) for detailed instructions on installation and configuration.
 
+## Screenshots
+
+...
+
 ## Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md) for history of changes.
