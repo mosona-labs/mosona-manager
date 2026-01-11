@@ -25,7 +25,7 @@ type configType struct {
 	FrontendDir string
 }
 
-type dynamicConfigType struct {
+type DynamicConfigType struct {
 	Init bool
 
 	// Domain

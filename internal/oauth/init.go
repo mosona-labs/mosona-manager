@@ -39,7 +39,7 @@ func Init() {
 				AuthURL:  oauth.AuthUrl,
 				TokenURL: oauth.TokenUrl,
 			},
-			RedirectURL: fmt.Sprintf("%s/oauth/%d", config.DynamicConf.Domain, oauth.ID),
+			RedirectURL: fmt.Sprintf("%s/oauth/%d", config.ReadDynamicConf().Domain, oauth.ID),
 			Scopes:      strings.Fields("read:user read:email"),
 		}
 		tempConfigs[oauth.ID] = &ProviderConfig{
@@ -62,7 +62,7 @@ func AddProvider(oauth _type.AuthProvider) {
 			AuthURL:  oauth.AuthUrl,
 			TokenURL: oauth.TokenUrl,
 		},
-		RedirectURL: fmt.Sprintf("%s/oauth/%d", config.DynamicConf.Domain, oauth.ID),
+		RedirectURL: fmt.Sprintf("%s/oauth/%d", config.ReadDynamicConf().Domain, oauth.ID),
 		Scopes:      []string{oidc.ScopeOpenID, "profile", "email"},
 	}
 

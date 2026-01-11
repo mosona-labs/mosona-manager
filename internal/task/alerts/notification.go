@@ -16,7 +16,7 @@ func (a *alertInstance) notifyAll(serverId int64, item, message string) {
 		serverName = fmt.Sprintf("Server %d", serverId)
 	}
 
-	uri := fmt.Sprintf("%s/%d/monitor", config.DynamicConf.Domain, serverId)
+	uri := fmt.Sprintf("%s/%d/monitor", config.ReadDynamicConf().Domain, serverId)
 	emailContent, err := email.GetNotificationTemplate(
 		serverName,
 		item,

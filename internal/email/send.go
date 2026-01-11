@@ -11,7 +11,7 @@ var (
 )
 
 func Send(toEmail, subject, content string) error {
-	switch config.DynamicConf.EmailProvider {
+	switch config.ReadDynamicConf().EmailProvider {
 	case "smtp":
 		return sendWithSMTP(toEmail, subject, content)
 	default:
@@ -20,9 +20,11 @@ func Send(toEmail, subject, content string) error {
 }
 
 func VerifyEmailProvider() error {
-	switch config.DynamicConf.EmailProvider {
+	dc := config.ReadDynamicConf()
+
+	switch dc.EmailProvider {
 	case "smtp":
-		if config.DynamicConf.SMTPHost == "" || config.DynamicConf.SMTPPort == 0 || config.DynamicConf.SMTPUsername == "" || config.DynamicConf.SMTPPassword == "" {
+		if dc.SMTPHost == "" || dc.SMTPPort == 0 || dc.SMTPUsername == "" || dc.SMTPPassword == "" {
 			return ErrEmailProviderNotInit
 		}
 		return nil

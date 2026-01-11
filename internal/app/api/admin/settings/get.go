@@ -8,22 +8,24 @@ import (
 )
 
 func get(c echo.Context) error {
+	dc := config.ReadDynamicConf()
+
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
 		Data: Response{
-			Domain:                  config.DynamicConf.Domain,
-			EmailProvider:           config.DynamicConf.EmailProvider,
-			SMTPHost:                config.DynamicConf.SMTPHost,
-			SMTPPort:                config.DynamicConf.SMTPPort,
-			SMTPUsername:            config.DynamicConf.SMTPUsername,
-			SMTPPassword:            config.DynamicConf.SMTPPassword,
-			SMTPTls:                 config.DynamicConf.SMTPTls,
-			EmailVerifyLogin:        config.DynamicConf.EmailVerifyLogin,
-			RegistrationEnabled:     config.DynamicConf.RegistrationEnabled,
-			RegistrationVerifyEmail: config.DynamicConf.RegistrationVerifyEmail,
-			CaptchaSiteKey:          config.DynamicConf.CaptchaSiteKey,
-			CaptchaSecretKey:        config.DynamicConf.CaptchaSecret,
+			Domain:                  dc.Domain,
+			EmailProvider:           dc.EmailProvider,
+			SMTPHost:                dc.SMTPHost,
+			SMTPPort:                dc.SMTPPort,
+			SMTPUsername:            dc.SMTPUsername,
+			SMTPPassword:            dc.SMTPPassword,
+			SMTPTls:                 dc.SMTPTls,
+			EmailVerifyLogin:        dc.EmailVerifyLogin,
+			RegistrationEnabled:     dc.RegistrationEnabled,
+			RegistrationVerifyEmail: dc.RegistrationVerifyEmail,
+			CaptchaSiteKey:          dc.CaptchaSiteKey,
+			CaptchaSecretKey:        dc.CaptchaSecret,
 		},
 	})
 }

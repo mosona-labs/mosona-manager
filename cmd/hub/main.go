@@ -27,10 +27,10 @@ func main() {
 				log.Fatalln("Health check failed:", err)
 			}
 			fmt.Println("ok")
-		default:
-			initApp()
 		}
 	}
+
+	initApp()
 }
 
 func initApp() {

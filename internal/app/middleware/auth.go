@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 
 	"github.com/labstack/echo-contrib/session"
@@ -10,6 +11,14 @@ import (
 
 func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		if !config.DynamicConf.Init {
+			return c.JSON(200, _type.H{
+				Code: "init_required",
+				Msg:  "System initialization required",
+			})
+		}
+
+		// Session
 		sess, err := session.Get("session", c)
 		if err != nil {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
@@ -53,6 +62,14 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 
 func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		if !config.DynamicConf.Init {
+			return c.JSON(200, _type.H{
+				Code: "init_required",
+				Msg:  "System initialization required",
+			})
+		}
+
+		// Session
 		sess, err := session.Get("session", c)
 		if err != nil {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
@@ -83,6 +100,18 @@ func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
 
 		c.Set("uid", userInfo.ID)
 
+		return next(c)
+	}
+}
+
+func InitAuth(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		if config.DynamicConf.Init {
+			return c.JSON(400, _type.H{
+				Code: "already_initialized",
+				Msg:  "System already initialized",
+			})
+		}
 		return next(c)
 	}
 }

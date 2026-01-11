@@ -15,6 +15,7 @@ import (
 	"mosona-manager/internal/app/api/team"
 	"mosona-manager/internal/app/api/user"
 	"mosona-manager/internal/app/auth"
+	"mosona-manager/internal/app/init"
 	middleware2 "mosona-manager/internal/app/middleware"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/redis"
@@ -79,6 +80,8 @@ func Start() {
 	admin.Router(api.Group("/admin", middleware2.AdminAuth))
 	// Agent
 	agent.Router(api.Group("/agent"))
+	// Init
+	init.Router(api.Group("/init", middleware2.InitAuth))
 
 	// Health
 	e.GET("/health", func(c echo.Context) error {

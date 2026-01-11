@@ -17,6 +17,10 @@ func SyncConfig() error {
 	if err := Db.Select(&data, "SELECT key, value FROM config"); err != nil {
 		return err
 	}
+
+	config.DConfLock.Lock()
+	defer config.DConfLock.Unlock()
+
 	for _, item := range data {
 		switch item.Key {
 		case "init":
