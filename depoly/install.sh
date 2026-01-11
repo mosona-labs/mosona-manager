@@ -109,6 +109,10 @@ read_input() {
 main() {
   echo "Starting installation of mosona manager..."
 
+  # Intro
+  echo "The admin account will be created when you open the Web UI for the first time."
+  echo "Database credentials will be generated automatically."
+
   # App Port
   APP_PORT=$(read_input 8080 "application port")
   if [[ ! "${APP_PORT}" =~ ^[0-9]+$ ]] || (( APP_PORT < 1 || APP_PORT > 65535 )); then
@@ -116,16 +120,12 @@ main() {
     exit 1
   fi
 
-  # Admin Username
-  echo "The admin account will be created when you open the Web UI for the first time."
-
   # Postgres Password
-  POSTGRES_PASSWORD="$(read_input "$(generate_password 16)" "Postgres password")"
-
+  POSTGRES_PASSWORD="$(generate_password 16)"
   # InfluxDB Password
-  INFLUXDB_PASSWORD="$(read_input "$(generate_password 16)" "InfluxDB password")"
+  INFLUXDB_PASSWORD="$(generate_password 16)"
   # InfluxDB Token
-  INFLUXDB_TOKEN="$(read_input "$(generate_password 32)" "InfluxDB token")"
+  INFLUXDB_TOKEN="$(generate_password 32)"
 
   # Check for Docker installation
   if ! check_docker; then
