@@ -20,6 +20,9 @@ type configType struct {
 	RedisHost     string
 	RedisPort     int
 	RedisPassword string
+
+	// Frontend
+	FrontendDir string
 }
 
 type dynamicConfigType struct {

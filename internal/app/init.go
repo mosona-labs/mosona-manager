@@ -18,6 +18,10 @@ import (
 	middleware2 "mosona-manager/internal/app/middleware"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/redis"
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
 
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
@@ -49,7 +53,6 @@ func Start() {
 	e.Use(middleware.Decompress())
 
 	// Static
-	e.Static("/static", "./static")
 	e.Static("/avatars", "./avatars")
 
 	// API Routers
@@ -77,6 +80,24 @@ func Start() {
 	// Agent
 	agent.Router(api.Group("/agent"))
 
+	// Health
+	e.GET("/health", func(c echo.Context) error {
+		return c.JSON(200, _type.H{
+			Code: "ok",
+			Msg:  "Service is healthy",
+		})
+	})
+
+	// Frontend
+	e.GET("/*", func(c echo.Context) error {
+		reqPath := c.Request().URL.Path
+		fsPath := filepath.Join(config.Conf.FrontendDir, path.Clean(reqPath))
+		if fi, err := os.Stat(fsPath); err == nil && !fi.IsDir() {
+			return c.File(fsPath)
+		}
+		return c.File(filepath.Join(config.Conf.FrontendDir, "index.html"))
+	})
+
 	// NotFound
 	api.Any("/*", func(c echo.Context) error {
 		return c.JSON(404, _type.H{
@@ -90,4 +111,22 @@ func Start() {
 		"%s:%d",
 		config.Conf.Host, config.Conf.Port,
 	)))
+}
+
+func HealthCheck() error {
+	resp, err := http.Get(fmt.Sprintf(
+		"http://%s:%d/health",
+		config.Conf.Host, config.Conf.Port,
+	))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("health check failed with status code: %d", resp.StatusCode)
+	}
+	return nil
 }

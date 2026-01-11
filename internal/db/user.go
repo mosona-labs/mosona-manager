@@ -8,7 +8,7 @@ import (
 
 func GetUserById(id int64) (_type.User, error) {
 	var user _type.User
-	if err := Db.Get(&user, "SELECT id, username, email, is_admin, (CASE WHEN totp IS NULL THEN false ELSE true END) AS totp_enabled, verified, created_at FROM users WHERE id = $1", id); err != nil {
+	if err := Db.Get(&user, "SELECT id, username, email, is_admin, (CASE WHEN totp IS NULL THEN false ELSE true END) AS totp_enabled, verified, created_at, pwd_at FROM users WHERE id = $1", id); err != nil {
 		return _type.User{}, err
 	}
 

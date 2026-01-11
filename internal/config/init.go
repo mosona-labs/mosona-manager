@@ -45,6 +45,9 @@ func init() {
 	if Conf.RedisPort == 0 {
 		log.Fatalln("Redis configuration is missing in environment variables")
 	}
+
+	// Frontend
+	Conf.FrontendDir = getEnv("FRONTEND_DIR", "./static/")
 }
 
 func getEnv(key string, defaultValue string) string {

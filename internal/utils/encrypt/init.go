@@ -4,26 +4,13 @@ import (
 	"log"
 	"os"
 	"path"
-	"path/filepath"
-	"runtime"
 )
 
 var (
 	Key []byte // Password encryption key
 )
 
-var configPath = getConfigPath()
-
-func getConfigPath() string {
-	if runtime.GOOS == "windows" {
-		programData := os.Getenv("PROGRAMDATA")
-		if programData == "" {
-			programData = "C:\\ProgramData"
-		}
-		return filepath.Join(programData, "MosonaManager")
-	}
-	return "/etc/mosona-manager/"
-}
+var configPath = "cfg"
 
 func init() {
 	var err error

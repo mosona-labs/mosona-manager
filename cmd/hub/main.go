@@ -20,6 +20,21 @@ const Logo = `┳┳┓           ┳┳┓
                         ┛`
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "health":
+			if err := app.HealthCheck(); err != nil {
+				log.Fatalln("Health check failed:", err)
+			}
+			fmt.Println("ok")
+		default:
+			initApp()
+		}
+	}
+}
+
+func initApp() {
+	// Start
 	fmt.Println(Logo)
 	fmt.Println("⇨ Mosona manager v" + runtime.Version + " starting...")
 

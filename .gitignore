@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .key
+cfg/*
 avatars/*
 token
 mosona-manager

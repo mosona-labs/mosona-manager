@@ -12,6 +12,7 @@ type User struct {
 	UpdatedAt time.Time  `json:"updated_at" db:"updated_at"`
 	CreatedAt time.Time  `json:"created_at" db:"created_at"`
 	LoginAt   *time.Time `json:"login_at,omitempty" db:"login_at"`
+	PwdAt     *time.Time `json:"pwd_at,omitempty" db:"pwd_at"`
 }
 
 type UserAuthInfo struct {
