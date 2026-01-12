@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
+rm -rf build
 mkdir -p build
 
 targets=(
@@ -21,7 +22,7 @@ for t in "${targets[@]}"; do
     fi
 
     echo "Building ${app} for ${GOOS}/${GOARCH} -> ${out}"
-    GOOS=$GOOS GOARCH=$GOARCH go build -o "$out" "cmd/${app}/main.go"
+    GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o "$out" "cmd/${app}/main.go"
     echo "Built $(basename "$out")"
 
     if command -v upx >/dev/null 2>&1; then
