@@ -113,7 +113,7 @@ func EditServer(teamId, serverId int64, typ int16, data *_type.ServerFullType) e
 			Set("address", data.Address).
 			Set("port", data.Port).
 			Set("username", data.Username).
-			Where(squirrel.Eq{"id": serverId})
+			Where(squirrel.Eq{"server_id": serverId})
 
 		if data.KeyID != 0 {
 			qb = qb.Set("key_id", data.KeyID)

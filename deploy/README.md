@@ -34,6 +34,14 @@ Open your web browser and navigate to `http://<your-server-ip>:<APP_PORT>` (defa
 Edit `.env` file, set `RELEASE_TAG` to the desired version or `latest`, then run:
 
 ```bash
-docker compose up -d --no-deps bootstrap
-docker compose up -d app
+docker compose up -d --no-deps --force-recreate bootstrap
+docker restart mosona-manager-app
+```
+
+### ⚠️ Uninstall
+
+To uninstall Mosona Manager and remove all associated data, run the following command:
+
+```bash
+docker compose down --volumes --remove-orphans
 ```
