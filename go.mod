@@ -18,6 +18,7 @@ require (
 	github.com/labstack/echo/v4 v4.15.0
 	github.com/lib/pq v1.10.9
 	github.com/nicholas-fedor/shoutrrr v0.13.1
+	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/pquerna/otp v1.5.0
 	github.com/rbcervilla/redisstore/v9 v9.0.0
 	github.com/redis/go-redis/v9 v9.17.2
@@ -47,6 +48,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/oapi-codegen/runtime v1.1.2 // indirect
+	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/tetratelabs/wazero v1.10.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
