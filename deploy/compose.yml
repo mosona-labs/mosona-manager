@@ -70,7 +70,10 @@ services:
     # APP
     app:
         container_name: mosona-manager-app
-        image: debian:bookworm-slim
+        build:
+            context: .
+            dockerfile: Dockerfile.app
+        image: mosona-manager-app:local
         depends_on:
             bootstrap:
                 condition: service_completed_successfully
