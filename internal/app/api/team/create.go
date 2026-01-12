@@ -67,10 +67,7 @@ func create(c echo.Context) error {
 		}
 		file, err := avatarImage.Open()
 		if err != nil {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Failed to open avatar image",
-			})
+			return utils.ErrorHandler(c, err, "Failed to open avatar image")
 		}
 		defer func() {
 			_ = file.Close()
@@ -78,16 +75,10 @@ func create(c echo.Context) error {
 
 		avatarFileName, err := uuid.NewUUID()
 		if err != nil {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Failed to generate avatar filename",
-			})
+			return utils.ErrorHandler(c, err, "Failed to generate avatar filename")
 		}
 		if err = utils.ConvertAvatar(file, "./avatars", avatarFileName.String()); err != nil {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Failed to process avatar image",
-			})
+			return utils.ErrorHandler(c, err, "Failed to process avatar image")
 		}
 		avatarUrl = avatarFileName.String() + ".avif"
 	}
@@ -101,10 +92,7 @@ func create(c echo.Context) error {
 		uid,
 	)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Set Active Team

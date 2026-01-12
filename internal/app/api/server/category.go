@@ -4,6 +4,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -25,10 +26,7 @@ func category(c echo.Context) error {
 	// Get Info
 	categoryInfo, err := db.GetCategoryById(tid, categoryId)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 	if categoryInfo.ID == 0 {
 		return c.JSON(400, _type.H{
@@ -39,10 +37,7 @@ func category(c echo.Context) error {
 
 	// Set Category
 	if err = db.SetServerCategory(tid, sid, categoryId); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Log action

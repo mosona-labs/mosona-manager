@@ -6,6 +6,7 @@ import (
 	"mosona-manager/internal/connect/conn"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -36,17 +37,11 @@ func edit(c echo.Context) error {
 		"SELECT type, allow_monitor FROM servers WHERE id=$1 AND team_id=$2",
 		serverId, tid,
 	).Scan(&typ, &lastAllowMonitor); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	if err := db.EditServer(tid, serverId, typ, &data); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Failed to edit server",
-		})
+		return utils.ErrorHandler(c, err, "Failed to edit server")
 	}
 
 	// Handle monitoring service

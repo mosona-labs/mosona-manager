@@ -25,6 +25,8 @@ func SyncConfig() error {
 		switch item.Key {
 		case "init":
 			config.DynamicConf.Init = item.Value == "true"
+		case "debug":
+			config.DynamicConf.Debug = item.Value == "true"
 		case "domain":
 			config.DynamicConf.Domain = item.Value
 		case "token":

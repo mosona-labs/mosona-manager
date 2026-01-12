@@ -3,6 +3,7 @@ package auser
 import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/redis"
+	"mosona-manager/internal/utils"
 
 	"github.com/labstack/echo/v4"
 )
@@ -33,10 +34,7 @@ func sessionRevoke(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	if yes, err := redis.CheckSessionOwnership(ctx, uid, sid); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	} else if !yes {
 		return c.JSON(400, _type.H{
 			Code: "error",
@@ -45,10 +43,7 @@ func sessionRevoke(c echo.Context) error {
 	}
 
 	if err := redis.RemoveSessionIDs(ctx, []string{sid}); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	return c.JSON(200, _type.H{
@@ -64,10 +59,7 @@ func sessionRevokeAll(c echo.Context) error {
 
 	sids, err := redis.GetUserSessions(ctx, uid)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	var sidList []string
@@ -76,10 +68,7 @@ func sessionRevokeAll(c echo.Context) error {
 	}
 
 	if err = redis.RemoveSessionIDs(ctx, sidList); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	return c.JSON(200, _type.H{

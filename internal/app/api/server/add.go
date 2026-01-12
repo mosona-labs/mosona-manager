@@ -94,30 +94,21 @@ func add(c echo.Context) error {
 		tid, name, mode, categoryId, allowMonitor, allowTerminal, weight,
 	).Scan(&serverId); err != nil {
 		_ = tx.Rollback()
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 	if _, err = tx.Exec(
 		"INSERT INTO server_info (sid, note, provider, cycle, start_time, end_time, amount, auto_renew, bandwidth, traffic, traffic_type, note_public) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
 		serverId, note, provider, cycle, startTimeParsed, endTimeParsed, amount, autoRenew, bandwidth, traffic, trafficType, notePublic,
 	); err != nil {
 		_ = tx.Rollback()
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 	if _, err = tx.Exec(
 		"INSERT INTO server_info_adv (sid) VALUES ($1)",
 		serverId,
 	); err != nil {
 		_ = tx.Rollback()
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Response
@@ -143,20 +134,14 @@ func add(c echo.Context) error {
 		// Encrypt password
 		passwordEncrypt, err := encrypt.Encrypt([]byte(password), encrypt.Key)
 		if err != nil {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Encryption error",
-			})
+			return utils.ErrorHandler(c, err, "Encryption error")
 		}
 		if _, err = tx.Exec(
 			"INSERT INTO ssh (server_id, address, port, username, key_id, password) VALUES ($1, $2, $3, $4, $5, $6)",
 			serverId, address, port, username, keyId, passwordEncrypt,
 		); err != nil {
 			_ = tx.Rollback()
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 		response = echo.Map{
 			"id": serverId,
@@ -165,10 +150,7 @@ func add(c echo.Context) error {
 		agentUUID, _ := uuid.NewUUID()
 		privateKey, publicKey, err := identity.GenerateEd25519KeyPair()
 		if err != nil {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Key generation error",
-			})
+			return utils.ErrorHandler(c, err, "Key generation error")
 		}
 
 		address := c.FormValue("address")
@@ -178,10 +160,7 @@ func add(c echo.Context) error {
 			serverId, agentUUID.String(), 0, address, port, privateKey,
 		); err != nil {
 			_ = tx.Rollback()
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 
 		response = echo.Map{
@@ -199,10 +178,7 @@ func add(c echo.Context) error {
 			serverId, tokenHash,
 		); err != nil {
 			_ = tx.Rollback()
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 
 		response = echo.Map{
@@ -216,10 +192,7 @@ func add(c echo.Context) error {
 	teamAlerts, err := db.GetTeamAlertsByTeamIdTx(tx, tid)
 	if err != nil {
 		_ = tx.Rollback()
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 	for _, alert := range teamAlerts {
 		_, err = tx.Exec(`
@@ -231,18 +204,12 @@ func add(c echo.Context) error {
 		`, serverId, alert.Item, alert.Threshold, alert.ForDuration)
 		if err != nil {
 			_ = tx.Rollback()
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 	}
 
 	if err = tx.Commit(); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	go func() {

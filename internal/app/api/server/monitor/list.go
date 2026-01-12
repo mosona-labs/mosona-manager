@@ -7,6 +7,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/utils"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -17,10 +18,7 @@ func list(c echo.Context) error {
 
 	servers, err := db.ListMonitoredServers(tid)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Failed to list monitored servers",
-		})
+		return utils.ErrorHandler(c, err, "Failed to list monitored servers")
 	}
 
 	var ids []int64
@@ -29,10 +27,7 @@ func list(c echo.Context) error {
 	}
 	statusMap, err := influx.GetLatestServerStatusBatch(ids)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Failed to get server statuses",
-		})
+		return utils.ErrorHandler(c, err, "Failed to get server statuses")
 	}
 
 	return c.JSON(200, _type.H{

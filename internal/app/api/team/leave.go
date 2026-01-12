@@ -3,6 +3,7 @@ package ateam
 import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo-contrib/session"
@@ -23,20 +24,14 @@ func leave(c echo.Context) error {
 
 	isOwner, err := db.IsTeamOwner(targetId, uid)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// If the user is the owner: transfer ownership
 	if isOwner {
 		members, err := db.GetTeamMembers(targetId)
 		if err != nil {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 		// Select a new owner
 		var newOwnerId int64 = -1
@@ -49,37 +44,25 @@ func leave(c echo.Context) error {
 		// Transfer: must have a new owner
 		if newOwnerId != -1 {
 			if err = db.TransferTeamOwnership(targetId, newOwnerId); err != nil {
-				return c.JSON(500, _type.H{
-					Code: "error",
-					Msg:  "Database error",
-				})
+				return utils.ErrorHandler(c, err, "Database error")
 			}
 		} else {
 			if err = db.RemoveTeam(targetId); err != nil {
-				return c.JSON(500, _type.H{
-					Code: "error",
-					Msg:  "Database error",
-				})
+				return utils.ErrorHandler(c, err, "Database error")
 			}
 		}
 	}
 
 	// Remove user from team
 	if err = db.RemoveUserFromTeam(uid, targetId); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Current active team check
 	if targetId == tid {
 		teams, err := db.GetTeamsByUserId(uid)
 		if err != nil {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 
 		var newActiveTeamId int64 = 0
@@ -88,10 +71,7 @@ func leave(c echo.Context) error {
 		}
 
 		if err = db.SetUserActiveTeam(uid, newActiveTeamId); err != nil {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 		sess, err := session.Get("session", c)
 		if err != nil {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo-contrib/session"
@@ -28,19 +29,16 @@ func setActiveTeam(c echo.Context) error {
 				Msg:  "Team not found or user is not a member",
 			})
 		}
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Failed to set active team")
 	}
 
 	sess, err := session.Get("session", c)
 	if err != nil {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
+		return utils.ErrorHandler(c, err, "Session error")
 	}
 	sess.Values["tid"] = teamID
 	if err = sess.Save(c.Request(), c.Response()); err != nil {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Session update failed"})
+		return utils.ErrorHandler(c, err, "Session update failed")
 	}
 
 	return c.JSON(200, _type.H{

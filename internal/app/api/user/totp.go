@@ -3,6 +3,7 @@ package auser
 import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 
 	"github.com/labstack/echo/v4"
 	"github.com/pquerna/otp/totp"
@@ -12,10 +13,7 @@ func enableTOTP(c echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 	user, err := db.GetUserAuthById(uid)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Failed to get user data",
-		})
+		return utils.ErrorHandler(c, err, "Failed to get user data")
 	}
 
 	if user.TOTP != nil && *user.TOTP != "" {
@@ -81,10 +79,7 @@ func confirmTOTP(c echo.Context) error {
 	}
 
 	if err = db.SetUserTOTP(uid, &secret); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Failed to enable TOTP",
-		})
+		return utils.ErrorHandler(c, err, "Failed to enable TOTP")
 	}
 
 	return c.JSON(200, _type.H{

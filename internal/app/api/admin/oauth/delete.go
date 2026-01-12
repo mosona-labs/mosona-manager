@@ -5,6 +5,7 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/oauth"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -24,17 +25,11 @@ func del(c echo.Context) error {
 	// Get provider info before deletion for logging
 	provider, err := db.GetAuthProviderByID(id)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Provider not found",
-		})
+		return utils.ErrorHandler(c, err, "Provider not found")
 	}
 
 	if err = db.DeleteOAuthProvider(id); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Remove from OAuth manager

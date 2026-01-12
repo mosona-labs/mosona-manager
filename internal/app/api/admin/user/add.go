@@ -40,10 +40,7 @@ func add(c echo.Context) error {
 		"INSERT INTO users (username, email, password, salt, verified, is_admin) VALUES ($1, $2, $3, $4, $5, $6)",
 		username, email, newPassword, signature, verified, isAdmin,
 	); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Log action

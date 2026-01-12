@@ -36,7 +36,7 @@ func edit(c echo.Context) error {
 	// Check Exist
 	isExist, err := db.CheckEmailExistsExcludeID(email, id)
 	if err != nil {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 	if isExist {
 		return c.JSON(400, _type.H{Code: "warning", Msg: "Email already registered"})
@@ -57,10 +57,7 @@ func edit(c echo.Context) error {
 	}
 	sql, args, _ := updates.ToSql()
 	if _, err = db.Db.Exec(sql, args...); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Log action

@@ -33,25 +33,16 @@ func edit(c echo.Context) error {
 	// Update team members
 	tx, err := db.Db.Begin()
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 	if _, err = tx.Exec("DELETE FROM m_team_user WHERE team_id = $1", tid); err != nil {
 		_ = tx.Rollback()
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 	for _, m := range members {
 		if _, err = tx.Exec("INSERT INTO m_team_user (team_id, user_id, role) VALUES ($1, $2, $3)", tid, m.ID, m.Role); err != nil {
 			_ = tx.Rollback()
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 	}
 
@@ -118,17 +109,11 @@ func edit(c echo.Context) error {
 		"UPDATE teams SET name = $1, description = $2, color = $3, image = $4 WHERE id = $5",
 		name, description, avatarColor, avatarUrl, tid,
 	); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	if err = tx.Commit(); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Log action

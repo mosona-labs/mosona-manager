@@ -5,6 +5,7 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/oauth"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -31,10 +32,7 @@ func add(c echo.Context) error {
 
 	id, err := db.CreateOAuthProvider(name, icon, authUrl, tokenUrl, userinfoUrl, clientID, clientSecret, skip2FA, isEnabled)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Add to OAuth manager

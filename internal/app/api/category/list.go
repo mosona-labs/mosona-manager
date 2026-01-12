@@ -3,6 +3,7 @@ package acategory
 import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 
 	"github.com/labstack/echo/v4"
 )
@@ -19,10 +20,7 @@ func list(c echo.Context) error {
 
 	data, err := db.GetCategoriesByTeam(tid)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	return c.JSON(200, _type.H{

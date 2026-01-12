@@ -1,6 +1,7 @@
 package init
 
 import (
+	"context"
 	"database/sql"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
@@ -38,13 +39,15 @@ func initialize(c echo.Context) error {
 		})
 	}
 
+	ctx := c.Request().Context()
+
 	tx, err := db.Db.Begin()
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
 
 	signature := utils.RandomString(32)
-	if _, err = tx.Exec(
+	if _, err = tx.ExecContext(ctx,
 		"INSERT INTO users (username, email, password, salt, verified, is_admin) VALUES ($1, $2, $3, $4, $5, $6)",
 		username, email, utils.SHA256(password+signature+config.DynamicConf.Token), signature, true, true,
 	); err != nil {
@@ -52,15 +55,15 @@ func initialize(c echo.Context) error {
 		return c.JSON(400, _type.H{Code: "error", Msg: "Registration failed"})
 	}
 
-	if err = setConfigTx(tx, "registration_enabled", registrationEnable); err != nil {
+	if err = setConfigTx(tx, ctx, "registration_enabled", registrationEnable); err != nil {
 		_ = tx.Rollback()
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
-	if err = setConfigTx(tx, "website_url", websiteUrl); err != nil {
+	if err = setConfigTx(tx, ctx, "website_url", websiteUrl); err != nil {
 		_ = tx.Rollback()
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
-	if err = setConfigTx(tx, "init", "true"); err != nil {
+	if err = setConfigTx(tx, ctx, "init", "true"); err != nil {
 		_ = tx.Rollback()
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
@@ -83,8 +86,8 @@ func initialize(c echo.Context) error {
 	})
 }
 
-func setConfigTx(tx *sql.Tx, key, value string) error {
-	_, err := tx.Exec(
+func setConfigTx(tx *sql.Tx, ctx context.Context, key, value string) error {
+	_, err := tx.ExecContext(ctx,
 		"INSERT INTO config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2",
 		key, value,
 	)

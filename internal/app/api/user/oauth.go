@@ -7,6 +7,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/oauth"
+	"mosona-manager/internal/utils"
 	"mosona-manager/internal/utils/store"
 	"strconv"
 	"strings"
@@ -44,10 +45,7 @@ func oauthRevoke(c echo.Context) error {
 	}
 
 	if err := db.DeleteAuthIdentityByProviderAndUserID(provider, uid); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	return c.JSON(200, _type.H{
@@ -82,10 +80,7 @@ func oauthLink(c echo.Context) error {
 			Msg:  "This OAuth provider is already linked to your account",
 		})
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	code := c.FormValue("code")
@@ -148,10 +143,7 @@ func oauthLink(c echo.Context) error {
 		Name  string `json:"name"`
 	}
 	if err = json.NewDecoder(resp.Body).Decode(&profile); err != nil {
-		return c.JSON(400, _type.H{
-			Code: "invalid",
-			Msg:  "Failed to parse ID Token claims: " + err.Error(),
-		})
+		return utils.ErrorHandler(c, err, "Failed to parse ID Token claims")
 	}
 
 	// Is link
@@ -162,18 +154,12 @@ func oauthLink(c echo.Context) error {
 			Msg:  "This OAuth account is already linked to another user",
 		})
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Link
 	if _, err = db.AddAuthIdentity(uid, oauthID, strconv.FormatInt(profile.ID, 10), profile.Email, profile.Name); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	return c.JSON(200, _type.H{

@@ -5,6 +5,7 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/oauth"
+	"mosona-manager/internal/utils"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -26,10 +27,7 @@ func set(c echo.Context) error {
 
 	tx, err := db.Db.Begin()
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "err",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	stmt := `INSERT INTO config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2`
@@ -41,26 +39,17 @@ func set(c echo.Context) error {
 		// Execute upsert
 		if _, err = tx.Exec(stmt, item.Key, item.Value); err != nil {
 			_ = tx.Rollback()
-			return c.JSON(500, _type.H{
-				Code: "err",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 	}
 
 	if err = tx.Commit(); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "err",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Reload dynamic configuration
 	if err = db.SyncConfig(); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "err",
-			Msg:  "Failed to reload configuration",
-		})
+		return utils.ErrorHandler(c, err, "Failed to reload configuration")
 	}
 
 	// Reinitialize OAuth if domain changed

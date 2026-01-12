@@ -4,6 +4,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -32,10 +33,7 @@ func list(c echo.Context) error {
 		var err error
 		uids, err = db.GetTeamUserIdsByEmail(tid, email)
 		if err != nil {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 		if len(uids) == 0 {
 			return c.JSON(200, _type.H{
@@ -51,10 +49,7 @@ func list(c echo.Context) error {
 
 	data, total, err := influx.GetLogsByPage(tid, page, pageSize, category, level, uids, message)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	var userIDs []int64
@@ -65,10 +60,7 @@ func list(c echo.Context) error {
 	}
 	userMap, err := db.GetUserByIds(userIDs)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	for i, logRecord := range data {

@@ -5,6 +5,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect/conn"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -37,10 +38,7 @@ func edit(c echo.Context) error {
 	password := c.FormValue("password")
 
 	if err := db.UpdateKey(tid, id, name, password); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	go func() {

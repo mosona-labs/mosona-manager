@@ -6,6 +6,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/utils"
 	"strconv"
 	"time"
 
@@ -31,19 +32,13 @@ func get(c echo.Context) error {
 				Msg:  "No monitored server found",
 			})
 		} else {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 	}
 
 	latestStatus, err := influx.GetLatestServerStatus(serverId)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Failed to get server status",
-		})
+		return utils.ErrorHandler(c, err, "Failed to get server status")
 	}
 	stale := latestStatus.Time.IsZero() || time.Since(latestStatus.Time) > 5*time.Second
 

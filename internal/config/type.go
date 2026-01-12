@@ -26,7 +26,8 @@ type configType struct {
 }
 
 type DynamicConfigType struct {
-	Init bool
+	Init  bool
+	Debug bool
 
 	// Domain
 	Domain string

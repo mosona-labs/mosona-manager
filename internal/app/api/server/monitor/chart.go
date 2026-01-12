@@ -4,6 +4,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/utils"
 	"strconv"
 	"time"
 
@@ -25,10 +26,7 @@ func chart(c echo.Context) error {
 
 	exist, err := db.IsServerExists(tid, serverId)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 	if !exist {
 		return c.JSON(400, _type.H{
@@ -71,10 +69,7 @@ func chart(c echo.Context) error {
 
 	monitorData, err := influx.GetServerStatusHistory(serverId, startTime, endTime, tf)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "InfluxDB error",
-		})
+		return utils.ErrorHandler(c, err, "InfluxDB error")
 	}
 
 	return c.JSON(200, _type.H{

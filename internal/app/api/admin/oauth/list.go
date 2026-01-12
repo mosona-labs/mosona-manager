@@ -3,6 +3,7 @@ package moauth
 import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -19,20 +20,14 @@ func list(c echo.Context) error {
 		size,
 		(page-1)*size,
 	); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "err",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	var total int64
 	if err := db.Db.QueryRow(
 		`SELECT COUNT(id) FROM auth_provider`,
 	).Scan(&total); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "err",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	return c.JSON(200, _type.H{

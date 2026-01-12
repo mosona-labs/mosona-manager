@@ -2,9 +2,9 @@ package aalert
 
 import (
 	"errors"
-	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -41,11 +41,7 @@ func set(c echo.Context) error {
 				Msg:  "Alert item not found",
 			})
 		}
-		fmt.Println(err)
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	return c.JSON(200, _type.H{

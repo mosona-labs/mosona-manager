@@ -3,6 +3,7 @@ package mteam
 import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/Masterminds/squirrel"
@@ -61,18 +62,12 @@ func list(c echo.Context) error {
 
 	var teams = make([]_type.Team, 0)
 	if err := db.Db.Select(&teams, sql, args...); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	var total int64
 	if err := db.Db.Get(&total, countSql, countArgs...); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	return c.JSON(200, _type.H{

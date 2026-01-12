@@ -3,6 +3,7 @@ package auser
 import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 
 	"github.com/labstack/echo/v4"
 )
@@ -19,10 +20,7 @@ func changeUsername(c echo.Context) error {
 	}
 
 	if err := db.UpdateUsername(uid, newUsername); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	return c.JSON(200, _type.H{

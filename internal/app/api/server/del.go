@@ -5,6 +5,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/utils"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -33,17 +34,11 @@ func del(c echo.Context) error {
 	}
 
 	if err := influx.RemoveServerStatus(serverId); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Failed to remove server status from InfluxDB",
-		})
+		return utils.ErrorHandler(c, err, "Failed to remove server status from InfluxDB")
 	}
 
 	if err := db.DeleteServer(tid, serverId); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Failed to delete server",
-		})
+		return utils.ErrorHandler(c, err, "Failed to delete server")
 	}
 
 	// Log action

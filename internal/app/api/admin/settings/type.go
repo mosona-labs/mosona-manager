@@ -1,6 +1,8 @@
 package msettings
 
 type Response struct {
+	Debug bool `json:"debug"`
+
 	// Domain
 	Domain string `json:"domain"`
 

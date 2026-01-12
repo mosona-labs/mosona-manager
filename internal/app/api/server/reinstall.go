@@ -31,10 +31,7 @@ func reinstall(c echo.Context) error {
 	// Exists
 	exist, err := db.IsServerExists(tid, id)
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 	if !exist {
 		return c.JSON(400, _type.H{
@@ -45,10 +42,7 @@ func reinstall(c echo.Context) error {
 
 	tx, err := db.Db.Begin()
 	if err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	var response echo.Map
@@ -65,19 +59,13 @@ func reinstall(c echo.Context) error {
 
 		if _, err = tx.Exec("DELETE FROM agents WHERE server_id = $1", id); err != nil {
 			_ = tx.Rollback()
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 
 		agentUUID, _ := uuid.NewUUID()
 		privateKey, publicKey, err := identity.GenerateEd25519KeyPair()
 		if err != nil {
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Key generation error",
-			})
+			return utils.ErrorHandler(c, err, "Key generation error")
 		}
 
 		if _, err = tx.Exec(
@@ -85,10 +73,7 @@ func reinstall(c echo.Context) error {
 			id, agentUUID.String(), 0, address, port, privateKey,
 		); err != nil {
 			_ = tx.Rollback()
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 
 		response = echo.Map{
@@ -100,10 +85,7 @@ func reinstall(c echo.Context) error {
 	case 2:
 		if _, err = tx.Exec("DELETE FROM agents WHERE server_id = $1", id); err != nil {
 			_ = tx.Rollback()
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 		enrollToken := utils.RandomString(32)
 		tokenHash := utils.SHA256(enrollToken + config.DynamicConf.Token)
@@ -112,10 +94,7 @@ func reinstall(c echo.Context) error {
 			id, tokenHash,
 		); err != nil {
 			_ = tx.Rollback()
-			return c.JSON(500, _type.H{
-				Code: "error",
-				Msg:  "Database error",
-			})
+			return utils.ErrorHandler(c, err, "Database error")
 		}
 		response = echo.Map{
 			"hub":          config.DynamicConf.Domain,
@@ -124,10 +103,7 @@ func reinstall(c echo.Context) error {
 	}
 
 	if err = tx.Commit(); err != nil {
-		return c.JSON(500, _type.H{
-			Code: "error",
-			Msg:  "Database error",
-		})
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	go func() {
