@@ -22,7 +22,7 @@ func CollectHostInfo(ctx context.Context) types.Info {
 	var info types.Info
 
 	info.SystemVersion = firstNonEmpty(readWindowsProductName(), "Windows")
-	info.Uptime = int64(windows.GetTickCount64() / 1000)
+	info.Uptime = int64(getTickCount64() / 1000)
 	info.CpuName = strings.TrimSpace(firstNonEmpty(readCPUNameFromRegistry(), runtime.GOARCH))
 
 	cores, threads, err := cpuCoreAndThreadCount()
@@ -41,6 +41,21 @@ func CollectHostInfo(ctx context.Context) types.Info {
 	info.Architecture = runtime.GOARCH
 
 	return info
+}
+
+func getTickCount64() uint64 {
+	k32 := windows.NewLazySystemDLL("kernel32.dll")
+	proc := k32.NewProc("GetTickCount64")
+	if err := proc.Find(); err == nil {
+		r, _, _ := proc.Call()
+		return uint64(r)
+	}
+	proc2 := k32.NewProc("GetTickCount")
+	if err := proc2.Find(); err == nil {
+		r, _, _ := proc2.Call()
+		return uint64(uint32(r))
+	}
+	return 0
 }
 
 func readWindowsProductName() string {

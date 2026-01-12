@@ -1,4 +1,4 @@
-# Deploy (Docker Compose v2)
+# Deploy (Docker Compose)
 
 This guide provides instructions on how to deploy Mosona Manager using Docker.
 

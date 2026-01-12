@@ -3,6 +3,5 @@
 .key
 cfg/*
 avatars/*
+build/*
 token
-mosona-manager
-mosona-agent
