@@ -176,12 +176,14 @@ main() {
   fi
 
   # Download and extract deployment files
-  tmp="$(mktemp -d)"
+  tmp="./mosona-manager"
   trap 'rm -rf "$tmp"' EXIT
+  mkdir -p "$tmp"
   cd "$tmp"
   echo "Downloading deployment files zip: $DEPLOY_ZIP_ASSET"
-  curl -fL "$deployment_files_url" -o "$tmp/deployment_files.zip"
-  unzip -o "$tmp/deployment_files.zip"
+  curl -fL "$deployment_files_url" -o "deployment_files.zip"
+  unzip -o "deployment_files.zip"
+  rm -f "deployment_files.zip"
 
   cat > ".env" <<EOF
 GITHUB_OWNER=${GITHUB_OWNER}
