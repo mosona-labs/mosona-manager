@@ -64,6 +64,14 @@ See [CHANGELOG.md](./CHANGELOG.md) for history of changes.
 - [Discord](https://discord.gg/NzKFaZGe)
 - [GitHub Discussions](https://github.com/mosona-labs/mosona-manager/discussions)
 
+## Sponsors
+
+If you find Mosona Manager helpful and would like to support its development, consider becoming a sponsor. Your support helps us maintain and improve the project.
+
+<a href="https://github.com/sponsors/arsfy">
+    <img src=".readme/sponsors.svg" alt="Sponsors" width="460" style="margin-top: -20px; margin-bottom: -20px;" />
+</a>
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.

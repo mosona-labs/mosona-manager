@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="240" viewBox="0 0 720 240" role="img" aria-label="Sponsor thank you card">
+    <defs>
+        <!-- Soft shadow -->
+        <filter id="shadow" x="-20%" y="-40%" width="140%" height="180%">
+            <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.10"/>
+        </filter>
+
+        <!-- Avatar clip -->
+        <clipPath id="avatarClip">
+            <circle cx="110" cy="110" r="46"/>
+        </clipPath>
+
+        <linearGradient id="cardBg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ffffff"/>
+            <stop offset="1" stop-color="#f6f8fa"/>
+        </linearGradient>
+
+        <!-- Tiny pattern for avatar placeholder -->
+        <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+            <path d="M10 0H0V10" fill="none" stroke="#d0d7de" stroke-width="1" opacity="0.55"/>
+        </pattern>
+    </defs>
+
+    <!-- Card container -->
+    <rect x="20" y="30" width="680" height="180" rx="16" fill="url(#cardBg)" stroke="#d0d7de" filter="url(#shadow)"/>
+
+    <!-- Left: avatar ring -->
+    <circle cx="110" cy="110" r="54" fill="#ffffff" stroke="#d0d7de"/>
+    <circle cx="110" cy="110" r="46" fill="url(#grid)" stroke="#d0d7de"/>
+
+    <image
+        href="https://avatars.githubusercontent.com/u/93700457?v=4"
+        x="64" y="64" width="92" height="92"
+        preserveAspectRatio="xMidYMid slice"
+        clip-path="url(#avatarClip)"
+        opacity="0.999"
+    />
+
+    <!-- Title -->
+    <text x="190" y="78" font-size="20" font-weight="700" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial">
+        Thank you for sponsoring! 💖
+    </text>
+
+    <!-- Subtitle -->
+    <text x="190" y="108" font-size="14" fill="#57606a"
+          font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial">
+        Your support keeps this project alive and moving forward.
+    </text>
+
+    <line x1="190" y1="128" x2="674" y2="128" stroke="#d0d7de" opacity="0.7"/>
+
+    <text x="190" y="156" font-size="14" fill="#24292f"
+          font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial">
+        ❤️  Thanks for helping cover servers, coffee, and late-night commits.
+    </text>
+    <text x="190" y="178" font-size="13" fill="#57606a"
+          font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial">
+        ✨  You’re awesome — truly appreciated.
+    </text>
+    <g transform="translate(612 48)">
+        <path d="M24 42s-18-11.2-18-24a10 10 0 0 1 18-6a10 10 0 0 1 18 6c0 12.8-18 24-18 24z"
+              fill="#ff4d6d" opacity="0.95"/>
+        <path d="M66 20s-10-6.2-10-13.5a5.8 5.8 0 0 1 10-3.5a5.8 5.8 0 0 1 10 3.5C76 13.8 66 20 66 20z"
+              fill="#ff99ad" opacity="0.9"/>
+        <path d="M84 62s-8-5-8-11a4.6 4.6 0 0 1 8-2.8a4.6 4.6 0 0 1 8 2.8c0 6-8 11-8 11z"
+              fill="#ffb3c1" opacity="0.9"/>
+    </g>
+</svg>

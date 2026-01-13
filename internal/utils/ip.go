@@ -63,6 +63,13 @@ func downloadGeoLite2() {
 	tmp := `GeoLite2-Country.mmdb.tmp`
 	dst := `GeoLite2-Country.mmdb`
 
+	// skip update if the existing DB was written less than 5 days ago
+	if fi, err := os.Stat(dst); err == nil {
+		if time.Since(fi.ModTime()) < 5*24*time.Hour {
+			return
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
