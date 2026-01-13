@@ -29,7 +29,7 @@
     <circle cx="110" cy="110" r="46" fill="url(#grid)" stroke="#d0d7de"/>
 
     <image
-        href="https://avatars.githubusercontent.com/u/93700457?v=4"
+        href="avatar.webp"
         x="64" y="64" width="92" height="92"
         preserveAspectRatio="xMidYMid slice"
         clip-path="url(#avatarClip)"
