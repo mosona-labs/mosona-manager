@@ -66,7 +66,11 @@ See [CHANGELOG.md](./CHANGELOG.md) for history of changes.
 
 ## Sponsors
 
-If you find Mosona Manager helpful and would like to support its development, consider becoming a sponsor. Your support helps us maintain and improve the project.
+If you find Mosona Manager helpful and would like to support its development, consider becoming a sponsor. 
+
+- [GitHub Sponsors](https://github.com/sponsors/arsfy)
+
+Your support helps us maintain and improve the project.
 
 <a href="https://github.com/sponsors/arsfy">
     <img src=".readme/sponsors.svg" alt="Sponsors" width="460" />
