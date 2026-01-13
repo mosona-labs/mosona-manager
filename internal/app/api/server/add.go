@@ -50,7 +50,7 @@ func add(c echo.Context) error {
 
 	var startTimeParsed sql.NullTime
 	if startTime != "" {
-		t, err := time.Parse("2006-01-02", startTime)
+		t, err := time.Parse(time.RFC3339, startTime)
 		if err != nil {
 			return c.JSON(400, _type.H{
 				Code: "error",
@@ -63,7 +63,7 @@ func add(c echo.Context) error {
 	}
 	var endTimeParsed sql.NullTime
 	if endTime != "" {
-		t, err := time.Parse("2006-01-02", endTime)
+		t, err := time.Parse(time.RFC3339, endTime)
 		if err != nil {
 			return c.JSON(400, _type.H{
 				Code: "error",

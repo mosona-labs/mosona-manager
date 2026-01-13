@@ -59,7 +59,7 @@ func initialize(c echo.Context) error {
 		_ = tx.Rollback()
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
-	if err = setConfigTx(tx, ctx, "website_url", websiteUrl); err != nil {
+	if err = setConfigTx(tx, ctx, "domain", websiteUrl); err != nil {
 		_ = tx.Rollback()
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}

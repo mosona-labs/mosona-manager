@@ -35,6 +35,9 @@ Edit `.env` file, set `RELEASE_TAG` to the desired version or `latest`, then run
 
 ```bash
 docker compose up -d --no-deps --force-recreate bootstrap
+docker compose logs -f bootstrap
+
+# Restart the application container
 docker restart mosona-manager-app
 ```
 

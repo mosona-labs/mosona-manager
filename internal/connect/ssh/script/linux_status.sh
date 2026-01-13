@@ -78,12 +78,25 @@ net_task() {
 
   read -r r2 t2 < <(awk 'NR>2 && $1 !~ /^(lo|veth|docker|br-):/ {rx += $2; tx += $10} END {printf "%.0f %.0f\n", rx, tx}' /proc/net/dev)
 
-  (
-    awk -v a="$r1" -v b="$r2" -v s="$NET_INTERVAL" 'BEGIN {printf "rx_kib_s=%.2f\n", (b-a)/1024.0/s}'
-    awk -v a="$t1" -v b="$t2" -v s="$NET_INTERVAL" 'BEGIN {printf "tx_kib_s=%.2f\n", (b-a)/1024.0/s}'
-    awk -v v="$r2" 'BEGIN {printf "rx_total_mb=%.2f\n", v/1024/1024}'
-    awk -v v="$t2" 'BEGIN {printf "tx_total_mb=%.2f\n", v/1024/1024}'
-  ) > "$out"
+  local rx_delta tx_delta
+  rx_delta=$((r2 - r1))
+  tx_delta=$((t2 - t1))
+
+  if (( rx_delta < 0 )); then
+    rx_delta=$((r2 + 4294967296 - r1))
+  fi
+  if (( tx_delta < 0 )); then
+    tx_delta=$((t2 + 4294967296 - t1))
+  fi
+  if (( rx_delta < 0 )); then rx_delta=0; fi
+  if (( tx_delta < 0 )); then tx_delta=0; fi
+
+  awk -v rxd="$rx_delta" -v txd="$tx_delta" -v r2="$r2" -v t2="$t2" -v s="$NET_INTERVAL" 'BEGIN{
+    printf "rx_kib_s=%.2f\n", rxd/1024.0/s;
+    printf "tx_kib_s=%.2f\n", txd/1024.0/s;
+    printf "rx_total_mb=%.2f\n", r2/1024/1024;
+    printf "tx_total_mb=%.2f\n", t2/1024/1024;
+  }' > "$out"
 }
 
 # Disk IO task
