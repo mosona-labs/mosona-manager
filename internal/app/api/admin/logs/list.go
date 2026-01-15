@@ -25,11 +25,13 @@ func list(c echo.Context) error {
 	email := c.QueryParam("email")
 	message := c.QueryParam("message")
 
+	ctx := c.Request().Context()
+
 	// User filter
 	var uids []int64
 	if email != "" {
 		var err error
-		uids, err = db.GetAdminUserIdsByEmail(email)
+		uids, err = db.GetAdminUserIdsByEmail(ctx, email)
 		if err != nil {
 			return utils.ErrorHandler(c, err, "Database error")
 		}

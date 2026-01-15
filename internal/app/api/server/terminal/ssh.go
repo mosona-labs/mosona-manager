@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"mosona-manager/internal/_type"
 	pbTypes "mosona-manager/pkg/types"
+	"sync"
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
@@ -60,6 +61,9 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 	if err != nil {
 		return err
 	}
+	defer func() {
+		_ = stdin.Close()
+	}()
 
 	stdout, err := session.StdoutPipe()
 	if err != nil {
@@ -84,18 +88,16 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 		return err
 	}
 
-	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
 
 	// Read from stdout (SSH)
 	go func() {
-		defer close(done)
+		defer wg.Done()
 		buf := make([]byte, 1024)
 		for {
 			n, err := stdout.Read(buf)
 			if err != nil {
-				//if err != io.EOF {
-				//	c.Logger().Error(err)
-				//}
 				return
 			}
 			if n > 0 {
@@ -106,6 +108,7 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 
 	// Read from stderr (SSH)
 	go func() {
+		defer wg.Done()
 		buf := make([]byte, 1024)
 		for {
 			n, err := stderr.Read(buf)
@@ -116,6 +119,12 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 				_ = wsConn.WriteMessage(websocket.TextMessage, buf[:n])
 			}
 		}
+	}()
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
 	}()
 
 	// Read from WebSocket

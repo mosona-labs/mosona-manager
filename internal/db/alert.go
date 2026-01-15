@@ -264,7 +264,7 @@ func GetTeamAlertsByTeamId(teamId int64) (map[string]_type.ServerAlert, error) {
 func GetTeamAlertsByTeamIdTx(tx *sql.Tx, teamId int64) (map[string]_type.ServerAlert, error) {
 	alerts := make(map[string]_type.ServerAlert)
 
-	rows, err := Db.Query(`
+	rows, err := tx.Query(`
 		SELECT id, item, threshold, for_duration
 		FROM team_alerts
 		WHERE team_id = $1

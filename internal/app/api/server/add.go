@@ -3,7 +3,7 @@ package aserver
 import (
 	"database/sql"
 	"encoding/base64"
-	"fmt"
+	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/connect/conn"
@@ -214,7 +214,7 @@ func add(c echo.Context) error {
 
 	go func() {
 		if err = conn.StartServer(serverId, int16(mode)); err != nil {
-			fmt.Println("Failed to start server connection:", err)
+			log.Println("Failed to start server connection:", err)
 		}
 	}()
 

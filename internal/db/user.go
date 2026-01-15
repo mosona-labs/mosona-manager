@@ -1,7 +1,9 @@
 package db
 
 import (
+	"context"
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/utils"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -65,14 +67,14 @@ func GetUserByIds(ids []int64) (map[int64]_type.User, error) {
 	return userMap, nil
 }
 
-func GetTeamUserIdsByEmail(teamID int64, email string) ([]int64, error) {
+func GetTeamUserIdsByEmail(ctx context.Context, teamID int64, email string) ([]int64, error) {
 	var userIds []int64
-	err := Db.Select(&userIds, `
+	err := Db.SelectContext(ctx, &userIds, `
 		SELECT u.id
 		FROM users u
 		JOIN m_team_user tu ON u.id = tu.user_id
 		WHERE tu.team_id = $1 AND u.email LIKE $2
-	`, teamID, "%"+email+"%")
+	`, teamID, "%"+utils.EscapeLike(email)+"%")
 	if err != nil {
 		return nil, err
 	}
@@ -80,13 +82,13 @@ func GetTeamUserIdsByEmail(teamID int64, email string) ([]int64, error) {
 	return userIds, nil
 }
 
-func GetAdminUserIdsByEmail(email string) ([]int64, error) {
+func GetAdminUserIdsByEmail(ctx context.Context, email string) ([]int64, error) {
 	var userIds []int64
-	err := Db.Select(&userIds, `
+	err := Db.SelectContext(ctx, &userIds, `
 		SELECT id
 		FROM users
 		WHERE is_admin = true AND email LIKE $1
-	`, "%"+email+"%")
+	`, "%"+utils.EscapeLike(email)+"%")
 	if err != nil {
 		return nil, err
 	}

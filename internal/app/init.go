@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
@@ -117,7 +118,8 @@ func Start() {
 }
 
 func HealthCheck() error {
-	resp, err := http.Get(fmt.Sprintf(
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(fmt.Sprintf(
 		"http://%s:%d/health",
 		config.Conf.Host, config.Conf.Port,
 	))

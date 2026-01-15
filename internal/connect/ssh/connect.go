@@ -3,6 +3,7 @@ package ssh
 import (
 	"context"
 	"fmt"
+	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect/callback"
 	"strconv"
@@ -119,7 +120,7 @@ func SSH(
 		if workErr == nil {
 			return nil
 		} else {
-			fmt.Println(workErr)
+			log.Println(workErr)
 		}
 
 		select {

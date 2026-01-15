@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 func PostForm(urlStr string, data map[string]interface{}, headers map[string]string, res any) error {
@@ -16,7 +17,7 @@ func PostForm(urlStr string, data map[string]interface{}, headers map[string]str
 		formData.Set(k, fmt.Sprint(v))
 	}
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 30 * time.Second}
 	req, err := http.NewRequest("POST", urlStr, strings.NewReader(formData.Encode()))
 	if err != nil {
 		return err

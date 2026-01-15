@@ -1,7 +1,7 @@
 package aserver
 
 import (
-	"fmt"
+	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect/conn"
 	"mosona-manager/internal/db"
@@ -48,7 +48,7 @@ func edit(c echo.Context) error {
 	if typ != 1 && data.AllowMonitor {
 		go func() {
 			if err := conn.StartServer(serverId, typ); err != nil {
-				fmt.Println("Failed to start server connection:", err)
+				log.Println("Failed to start server connection:", err)
 			}
 		}()
 	} else if lastAllowMonitor != data.AllowMonitor && !data.AllowMonitor {
