@@ -11,7 +11,10 @@ targets=(
   "darwin amd64"
   "darwin arm64"
 )
-apps=("hub" "agent")
+apps=(
+  "hub"
+  "agent"
+)
 
 for t in "${targets[@]}"; do
   read -r GOOS GOARCH <<< "$t"

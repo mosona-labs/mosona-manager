@@ -3,6 +3,7 @@ package auth
 import (
 	"mosona-manager/internal/_type"
 
+	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 )
@@ -13,7 +14,17 @@ func logout(c echo.Context) error {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
 	}
 
+	for k := range sess.Values {
+		delete(sess.Values, k)
+	}
+
+	if sess.Options == nil {
+		sess.Options = &sessions.Options{}
+	}
+	sess.Options.Path = "/"
 	sess.Options.MaxAge = -1
+	sess.Options.HttpOnly = true
+
 	if err = sess.Save(c.Request(), c.Response()); err != nil {
 		return c.JSON(500, _type.H{Code: "warning", Msg: "Session save failed"})
 	}

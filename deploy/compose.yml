@@ -19,7 +19,7 @@ services:
     # Postgres
     postgres:
         container_name: mosona-manager-postgres
-        image: postgres:17-alpine
+        image: postgres:18-alpine
         environment:
             POSTGRES_DB: ${PG_DB}
             POSTGRES_USER: ${PG_USER}

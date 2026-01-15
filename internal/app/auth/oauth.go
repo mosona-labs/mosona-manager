@@ -174,7 +174,8 @@ func oauthCallback(c echo.Context) error {
 	}
 
 	// Already logged in
-	if sess.Values["uid"] != nil {
+	uid := sess.Values["uid"]
+	if uid != nil && uid.(int64) != 0 {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Already logged in"})
 	}
 
