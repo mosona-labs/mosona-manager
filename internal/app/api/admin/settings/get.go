@@ -4,10 +4,10 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func get(c echo.Context) error {
+func get(c *echo.Context) error {
 	dc := config.ReadDynamicConf()
 
 	return c.JSON(200, _type.H{

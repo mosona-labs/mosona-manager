@@ -6,10 +6,10 @@ import (
 	"mosona-manager/internal/utils"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func del(c echo.Context) error {
+func del(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	if tid == 0 {
 		return c.JSON(400, _type.H{

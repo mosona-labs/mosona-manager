@@ -5,3 +5,5 @@ type H struct {
 	Msg  string `json:"msg"`
 	Data any    `json:"data,omitempty"`
 }
+
+type Map map[string]any

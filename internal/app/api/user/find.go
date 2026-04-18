@@ -7,10 +7,10 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func find(c echo.Context) error {
+func find(c *echo.Context) error {
 	email := c.FormValue("email")
 
 	user, err := db.GetUserByEmail(email)

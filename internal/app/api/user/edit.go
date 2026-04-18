@@ -5,10 +5,10 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func changeUsername(c echo.Context) error {
+func changeUsername(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 
 	newUsername := c.FormValue("username")

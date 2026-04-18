@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-func passiveInfo(c echo.Context) error {
+func passiveInfo(c *echo.Context) error {
 	serverId := c.Get("server_id").(int64)
 
 	system := c.FormValue("system")
@@ -51,7 +51,7 @@ func passiveInfo(c echo.Context) error {
 	})
 }
 
-func passiveWS(c echo.Context) error {
+func passiveWS(c *echo.Context) error {
 	serverId := c.Get("server_id").(int64)
 
 	upgrader := websocket.Upgrader{

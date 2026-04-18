@@ -7,11 +7,11 @@ import (
 	"mosona-manager/internal/db"
 	"time"
 
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 )
 
-func loginSession(c echo.Context, uid int64, isAdmin bool) *_type.H {
+func loginSession(c *echo.Context, uid int64, isAdmin bool) *_type.H {
 	// Session
 	sess, err := session.Get("session", c)
 	if err != nil {

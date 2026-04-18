@@ -3,7 +3,7 @@ package aterminal
 import (
 	"mosona-manager/internal/app/middleware"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func Router(e *echo.Group) {

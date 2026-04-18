@@ -11,10 +11,10 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func edit(c echo.Context) error {
+func edit(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	uid, _ := c.Get("uid").(int64)
 

@@ -5,10 +5,10 @@ import (
 	"mosona-manager/internal/redis"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func sessions(c echo.Context) error {
+func sessions(c *echo.Context) error {
 	data, err := redis.GetUserSessions(c.Request().Context(), c.Get("uid").(int64))
 	if err != nil {
 		return c.JSON(500, _type.H{
@@ -20,14 +20,14 @@ func sessions(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: echo.Map{
+		Data: _type.Map{
 			"list":    data,
 			"current": c.Get("sid").(string),
 		},
 	})
 }
 
-func sessionRevoke(c echo.Context) error {
+func sessionRevoke(c *echo.Context) error {
 	uid := c.Get("uid").(int64)
 	sid := c.Param("sid")
 
@@ -52,7 +52,7 @@ func sessionRevoke(c echo.Context) error {
 	})
 }
 
-func sessionRevokeAll(c echo.Context) error {
+func sessionRevokeAll(c *echo.Context) error {
 	uid := c.Get("uid").(int64)
 
 	ctx := c.Request().Context()

@@ -7,10 +7,10 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func terminal(c echo.Context) error {
+func terminal(c *echo.Context) error {
 	sessionID := c.Param("session_id")
 
 	upgrader := websocket.Upgrader{

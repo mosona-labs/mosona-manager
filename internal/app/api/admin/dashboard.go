@@ -6,10 +6,10 @@ import (
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func dashboard(c echo.Context) error {
+func dashboard(c *echo.Context) error {
 	var (
 		users, teams, servers int64
 		records               int64
@@ -37,7 +37,7 @@ func dashboard(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: echo.Map{
+		Data: _type.Map{
 			"users":   users,
 			"teams":   teams,
 			"servers": servers,

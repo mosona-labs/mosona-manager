@@ -5,10 +5,10 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func info(c echo.Context) error {
+func info(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	if tid == 0 {
 		return c.JSON(400, _type.H{
@@ -30,7 +30,7 @@ func info(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: echo.Map{
+		Data: _type.Map{
 			"team":    team,
 			"members": members,
 		},

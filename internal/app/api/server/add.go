@@ -16,10 +16,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func add(c echo.Context) error {
+func add(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	uid, _ := c.Get("uid").(int64)
 
@@ -127,7 +127,7 @@ func add(c echo.Context) error {
 	}
 
 	// Response
-	var response echo.Map
+	var response _type.Map
 
 	// Connection
 	switch mode {
@@ -158,7 +158,7 @@ func add(c echo.Context) error {
 			_ = tx.Rollback()
 			return utils.ErrorHandler(c, err, "Database error")
 		}
-		response = echo.Map{
+		response = _type.Map{
 			"id": serverId,
 		}
 	case 1: // Agent (active)
@@ -178,7 +178,7 @@ func add(c echo.Context) error {
 			return utils.ErrorHandler(c, err, "Database error")
 		}
 
-		response = echo.Map{
+		response = _type.Map{
 			"id":         serverId,
 			"host":       address,
 			"port":       port,
@@ -196,7 +196,7 @@ func add(c echo.Context) error {
 			return utils.ErrorHandler(c, err, "Database error")
 		}
 
-		response = echo.Map{
+		response = _type.Map{
 			"id":           serverId,
 			"hub":          config.DynamicConf.Domain,
 			"enroll_token": enrollToken,

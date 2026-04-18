@@ -8,10 +8,10 @@ import (
 	"mosona-manager/internal/utils"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func update(c echo.Context) error {
+func update(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 	id, _ := strconv.Atoi(c.Param("id"))
 	name := c.FormValue("name")

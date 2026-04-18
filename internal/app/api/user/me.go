@@ -7,10 +7,10 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func me(c echo.Context) error {
+func me(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 	tid, _ := c.Get("tid").(int64)
 

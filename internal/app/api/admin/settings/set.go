@@ -8,7 +8,7 @@ import (
 	"mosona-manager/internal/utils"
 	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type setRequest struct {
@@ -16,7 +16,7 @@ type setRequest struct {
 	Value string `json:"value" validate:"required"`
 }
 
-func set(c echo.Context) error {
+func set(c *echo.Context) error {
 	req := new([]setRequest)
 	if err := c.Bind(req); err != nil {
 		return c.JSON(400, _type.H{

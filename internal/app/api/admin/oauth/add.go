@@ -8,10 +8,10 @@ import (
 	"mosona-manager/internal/utils"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func add(c echo.Context) error {
+func add(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 	name := c.FormValue("name")
 	icon := c.FormValue("icon")

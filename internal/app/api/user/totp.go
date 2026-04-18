@@ -5,11 +5,11 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/pquerna/otp/totp"
 )
 
-func enableTOTP(c echo.Context) error {
+func enableTOTP(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 	user, err := db.GetUserAuthById(uid)
 	if err != nil {
@@ -37,14 +37,14 @@ func enableTOTP(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: echo.Map{
+		Data: _type.Map{
 			"secret": token.Secret(),
 			"url":    token.URL(),
 		},
 	})
 }
 
-func confirmTOTP(c echo.Context) error {
+func confirmTOTP(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 	user, err := db.GetUserAuthById(uid)
 	if err != nil {
@@ -88,7 +88,7 @@ func confirmTOTP(c echo.Context) error {
 	})
 }
 
-func disableTOTP(c echo.Context) error {
+func disableTOTP(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 
 	if err := db.SetUserTOTP(uid, nil); err != nil {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"mosona-manager/internal/_type"
@@ -21,20 +22,28 @@ import (
 	"mosona-manager/internal/redis"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/rbcervilla/redisstore/v9"
 )
 
 func Start() {
 	e := echo.New()
-	e.HideBanner = true
+	//e.HideBanner = true
+
+	address := fmt.Sprintf("%s:%d", config.Conf.Host, config.Conf.Port)
+
+	// CTX
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// SESSION
 	store, err := redisstore.NewRedisStore(context.Background(), redis.Client)
@@ -63,7 +72,7 @@ func Start() {
 		auth.Router(api.Group("/auth"))
 
 		// PING
-		api.GET("/ping", func(c echo.Context) error {
+		api.GET("/ping", func(c *echo.Context) error {
 			return c.String(200, "pong!")
 		})
 	}
@@ -85,7 +94,7 @@ func Start() {
 	init2.Router(api.Group("/init"))
 
 	// Health
-	e.GET("/health", func(c echo.Context) error {
+	e.GET("/health", func(c *echo.Context) error {
 		return c.JSON(200, _type.H{
 			Code: "ok",
 			Msg:  "Service is healthy",
@@ -93,7 +102,7 @@ func Start() {
 	})
 
 	// Frontend
-	e.GET("/*", func(c echo.Context) error {
+	e.GET("/*", func(c *echo.Context) error {
 		reqPath := c.Request().URL.Path
 		fsPath := filepath.Join(config.Conf.FrontendDir, path.Clean(reqPath))
 		if fi, err := os.Stat(fsPath); err == nil && !fi.IsDir() {
@@ -103,7 +112,7 @@ func Start() {
 	})
 
 	// NotFound
-	api.Any("/*", func(c echo.Context) error {
+	api.Any("/*", func(c *echo.Context) error {
 		return c.JSON(404, _type.H{
 			Code: "not_found",
 			Msg:  "API not found",
@@ -111,10 +120,14 @@ func Start() {
 	})
 
 	// Start
-	e.Logger.Fatal(e.Start(fmt.Sprintf(
-		"%s:%d",
-		config.Conf.Host, config.Conf.Port,
-	)))
+	sc := echo.StartConfig{
+		Address:         address,
+		GracefulTimeout: 3 * time.Second,
+	}
+	if err := sc.Start(ctx, e); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal("failed to start or shutdown server", "error", err)
+	}
+	e.Logger.Info("Server stopped gracefully")
 }
 
 func HealthCheck() error {

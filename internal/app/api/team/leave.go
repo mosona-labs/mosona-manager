@@ -6,11 +6,11 @@ import (
 	"mosona-manager/internal/utils"
 	"strconv"
 
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 )
 
-func leave(c echo.Context) error {
+func leave(c *echo.Context) error {
 	uid := c.Get("uid").(int64)
 	tid := c.Get("tid").(int64)
 

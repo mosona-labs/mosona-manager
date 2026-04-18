@@ -5,12 +5,12 @@ import (
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 )
 
 func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		if !config.DynamicConf.Init {
 			return c.JSON(200, _type.H{
 				Code: "init_required",
@@ -61,7 +61,7 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		if !config.DynamicConf.Init {
 			return c.JSON(200, _type.H{
 				Code: "init_required",
@@ -105,7 +105,7 @@ func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 func InitAuth(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		if config.DynamicConf.Init {
 			return c.JSON(400, _type.H{
 				Code: "already_initialized",

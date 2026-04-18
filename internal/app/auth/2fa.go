@@ -11,13 +11,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 	"github.com/pquerna/otp/totp"
 )
 
 func middlewareFA(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		sess, err := session.Get("session", c)
 		if err != nil {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
@@ -38,7 +38,7 @@ func middlewareFA(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
-func getTwoFAStatus(c echo.Context) error {
+func getTwoFAStatus(c *echo.Context) error {
 	preUID, ok := c.Get("pre_2fa_uid").(int64)
 	if !ok || preUID <= 0 {
 		return c.JSON(400, _type.H{
@@ -63,7 +63,7 @@ func getTwoFAStatus(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: echo.Map{
+		Data: _type.Map{
 			"verified":  user.Verified,
 			"totp":      user.TOTP,
 			"login_2fa": config.DynamicConf.EmailVerifyLogin,
@@ -72,7 +72,7 @@ func getTwoFAStatus(c echo.Context) error {
 	})
 }
 
-func sendMFACode(c echo.Context) error {
+func sendMFACode(c *echo.Context) error {
 	preUID, ok := c.Get("pre_2fa_uid").(int64)
 	if !ok || preUID <= 0 {
 		return c.JSON(400, _type.H{
@@ -142,7 +142,7 @@ func sendMFACode(c echo.Context) error {
 	})
 }
 
-func verifyMFACode(c echo.Context) error {
+func verifyMFACode(c *echo.Context) error {
 	uid, _ := c.Get("pre_2fa_uid").(int64)
 	code := c.FormValue("code")
 	if code == "" {
@@ -189,7 +189,7 @@ func verifyMFACode(c echo.Context) error {
 	return c.JSON(200, _type.H{Code: "ok", Msg: "2FA verification successful"})
 }
 
-func verifyTOTP(c echo.Context) error {
+func verifyTOTP(c *echo.Context) error {
 	uid, _ := c.Get("pre_2fa_uid").(int64)
 	totpCode := c.FormValue("code")
 	if totpCode == "" {

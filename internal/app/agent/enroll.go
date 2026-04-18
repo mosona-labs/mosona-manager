@@ -9,10 +9,10 @@ import (
 	"mosona-manager/internal/utils"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func enroll(c echo.Context) error {
+func enroll(c *echo.Context) error {
 	token := c.FormValue("token")
 	publicKey := c.FormValue("public_key")
 	version := c.FormValue("version")

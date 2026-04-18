@@ -10,11 +10,11 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func PassiveAuth(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		uid := c.Request().Header.Get("X-Agent-Id")
 		ts := c.Request().Header.Get("X-Agent-Timestamp")
 		nonce := c.Request().Header.Get("X-Agent-Nonce")

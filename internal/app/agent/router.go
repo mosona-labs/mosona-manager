@@ -3,7 +3,7 @@ package agent
 import (
 	"mosona-manager/internal/app/agent/middleware"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func Router(e *echo.Group) {

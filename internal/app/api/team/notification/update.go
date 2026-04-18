@@ -5,10 +5,10 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func update(c echo.Context) error {
+func update(c *echo.Context) error {
 	var req []_type.TeamNotification
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(400, _type.H{

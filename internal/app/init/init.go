@@ -9,10 +9,10 @@ import (
 	"mosona-manager/internal/utils"
 	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func initialize(c echo.Context) error {
+func initialize(c *echo.Context) error {
 	username := strings.TrimSpace(c.FormValue("username"))
 	email := strings.TrimSpace(c.FormValue("email"))
 	password := c.FormValue("password")

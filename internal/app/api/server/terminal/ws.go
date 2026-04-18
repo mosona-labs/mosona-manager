@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/websocket"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 var upgrader = websocket.Upgrader{
@@ -17,7 +17,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func ws(c echo.Context) error {
+func ws(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	uid, _ := c.Get("uid").(int64)
 

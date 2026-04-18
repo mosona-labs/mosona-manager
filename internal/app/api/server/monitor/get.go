@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func get(c echo.Context) error {
+func get(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 
 	serverId, _ := strconv.ParseInt(c.Param("id"), 10, 64)
@@ -45,7 +45,7 @@ func get(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: echo.Map{
+		Data: _type.Map{
 			"info":  data,
 			"now":   time.Now(),
 			"stale": stale,

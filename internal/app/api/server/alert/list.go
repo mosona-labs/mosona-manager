@@ -5,10 +5,10 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func list(c echo.Context) error {
+func list(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 
 	alerts, err := db.GetServerAlertsByTeamId(tid)
@@ -24,7 +24,7 @@ func list(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: echo.Map{
+		Data: _type.Map{
 			"alerts":      alerts,
 			"team_alerts": teamAlerts,
 		},

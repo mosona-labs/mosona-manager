@@ -9,10 +9,10 @@ import (
 	"strconv"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func edit(c echo.Context) error {
+func edit(c *echo.Context) error {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	if id <= 0 {
 		return c.JSON(400, _type.H{

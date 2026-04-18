@@ -6,10 +6,10 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func register(c echo.Context) error {
+func register(c *echo.Context) error {
 	if config.ReadDynamicConf().RegistrationEnabled {
 		return c.JSON(403, _type.H{Code: "forbidden", Msg: "Registration is disabled"})
 	}

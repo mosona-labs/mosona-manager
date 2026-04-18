@@ -7,10 +7,10 @@ import (
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func create(c echo.Context) error {
+func create(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	uid, _ := c.Get("uid").(int64)
 	name := c.FormValue("name")

@@ -13,10 +13,10 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func reinstall(c echo.Context) error {
+func reinstall(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 	tid, _ := c.Get("tid").(int64)
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
@@ -45,7 +45,7 @@ func reinstall(c echo.Context) error {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
-	var response echo.Map
+	var response _type.Map
 
 	switch mode {
 	case 0:
@@ -76,7 +76,7 @@ func reinstall(c echo.Context) error {
 			return utils.ErrorHandler(c, err, "Database error")
 		}
 
-		response = echo.Map{
+		response = _type.Map{
 			"host":       address,
 			"port":       port,
 			"agent_uid":  agentUUID.String(),
@@ -96,7 +96,7 @@ func reinstall(c echo.Context) error {
 			_ = tx.Rollback()
 			return utils.ErrorHandler(c, err, "Database error")
 		}
-		response = echo.Map{
+		response = _type.Map{
 			"hub":          config.DynamicConf.Domain,
 			"enroll_token": enrollToken,
 		}

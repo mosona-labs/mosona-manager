@@ -4,11 +4,11 @@ import (
 	"mosona-manager/internal/_type"
 
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 )
 
-func logout(c echo.Context) error {
+func logout(c *echo.Context) error {
 	sess, err := session.Get("session", c)
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})

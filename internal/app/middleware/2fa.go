@@ -7,12 +7,12 @@ import (
 	"mosona-manager/internal/email"
 	"mosona-manager/internal/utils/store"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/pquerna/otp/totp"
 )
 
 func TwoFA(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		code := c.FormValue("v_code")
 		if code == "" {
 			code = c.QueryParam("v_code")

@@ -5,10 +5,10 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/email"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func testEmail(c echo.Context) error {
+func testEmail(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 
 	user, err := db.GetUserById(uid)

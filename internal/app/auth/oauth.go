@@ -16,12 +16,12 @@ import (
 	"time"
 
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 	"golang.org/x/oauth2"
 )
 
-func oauthLogin(c echo.Context) error {
+func oauthLogin(c *echo.Context) error {
 	oauthID, _ := strconv.Atoi(c.Param("id"))
 	if oauthID == 0 {
 		return c.JSON(400, _type.H{
@@ -45,14 +45,14 @@ func oauthLogin(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: echo.Map{
+		Data: _type.Map{
 			"url":   authURL,
 			"state": state,
 		},
 	})
 }
 
-func oauthCallback(c echo.Context) error {
+func oauthCallback(c *echo.Context) error {
 	oauthID, _ := strconv.Atoi(c.Param("id"))
 	if oauthID == 0 {
 		return c.JSON(400, _type.H{

@@ -4,11 +4,11 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func UserRole(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		uid, _ := c.Get("uid").(int64)
 		tid, _ := c.Get("tid").(int64)
 
@@ -27,7 +27,7 @@ func UserRole(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 func WriteAuth(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		role, _ := c.Get("role").(int)
 		if role != 0 {
 			return c.JSON(403, _type.H{
@@ -40,7 +40,7 @@ func WriteAuth(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 func TerminalAuth(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		role, _ := c.Get("role").(int)
 		if role == 2 {
 			return c.JSON(403, _type.H{

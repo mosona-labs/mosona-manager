@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 var (
@@ -38,7 +38,7 @@ func getOAuthListCached() ([]_type.PublicAuthProvider, error) {
 	return list, nil
 }
 
-func keys(c echo.Context) error {
+func keys(c *echo.Context) error {
 	oauthList, err := getOAuthListCached()
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database Error"})
@@ -47,7 +47,7 @@ func keys(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: echo.Map{
+		Data: _type.Map{
 			"captcha": config.DynamicConf.CaptchaSiteKey,
 			"oauth":   oauthList,
 		},

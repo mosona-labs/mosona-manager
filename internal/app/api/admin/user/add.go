@@ -7,10 +7,10 @@ import (
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func add(c echo.Context) error {
+func add(c *echo.Context) error {
 	username := c.FormValue("username")
 	email := c.FormValue("email")
 	password := c.FormValue("password")

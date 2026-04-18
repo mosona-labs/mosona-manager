@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func oauthIdentities(c echo.Context) error {
+func oauthIdentities(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 
 	data, err := db.GetAuthByUserID(uid)
@@ -34,7 +34,7 @@ func oauthIdentities(c echo.Context) error {
 	})
 }
 
-func oauthRevoke(c echo.Context) error {
+func oauthRevoke(c *echo.Context) error {
 	uid := c.Get("uid").(int64)
 	provider, _ := strconv.Atoi(c.Param("id"))
 	if provider == 0 {
@@ -54,7 +54,7 @@ func oauthRevoke(c echo.Context) error {
 	})
 }
 
-func oauthLink(c echo.Context) error {
+func oauthLink(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 
 	oauthID, _ := strconv.Atoi(c.Param("id"))

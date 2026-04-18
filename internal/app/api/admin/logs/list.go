@@ -7,10 +7,10 @@ import (
 	"mosona-manager/internal/utils"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func list(c echo.Context) error {
+func list(c *echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	pageSize, _ := strconv.Atoi(c.QueryParam("page_size"))
 	if page <= 0 {
@@ -39,7 +39,7 @@ func list(c echo.Context) error {
 			return c.JSON(200, _type.H{
 				Code: "ok",
 				Msg:  "Success",
-				Data: echo.Map{
+				Data: _type.Map{
 					"logs":  []_type.Log{},
 					"total": 0,
 				},
@@ -78,7 +78,7 @@ func list(c echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: echo.Map{
+		Data: _type.Map{
 			"logs":  data,
 			"total": total,
 		},

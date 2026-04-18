@@ -6,10 +6,10 @@ import (
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func sort(c echo.Context) error {
+func sort(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	uid, _ := c.Get("uid").(int64)
 	var ids []int64

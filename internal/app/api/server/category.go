@@ -7,10 +7,10 @@ import (
 	"mosona-manager/internal/utils"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func category(c echo.Context) error {
+func category(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	uid, _ := c.Get("uid").(int64)
 	sid, _ := strconv.ParseInt(c.Param("id"), 10, 64)

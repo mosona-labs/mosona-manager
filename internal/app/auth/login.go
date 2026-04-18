@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 )
 
-func login(c echo.Context) error {
+func login(c *echo.Context) error {
 	email := c.FormValue("email")
 	password := c.FormValue("password")
 	rememberMe := c.FormValue("remember_me") == "true"

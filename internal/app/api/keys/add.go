@@ -5,10 +5,10 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func add(c echo.Context) error {
+func add(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	if tid == 0 {
 		return c.JSON(400, _type.H{

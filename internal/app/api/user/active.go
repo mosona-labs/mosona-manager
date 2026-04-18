@@ -8,11 +8,11 @@ import (
 	"mosona-manager/internal/utils"
 	"strconv"
 
-	"github.com/labstack/echo-contrib/session"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo-contrib/v5/session"
+	"github.com/labstack/echo/v5"
 )
 
-func setActiveTeam(c echo.Context) error {
+func setActiveTeam(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
 	teamID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	if teamID == 0 {

@@ -5,10 +5,10 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func sort(c echo.Context) error {
+func sort(c *echo.Context) error {
 	var req = make([]int, 0)
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(400, _type.H{

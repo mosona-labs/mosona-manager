@@ -4,11 +4,11 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/nicholas-fedor/shoutrrr"
 )
 
-func test(c echo.Context) error {
+func test(c *echo.Context) error {
 	uri := c.FormValue("uri")
 
 	if err := shoutrrr.Send(uri, "Test notification from Mosona Manager\n\n"+config.DynamicConf.Domain); err != nil {

@@ -7,10 +7,10 @@ import (
 	"mosona-manager/internal/utils"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func del(c echo.Context) error {
+func del(c *echo.Context) error {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	if id <= 0 {
 		return c.JSON(400, _type.H{
