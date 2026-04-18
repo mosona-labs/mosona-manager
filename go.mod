@@ -25,7 +25,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.12
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	golang.org/x/crypto v0.47.0
-	golang.org/x/image v0.35.0
+	golang.org/x/image v0.38.0
 	golang.org/x/oauth2 v0.34.0
 	golang.org/x/sys v0.41.0
 )
@@ -36,7 +36,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20210922203350-b1ad95c89adf // indirect
