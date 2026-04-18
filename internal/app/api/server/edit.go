@@ -40,6 +40,15 @@ func edit(c echo.Context) error {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
+	if typ == 0 {
+		if err := validateSSHConnectionForEdit(tid, serverId, &data); err != nil {
+			return c.JSON(400, _type.H{
+				Code: "error",
+				Msg:  "SSH connection failed: " + err.Error(),
+			})
+		}
+	}
+
 	if err := db.EditServer(tid, serverId, typ, &data); err != nil {
 		return utils.ErrorHandler(c, err, "Failed to edit server")
 	}

@@ -81,6 +81,21 @@ func add(c echo.Context) error {
 	trafficType, _ := strconv.Atoi(c.FormValue("traffic_type"))
 	notePublic := c.FormValue("note_public")
 
+	if mode == 0 {
+		address := c.FormValue("address")
+		port, _ := strconv.Atoi(c.FormValue("port"))
+		username := c.FormValue("username")
+		password := c.FormValue("password")
+		keyID, _ := strconv.ParseInt(c.FormValue("key_id"), 10, 64)
+
+		if err := validateSSHConnectionForAdd(tid, address, port, username, password, keyID); err != nil {
+			return c.JSON(400, _type.H{
+				Code: "error",
+				Msg:  "SSH connection failed: " + err.Error(),
+			})
+		}
+	}
+
 	// Insert into database
 	tx, err := db.Db.Begin()
 	if err != nil {
@@ -121,7 +136,7 @@ func add(c echo.Context) error {
 		port, _ := strconv.Atoi(c.FormValue("port"))
 		username := c.FormValue("username")
 		password := c.FormValue("password")
-		keyId := c.FormValue("key_id")
+		keyID, _ := strconv.ParseInt(c.FormValue("key_id"), 10, 64)
 
 		if address == "" || port == 0 || username == "" {
 			_ = tx.Rollback()
@@ -138,7 +153,7 @@ func add(c echo.Context) error {
 		}
 		if _, err = tx.Exec(
 			"INSERT INTO ssh (server_id, address, port, username, key_id, password) VALUES ($1, $2, $3, $4, $5, $6)",
-			serverId, address, port, username, keyId, passwordEncrypt,
+			serverId, address, port, username, keyID, passwordEncrypt,
 		); err != nil {
 			_ = tx.Rollback()
 			return utils.ErrorHandler(c, err, "Database error")

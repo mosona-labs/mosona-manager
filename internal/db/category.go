@@ -53,7 +53,7 @@ func DeleteCategory(teamId, categoryId int64) error {
 	// Reassign servers to default category
 	if _, err = tx.Exec(
 		"UPDATE servers SET category = $1 WHERE category = $2",
-		defaultCategoryId, categoryId, teamId,
+		defaultCategoryId, categoryId,
 	); err != nil {
 		_ = tx.Rollback()
 		return err

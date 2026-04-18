@@ -31,21 +31,21 @@ func StartServer(serverId int64, mode int16) error {
 		).Scan(&host, &port, &user, &password, &keyPassword, &key); err != nil {
 			return err
 		}
-		if password != nil {
+		if len(password) != 0 {
 			pwd, err := encrypt.Decrypt(password, encrypt.Key)
 			if err != nil {
 				return err
 			}
 			pwdStr = string(pwd)
 		}
-		if key != nil {
+		if len(key) != 0 {
 			k, err := encrypt.Decrypt(key, encrypt.Key)
 			if err != nil {
 				return err
 			}
 			keyStr = string(k)
 		}
-		if keyPassword != nil {
+		if len(keyPassword) != 0 {
 			kp, err := encrypt.Decrypt(keyPassword, encrypt.Key)
 			if err != nil {
 				return err

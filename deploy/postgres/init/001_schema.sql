@@ -371,7 +371,7 @@ DROP TABLE IF EXISTS "ssh";
 CREATE TABLE "ssh" (
   "server_id" int8 NOT NULL,
   "address" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
-  "port" int2 NOT NULL,
+  "port" int4 NOT NULL,
   "username" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
   "key_id" int8 NOT NULL,
   "password" bytea NOT NULL

@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"mosona-manager/internal/_type"
+	connectSSH "mosona-manager/internal/connect/ssh"
 	pbTypes "mosona-manager/pkg/types"
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"golang.org/x/crypto/ssh"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error {
@@ -16,31 +17,30 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 		_ = wsConn.Close()
 	}()
 
-	var authMethods []ssh.AuthMethod
-	if serverAuth.Key != nil && *serverAuth.Key != "" {
-		var signer ssh.Signer
-		var err error
-
-		if serverAuth.KeyPwd != nil && *serverAuth.KeyPwd != "" {
-			signer, err = ssh.ParsePrivateKeyWithPassphrase([]byte(*serverAuth.Key), []byte(*serverAuth.KeyPwd))
-		} else {
-			signer, err = ssh.ParsePrivateKey([]byte(*serverAuth.Key))
-		}
-		if err != nil {
-			return fmt.Errorf("failed to parse private key: %w", err)
-		}
-		authMethods = []ssh.AuthMethod{ssh.PublicKeys(signer)}
-		if serverAuth.Password != nil && *serverAuth.Password != "" {
-			authMethods = append(authMethods, ssh.Password(*serverAuth.Password))
-		}
-	} else {
-		authMethods = []ssh.AuthMethod{ssh.Password(*serverAuth.Password)}
+	password := ""
+	if serverAuth.Password != nil {
+		password = *serverAuth.Password
 	}
 
-	sshClient, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", *serverAuth.Address, *serverAuth.Port), &ssh.ClientConfig{
+	key := ""
+	if serverAuth.Key != nil {
+		key = *serverAuth.Key
+	}
+
+	keyPwd := ""
+	if serverAuth.KeyPwd != nil {
+		keyPwd = *serverAuth.KeyPwd
+	}
+
+	authMethods, err := connectSSH.BuildAuthMethods(password, key, keyPwd)
+	if err != nil {
+		return err
+	}
+
+	sshClient, err := gossh.Dial("tcp", fmt.Sprintf("%s:%d", *serverAuth.Address, *serverAuth.Port), &gossh.ClientConfig{
 		User:            *serverAuth.Username,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: gossh.InsecureIgnoreHostKey(),
 	})
 	if err != nil {
 		return wsConn.WriteMessage(websocket.TextMessage, []byte("Failed to connect to target server: "+err.Error()+"\n"))
@@ -75,10 +75,10 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 		return err
 	}
 
-	modes := ssh.TerminalModes{
-		ssh.ECHO:          1,
-		ssh.TTY_OP_ISPEED: 14400,
-		ssh.TTY_OP_OSPEED: 14400,
+	modes := gossh.TerminalModes{
+		gossh.ECHO:          1,
+		gossh.TTY_OP_ISPEED: 14400,
+		gossh.TTY_OP_OSPEED: 14400,
 	}
 
 	if err = session.RequestPty("xterm", 40, 80, modes); err != nil {

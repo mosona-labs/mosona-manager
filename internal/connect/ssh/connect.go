@@ -2,14 +2,11 @@ package ssh
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect/callback"
 	"strconv"
 	"time"
-
-	"golang.org/x/crypto/ssh"
 )
 
 func SSH(
@@ -20,7 +17,6 @@ func SSH(
 	const (
 		initialBackoff = 1 * time.Second
 		maxBackoff     = 30 * time.Second
-		dialTimeout    = 10 * time.Second
 	)
 
 	backoff := initialBackoff
@@ -32,33 +28,7 @@ func SSH(
 		default:
 		}
 
-		var authMethods []ssh.AuthMethod
-		if key != "" {
-			var signer ssh.Signer
-			var err error
-
-			if keyPwd != "" {
-				signer, err = ssh.ParsePrivateKeyWithPassphrase([]byte(key), []byte(keyPwd))
-			} else {
-				signer, err = ssh.ParsePrivateKey([]byte(key))
-			}
-			if err != nil {
-				return fmt.Errorf("failed to parse private key: %w", err)
-			}
-			authMethods = []ssh.AuthMethod{ssh.PublicKeys(signer)}
-			if password != "" {
-				authMethods = append(authMethods, ssh.Password(password))
-			}
-		} else {
-			authMethods = []ssh.AuthMethod{ssh.Password(password)}
-		}
-
-		client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host, port), &ssh.ClientConfig{
-			User:            user,
-			Auth:            authMethods,
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			Timeout:         dialTimeout,
-		})
+		client, err := Dial(host, port, user, password, key, keyPwd, defaultDialTimeout)
 
 		if err != nil {
 			select {
