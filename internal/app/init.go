@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/app/agent"
 	"mosona-manager/internal/app/api/admin"
@@ -37,7 +38,7 @@ import (
 
 func Start() {
 	e := echo.New()
-	//e.HideBanner = true
+	e.Logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	address := fmt.Sprintf("%s:%d", config.Conf.Host, config.Conf.Port)
 
@@ -122,6 +123,8 @@ func Start() {
 	// Start
 	sc := echo.StartConfig{
 		Address:         address,
+		HideBanner:      true,
+		HidePort:        true,
 		GracefulTimeout: 3 * time.Second,
 	}
 	if err := sc.Start(ctx, e); err != nil && !errors.Is(err, http.ErrServerClosed) {
