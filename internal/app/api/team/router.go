@@ -12,6 +12,8 @@ func Router(e *echo.Group) {
 	e.POST("", create)
 	e.PUT("/:id", edit, middleware.WriteAuth)
 	e.DELETE("/leave/:id", leave)
+	e.GET("/public-page", getPublicPage)
+	e.PUT("/public-page", setPublicPage, middleware.WriteAuth)
 
 	anotification.Router(e.Group("/notification"))
 }

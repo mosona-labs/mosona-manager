@@ -12,6 +12,7 @@ import (
 	"mosona-manager/internal/app/api/category"
 	"mosona-manager/internal/app/api/keys"
 	"mosona-manager/internal/app/api/logs"
+	apublic "mosona-manager/internal/app/api/public"
 	"mosona-manager/internal/app/api/server"
 	aalert "mosona-manager/internal/app/api/server/alert"
 	"mosona-manager/internal/app/api/team"
@@ -71,6 +72,7 @@ func Start() {
 	api := e.Group("/api")
 	{
 		auth.Router(api.Group("/auth"))
+		apublic.Router(api.Group("/public"))
 
 		// PING
 		api.GET("/ping", func(c *echo.Context) error {
@@ -102,8 +104,18 @@ func Start() {
 		})
 	})
 
+	// Public preview
+	e.Static("/preview-assets", filepath.Join(config.Conf.FrontendDir, "public-preview"))
+	e.GET("/preview/:name", apublic.PageByName)
+
 	// Frontend
 	e.GET("/*", func(c *echo.Context) error {
+		if served, err := apublic.TryServeDomainPage(c); err != nil {
+			return err
+		} else if served {
+			return nil
+		}
+
 		reqPath := c.Request().URL.Path
 		fsPath := filepath.Join(config.Conf.FrontendDir, path.Clean(reqPath))
 		if fi, err := os.Stat(fsPath); err == nil && !fi.IsDir() {

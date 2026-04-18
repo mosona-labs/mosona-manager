@@ -6,3 +6,4 @@ avatars/*
 build/*
 token
 GeoLite2-Country.mmdb
+static/*

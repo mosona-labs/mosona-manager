@@ -400,6 +400,23 @@ CACHE 1
 ALTER TABLE "team_alerts" OWNER TO CURRENT_USER;
 
 -- ----------------------------
+-- Table structure for team_public_pages
+-- ----------------------------
+DROP TABLE IF EXISTS "team_public_pages";
+CREATE TABLE "team_public_pages" (
+  "team_id" int8 NOT NULL,
+  "enabled" bool NOT NULL DEFAULT false,
+  "name" varchar(64) COLLATE "pg_catalog"."default",
+  "domain" varchar(255) COLLATE "pg_catalog"."default",
+  "title" varchar(255) COLLATE "pg_catalog"."default",
+  "description" text COLLATE "pg_catalog"."default",
+  "created_at" timestamp(6) NOT NULL DEFAULT now(),
+  "updated_at" timestamp(6) NOT NULL DEFAULT now()
+)
+;
+ALTER TABLE "team_public_pages" OWNER TO CURRENT_USER;
+
+-- ----------------------------
 -- Table structure for teams
 -- ----------------------------
 DROP TABLE IF EXISTS "teams";
@@ -584,6 +601,21 @@ CREATE UNIQUE INDEX "IDX_TATI" ON "team_alerts" USING btree (
 ALTER TABLE "team_alerts" ADD CONSTRAINT " _pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Indexes structure for table team_public_pages
+-- ----------------------------
+CREATE UNIQUE INDEX "team_public_pages_name_unique" ON "team_public_pages" USING btree (
+  LOWER(("name")::text) COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+) WHERE "name" IS NOT NULL;
+CREATE UNIQUE INDEX "team_public_pages_domain_unique" ON "team_public_pages" USING btree (
+  LOWER(("domain")::text) COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+) WHERE "domain" IS NOT NULL;
+
+-- ----------------------------
+-- Primary Key structure for table team_public_pages
+-- ----------------------------
+ALTER TABLE "team_public_pages" ADD CONSTRAINT "team_public_pages_pkey" PRIMARY KEY ("team_id");
+
+-- ----------------------------
 -- Primary Key structure for table teams
 -- ----------------------------
 ALTER TABLE "teams" ADD CONSTRAINT "teams_pkey" PRIMARY KEY ("id");
@@ -672,6 +704,11 @@ ALTER TABLE "ssh" ADD CONSTRAINT "FK_SS" FOREIGN KEY ("server_id") REFERENCES "s
 -- Foreign Keys structure for table team_alerts
 -- ----------------------------
 ALTER TABLE "team_alerts" ADD CONSTRAINT "FK_TST" FOREIGN KEY ("team_id") REFERENCES "teams" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- ----------------------------
+-- Foreign Keys structure for table team_public_pages
+-- ----------------------------
+ALTER TABLE "team_public_pages" ADD CONSTRAINT "FK_TPPT" FOREIGN KEY ("team_id") REFERENCES "teams" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- ----------------------------
 -- Foreign Keys structure for table teams
