@@ -10,6 +10,7 @@ services:
             BACKEND_ASSET_AMD64: ${BACKEND_ASSET_AMD64}
             BACKEND_ASSET_ARM64: ${BACKEND_ASSET_ARM64}
             FRONTEND_ZIP_ASSET: ${FRONTEND_ZIP_ASSET}
+            FRONTEND_PUB_ZIP_ASSET: ${FRONTEND_PUB_ZIP_ASSET}
         volumes:
             - ./init:/init:ro
             - app_bin:/out/bin

@@ -7,6 +7,7 @@ apk add --no-cache curl jq unzip ca-certificates tar
 : "${GITHUB_REPO:?missing}"
 : "${RELEASE_TAG:?missing}"
 : "${FRONTEND_ZIP_ASSET:?missing}"
+: "${FRONTEND_PUB_ZIP_ASSET:?missing}"
 
 OUT_BIN="/out/bin"
 OUT_FE="/out/frontend"
@@ -40,6 +41,7 @@ get_asset_url() {
 
 backend_url="$(get_asset_url "$backend_asset")"
 frontend_url="$(get_asset_url "$FRONTEND_ZIP_ASSET")"
+frontend_pub_url="$(get_asset_url "$FRONTEND_PUB_ZIP_ASSET")"
 
 if [ -z "$backend_url" ] || [ "$backend_url" = "null" ]; then
   echo "Backend asset not found: $backend_asset"
@@ -47,6 +49,10 @@ if [ -z "$backend_url" ] || [ "$backend_url" = "null" ]; then
 fi
 if [ -z "$frontend_url" ] || [ "$frontend_url" = "null" ]; then
   echo "Frontend asset not found: $FRONTEND_ZIP_ASSET"
+  exit 1
+fi
+if [ -z "$frontend_pub_url" ] || [ "$frontend_pub_url" = "null" ]; then
+  echo "Frontend pub asset not found: $FRONTEND_PUB_ZIP_ASSET"
   exit 1
 fi
 
@@ -59,10 +65,14 @@ curl -fL "$backend_url" -o "$tmp/backend"
 echo "Downloading frontend zip: $FRONTEND_ZIP_ASSET"
 curl -fL "$frontend_url" -o "$tmp/frontend.zip"
 
+echo "Downloading frontend pub zip: $FRONTEND_PUB_ZIP_ASSET"
+curl -fL "$frontend_pub_url" -o "$tmp/frontend_pub.zip"
+
 install -m 0755 "$tmp/backend" "$OUT_BIN/mosona-manager"
 
 rm -rf "$OUT_FE"/*
 unzip -q "$tmp/frontend.zip" -d "$OUT_FE"
+unzip -q "$tmp/frontend_pub.zip" -d "$OUT_FE/public-preview"
 
 echo "Bootstrap done."
 ls -la "$OUT_BIN"

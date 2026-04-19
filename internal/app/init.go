@@ -27,6 +27,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -106,10 +107,11 @@ func Start() {
 
 	// Public preview
 	e.Static("/preview-assets", filepath.Join(config.Conf.FrontendDir, "public-preview"))
+	frontendFS := echo.NewDefaultFS(config.Conf.FrontendDir)
 	e.GET("/preview/:name", apublic.PageByName)
 
 	// Frontend
-	e.GET("/*", func(c *echo.Context) error {
+	frontendHandler := func(c *echo.Context) error {
 		if served, err := apublic.TryServeDomainPage(c); err != nil {
 			return err
 		} else if served {
@@ -119,10 +121,13 @@ func Start() {
 		reqPath := c.Request().URL.Path
 		fsPath := filepath.Join(config.Conf.FrontendDir, path.Clean(reqPath))
 		if fi, err := os.Stat(fsPath); err == nil && !fi.IsDir() {
-			return c.File(fsPath)
+			relativePath := strings.TrimPrefix(path.Clean("/"+reqPath), "/")
+			return c.FileFS(relativePath, frontendFS)
 		}
-		return c.File(filepath.Join(config.Conf.FrontendDir, "index.html"))
-	})
+		return c.FileFS("index.html", frontendFS)
+	}
+	e.GET("/", frontendHandler)
+	e.GET("/*", frontendHandler)
 
 	// NotFound
 	api.Any("/*", func(c *echo.Context) error {

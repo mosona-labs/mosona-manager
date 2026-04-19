@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
@@ -29,7 +30,7 @@ func PageByName(c *echo.Context) error {
 	}
 
 	setPublicPageHeaders(c)
-	return c.File(previewIndexPath())
+	return c.FileFS("index.html", previewFS())
 }
 
 func TryServeDomainPage(c *echo.Context) (bool, error) {
@@ -42,7 +43,7 @@ func TryServeDomainPage(c *echo.Context) (bool, error) {
 	}
 
 	setPublicPageHeaders(c)
-	return true, c.File(previewIndexPath())
+	return true, c.FileFS("index.html", previewFS())
 }
 
 func bootstrap(c *echo.Context) error {
@@ -218,8 +219,8 @@ func publicPageTitle(page *_type.ResolvedPublicPage) string {
 	return page.TeamName + " Status"
 }
 
-func previewIndexPath() string {
-	return filepath.Join(config.Conf.FrontendDir, "public-preview", "index.html")
+func previewFS() fs.FS {
+	return echo.NewDefaultFS(filepath.Join(config.Conf.FrontendDir, "public-preview"))
 }
 
 func setPublicPageHeaders(c *echo.Context) {
