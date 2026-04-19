@@ -25,8 +25,9 @@ func list(c *echo.Context) error {
 		Code: "ok",
 		Msg:  "Success",
 		Data: _type.Map{
-			"alerts":      alerts,
-			"team_alerts": teamAlerts,
+			"alerts":       alerts,
+			"team_alerts":  teamAlerts,
+			"item_configs": db.AlertItemConfigs(),
 		},
 	})
 }

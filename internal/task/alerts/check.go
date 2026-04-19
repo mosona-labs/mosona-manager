@@ -138,38 +138,104 @@ func (a *alertInstance) checkMemoryUsageAlert(serverId int64, r *alertRule) (boo
 }
 
 func (a *alertInstance) checkDiskUsageAlert(serverId int64, r *alertRule) (bool, *time.Time) {
-	// Check the maximum disk usage percentage across all disks
-	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
-		var sum float64
-		var count int
-		for _, item := range statuses {
-			if item.Time.After(startTime) {
-				var maxPct float64
-				for _, d := range item.Disks {
-					if d.TotalGB > 0 {
-						pct := (d.UsedGB / d.TotalGB) * 100
-						if pct > maxPct {
-							maxPct = pct
-						}
-					}
-				}
-				sum += maxPct
-				count++
-			}
+	type diskStat struct {
+		sum   float64
+		count int
+	}
+	perDisk := make(map[string]*diskStat)
+	for _, item := range a.statuses {
+		if !item.Time.After(r.startTime) {
+			continue
 		}
-		return sum, count
+		for _, d := range item.Disks {
+			if d.TotalGB <= 0 {
+				continue
+			}
+			key := d.MountPoint
+			if key == "" {
+				key = "/"
+			}
+			stat, ok := perDisk[key]
+			if !ok {
+				stat = &diskStat{}
+				perDisk[key] = stat
+			}
+			stat.sum += (d.UsedGB / d.TotalGB) * 100
+			stat.count++
+		}
 	}
 
-	return a.checkMetricAlert(
+	var currentStatus bool
+	var mountPoint string
+	var avgValue float64
+	for mp, stat := range perDisk {
+		if stat.count == 0 {
+			continue
+		}
+		avg := stat.sum / float64(stat.count)
+		if avg > avgValue {
+			avgValue = avg
+			mountPoint = mp
+		}
+		if avg >= float64(r.threshold) {
+			currentStatus = true
+		}
+	}
+
+	if len(perDisk) == 0 {
+		return false, r.lastNotifyAt
+	}
+
+	now := time.Now()
+	if shouldNotify(currentStatus, r) {
+		a.notifyAll(
+			serverId,
+			"Disk usage exceeded threshold",
+			fmt.Sprintf(
+				"The %d-minutes average disk usage for %s reached %.2f%%, exceeding the configured threshold of %d%%",
+				r.forDuration,
+				mountPoint,
+				avgValue,
+				r.threshold,
+			),
+		)
+		return currentStatus, &now
+	}
+
+	return currentStatus, r.lastNotifyAt
+}
+
+func (a *alertInstance) checkExpiryReminderAlert(serverId int64, r *alertRule) (bool, *time.Time) {
+	serverExpiry, ok := a.expiryMap[serverId]
+	if !ok || serverExpiry.EndTime == nil || serverExpiry.AutoRenew {
+		return false, r.lastNotifyAt
+	}
+
+	remaining := time.Until(*serverExpiry.EndTime)
+	currentStatus := remaining > 0 && remaining <= time.Duration(r.threshold)*24*time.Hour
+	if !currentStatus {
+		return false, r.lastNotifyAt
+	}
+
+	if r.lastStatus != nil && *r.lastStatus {
+		return true, r.lastNotifyAt
+	}
+
+	daysLeft := int((remaining + 24*time.Hour - 1) / (24 * time.Hour))
+	if daysLeft < 1 {
+		daysLeft = 1
+	}
+	now := time.Now()
+	a.notifyAll(
 		serverId,
-		r,
-		calculator,
-		"Disk usage exceeded threshold",
-		func(value float64, duration int, threshold int) string {
-			return fmt.Sprintf("The %d-minutes average Disk usage reached %.2f%%, exceeding the configured threshold of %d%%",
-				duration, value, threshold)
-		},
+		"Server expiry reminder",
+		fmt.Sprintf(
+			"This server is not set to auto-renew and will expire in %d day(s) on %s.",
+			daysLeft,
+			serverExpiry.EndTime.Format("2006-01-02 15:04 MST"),
+		),
 	)
+	return true, &now
 }
 
 func (a *alertInstance) checkReadIOPSAlert(serverId int64, r *alertRule) (bool, *time.Time) {

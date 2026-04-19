@@ -41,6 +41,12 @@ func set(c *echo.Context) error {
 				Msg:  "Alert item not found",
 			})
 		}
+		if errors.Is(err, db.ErrAlertInvalidConfig) {
+			return c.JSON(400, _type.H{
+				Code: "invalid",
+				Msg:  "Alert configuration is invalid",
+			})
+		}
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 

@@ -7,6 +7,7 @@ import (
 
 type alertInstance struct {
 	serverMap     *map[int64]string
+	expiryMap     map[int64]serverExpiryInfo
 	notifications []*_type.TeamNotification
 	statuses      []*_type.ServerStatusType
 }
@@ -24,4 +25,9 @@ type alertRuleUpdate struct {
 	id           int64
 	lastStatus   *bool
 	lastNotifyAt *time.Time
+}
+
+type serverExpiryInfo struct {
+	EndTime   *time.Time
+	AutoRenew bool
 }

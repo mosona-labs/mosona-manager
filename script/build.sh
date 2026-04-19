@@ -85,5 +85,6 @@ fi
 
 cp deploy/install.sh "$BUILD_DIR/"
 cp deploy/uninstall.sh "$BUILD_DIR/"
+cp deploy/upgrade.sh "$BUILD_DIR/"
 
 echo "Build complete. Binaries are located in the 'build' directory."

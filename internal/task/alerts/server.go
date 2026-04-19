@@ -44,7 +44,7 @@ func teamNotificationsByIds(teamIds []int64) (map[int64][]*_type.TeamNotificatio
 	return result, nil
 }
 
-func allServerAlerts() (map[int64]map[int64]map[string]_type.ServerAlert, map[int64]string, error) {
+func allServerAlerts() (map[int64]map[int64]map[string]_type.ServerAlert, map[int64]string, map[int64]serverExpiryInfo, error) {
 	type alertRow struct {
 		TeamId       int64        `db:"team_id"`
 		ID           int64        `db:"id"`
@@ -55,25 +55,29 @@ func allServerAlerts() (map[int64]map[int64]map[string]_type.ServerAlert, map[in
 		ForDuration  int          `db:"for_duration"`
 		LastStatus   sql.NullBool `db:"last_status"`
 		LastNotifyAt sql.NullTime `db:"last_notify_at"`
+		EndTime      sql.NullTime `db:"end_time"`
+		AutoRenew    sql.NullBool `db:"auto_renew"`
 	}
 
 	var rows []alertRow
 	err := db.Db.Select(&rows, `
-		SELECT s.team_id, a.id, a.server_id, s.name, a.item, a.threshold, a.for_duration, a.last_status, a.last_notify_at
+		SELECT s.team_id, a.id, a.server_id, s.name, a.item, a.threshold, a.for_duration, a.last_status, a.last_notify_at, i.end_time, COALESCE(i.auto_renew, false) AS auto_renew
 		FROM server_alerts a
 		JOIN servers s ON a.server_id = s.id
+		LEFT JOIN server_info i ON a.server_id = i.sid
 	`)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Pre-allocate map capacity
 	alerts := make(map[int64]map[int64]map[string]_type.ServerAlert)
 	serverMap := make(map[int64]string)
+	expiryMap := make(map[int64]serverExpiryInfo)
 
 	// If no alerts, return empty map
 	if len(rows) == 0 {
-		return alerts, serverMap, nil
+		return alerts, serverMap, expiryMap, nil
 	}
 
 	for _, row := range rows {
@@ -102,7 +106,15 @@ func allServerAlerts() (map[int64]map[int64]map[string]_type.ServerAlert, map[in
 			LastNotifyAt: lastNotifyAt,
 		}
 		serverMap[row.ServerID] = row.ServerName
+		expiryInfo := serverExpiryInfo{
+			AutoRenew: row.AutoRenew.Valid && row.AutoRenew.Bool,
+		}
+		if row.EndTime.Valid {
+			endTime := row.EndTime.Time
+			expiryInfo.EndTime = &endTime
+		}
+		expiryMap[row.ServerID] = expiryInfo
 	}
 
-	return alerts, serverMap, nil
+	return alerts, serverMap, expiryMap, nil
 }

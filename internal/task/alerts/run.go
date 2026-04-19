@@ -7,7 +7,7 @@ import (
 )
 
 func Run() {
-	rulesMap, serverMap, err := allServerAlerts()
+	rulesMap, serverMap, expiryMap, err := allServerAlerts()
 	if err != nil {
 		log.Printf("failed to get rules: %v", err)
 		return
@@ -56,6 +56,7 @@ func Run() {
 
 			alert := &alertInstance{
 				serverMap:     &serverMap,
+				expiryMap:     expiryMap,
 				notifications: notifications,
 				statuses:      statuses,
 			}
@@ -88,6 +89,8 @@ func Run() {
 					ls, ln = alert.checkWriteIOPSAlert(serverId, r)
 				case "bandwidth":
 					ls, ln = alert.checkBandwidthAlert(serverId, r)
+				case "expiry_reminder":
+					ls, ln = alert.checkExpiryReminderAlert(serverId, r)
 				default:
 					continue
 				}

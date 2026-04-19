@@ -1,6 +1,7 @@
 package aalert
 
 import (
+	"errors"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
@@ -32,6 +33,12 @@ func del(c *echo.Context) error {
 		affected, err = db.DeleteTeamAlert(tid, item, override)
 	}
 	if err != nil {
+		if errors.Is(err, db.ErrAlertNotFound) {
+			return c.JSON(400, _type.H{
+				Code: "invalid",
+				Msg:  "Alert item not found",
+			})
+		}
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
