@@ -63,12 +63,7 @@ func bootstrap(c *echo.Context) error {
 		Code: "ok",
 		Msg:  "Success",
 		Data: _type.Map{
-			"page": _type.PublicPageSummary{
-				Title:       publicPageTitle(page),
-				Name:        page.Name,
-				Domain:      page.Domain,
-				Description: page.Description,
-			},
+			"page":       buildPublicPageSummary(page),
 			"servers":    servers,
 			"categories": categories,
 			"status":     statusMap,
@@ -217,6 +212,23 @@ func publicPageTitle(page *_type.ResolvedPublicPage) string {
 		return strings.TrimSpace(*page.Title)
 	}
 	return page.TeamName + " Status"
+}
+
+func buildPublicPageSummary(page *_type.ResolvedPublicPage) _type.PublicPageSummary {
+	summary := _type.PublicPageSummary{
+		Title:       publicPageTitle(page),
+		Name:        page.Name,
+		Domain:      page.Domain,
+		Description: page.Description,
+		TeamName:    page.TeamName,
+		TeamColor:   page.TeamColor,
+		TeamImage:   page.TeamImage,
+	}
+	if page.TeamImage != "" {
+		avatar := "/avatars/" + page.TeamImage
+		summary.TeamAvatar = &avatar
+	}
+	return summary
 }
 
 func previewFS() fs.FS {

@@ -51,7 +51,7 @@ func GetEnabledTeamPublicPageByName(name string) (_type.ResolvedPublicPage, erro
 	err := Db.Get(
 		&page,
 		`SELECT p.team_id, p.enabled, p.name, p.domain, p.title, p.description, p.created_at, p.updated_at,
-		        t.name AS team_name
+		        t.name AS team_name, t.color AS team_color, t.image AS team_image
 		 FROM team_public_pages p
 		 JOIN teams t ON t.id = p.team_id
 		 WHERE p.enabled = TRUE AND lower(p.name) = $1`,
@@ -65,7 +65,7 @@ func GetEnabledTeamPublicPageByDomain(domain string) (_type.ResolvedPublicPage, 
 	err := Db.Get(
 		&page,
 		`SELECT p.team_id, p.enabled, p.name, p.domain, p.title, p.description, p.created_at, p.updated_at,
-		        t.name AS team_name
+		        t.name AS team_name, t.color AS team_color, t.image AS team_image
 		 FROM team_public_pages p
 		 JOIN teams t ON t.id = p.team_id
 		 WHERE p.enabled = TRUE AND lower(p.domain) = $1`,

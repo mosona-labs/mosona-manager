@@ -15,7 +15,9 @@ type TeamPublicPage struct {
 
 type ResolvedPublicPage struct {
 	TeamPublicPage
-	TeamName string `json:"team_name,omitempty" db:"team_name"`
+	TeamName  string `json:"team_name,omitempty" db:"team_name"`
+	TeamColor string `json:"team_color,omitempty" db:"team_color"`
+	TeamImage string `json:"team_image,omitempty" db:"team_image"`
 }
 
 type PublicPageSummary struct {
@@ -23,4 +25,8 @@ type PublicPageSummary struct {
 	Name        *string `json:"name,omitempty"`
 	Domain      *string `json:"domain,omitempty"`
 	Description *string `json:"description,omitempty"`
+	TeamName    string  `json:"team_name"`
+	TeamColor   string  `json:"team_color,omitempty"`
+	TeamImage   string  `json:"team_image,omitempty"`
+	TeamAvatar  *string `json:"team_avatar,omitempty"`
 }
