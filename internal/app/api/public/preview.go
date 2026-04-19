@@ -14,6 +14,7 @@ import (
 	"mosona-manager/internal/utils"
 	"net"
 	"net/http"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,7 +34,7 @@ func PageByName(c *echo.Context) error {
 	return c.FileFS("index.html", previewFS())
 }
 
-func TryServeDomainPage(c *echo.Context) (bool, error) {
+func TryServeDomainRequest(c *echo.Context) (bool, error) {
 	_, err := resolvePageByDomainHost(c.Request().Host)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -43,6 +44,14 @@ func TryServeDomainPage(c *echo.Context) (bool, error) {
 	}
 
 	setPublicPageHeaders(c)
+
+	relativePath := strings.TrimPrefix(path.Clean("/"+c.Request().URL.Path), "/")
+	if relativePath != "" {
+		if fi, statErr := fs.Stat(frontendFS(), relativePath); statErr == nil && !fi.IsDir() {
+			return true, c.FileFS(relativePath, frontendFS())
+		}
+	}
+
 	return true, c.FileFS("index.html", previewFS())
 }
 
@@ -233,6 +242,10 @@ func buildPublicPageSummary(page *_type.ResolvedPublicPage) _type.PublicPageSumm
 
 func previewFS() fs.FS {
 	return echo.NewDefaultFS(filepath.Join(config.Conf.FrontendDir, "public-preview"))
+}
+
+func frontendFS() fs.FS {
+	return echo.NewDefaultFS(config.Conf.FrontendDir)
 }
 
 func setPublicPageHeaders(c *echo.Context) {

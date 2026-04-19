@@ -112,7 +112,7 @@ func Start() {
 
 	// Frontend
 	frontendHandler := func(c *echo.Context) error {
-		if served, err := apublic.TryServeDomainPage(c); err != nil {
+		if served, err := apublic.TryServeDomainRequest(c); err != nil {
 			return err
 		} else if served {
 			return nil
