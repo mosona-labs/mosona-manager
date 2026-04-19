@@ -133,6 +133,7 @@ func Start() {
 	})
 
 	// Start
+	fmt.Println("⇨ Listening on http://" + address)
 	sc := echo.StartConfig{
 		Address:         address,
 		HideBanner:      true,

@@ -3,6 +3,8 @@ package ateam
 import (
 	"errors"
 	"mosona-manager/internal/config"
+	"net"
+	"net/url"
 	"strings"
 
 	"github.com/labstack/echo/v5"
@@ -100,6 +102,28 @@ func normalizePublicPageDescription(raw string) *string {
 		return nil
 	}
 	return &description
+}
+
+func normalizeConfiguredBaseDomain(raw string) string {
+	value := strings.TrimSpace(strings.ToLower(raw))
+	if value == "" {
+		return ""
+	}
+
+	if strings.Contains(value, "://") {
+		parsed, err := url.Parse(value)
+		if err != nil {
+			return ""
+		}
+		value = parsed.Host
+	}
+
+	host, _, err := net.SplitHostPort(value)
+	if err == nil {
+		value = host
+	}
+
+	return strings.TrimSpace(strings.TrimSuffix(value, "."))
 }
 
 func requestScheme(c *echo.Context) string {

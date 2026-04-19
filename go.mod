@@ -1,6 +1,6 @@
 module mosona-manager
 
-go 1.25.3
+go 1.26.1
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
@@ -16,7 +16,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo-contrib/v5 v5.0.1
 	github.com/labstack/echo/v5 v5.1.0
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.12.3
 	github.com/nicholas-fedor/shoutrrr v0.13.1
 	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/pquerna/otp v1.5.0
@@ -25,7 +25,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.12
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	golang.org/x/crypto v0.47.0
-	golang.org/x/image v0.38.0
+	golang.org/x/image v0.39.0
 	golang.org/x/oauth2 v0.34.0
 	golang.org/x/sys v0.41.0
 )

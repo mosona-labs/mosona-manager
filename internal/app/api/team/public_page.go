@@ -3,6 +3,7 @@ package ateam
 import (
 	"errors"
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 	"strings"
@@ -76,6 +77,15 @@ func setPublicPage(c *echo.Context) error {
 			Code: "invalid",
 			Msg:  "At least one of name or domain is required when public page is enabled",
 		})
+	}
+	if domain != nil {
+		baseDomain := normalizeConfiguredBaseDomain(config.ReadDynamicConf().Domain)
+		if baseDomain != "" && *domain == baseDomain {
+			return c.JSON(400, _type.H{
+				Code: "invalid",
+				Msg:  "Public page domain cannot match the application base domain",
+			})
+		}
 	}
 
 	err = db.UpsertTeamPublicPage(tid, req.Enabled, name, domain, title, description)

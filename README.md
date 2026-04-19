@@ -1,6 +1,6 @@
 # Mosona Manager
 
-![Golang](https://img.shields.io/badge/-Golang%201.25-00acd7?style=flat-square&logo=go&logoColor=white)
+![Golang](https://img.shields.io/badge/-Golang%201.26-00acd7?style=flat-square&logo=go&logoColor=white)
 ![InfluxDB](https://img.shields.io/badge/-InfluxDB%202-351c76?style=flat-square&logo=influxdb)
 ![Postgres](https://img.shields.io/badge/-Postgres%2018-336791?style=flat-square&logo=postgresql&logoColor=black)
 ![Docker](https://img.shields.io/badge/-Docker-0091e2?style=flat-square&logo=docker&logoColor=white)
