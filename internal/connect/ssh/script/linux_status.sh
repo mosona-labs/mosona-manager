@@ -54,12 +54,31 @@ mem_task() {
     }' /proc/meminfo > "$out"
 }
 
-# Disk space task
+# Disk space task (multi-disk)
 disk_space_task() {
   local out="$1"
-  df -B1 / 2>/dev/null | awk 'NR==2 {printf "disk_total_gb=%.2f\n disk_used_gb=%.2f\n", $2/1024/1024/1024, $3/1024/1024/1024}' > "$out"
-  # Trim leading space in key for portability
-  sed -i 's/^ //g' "$out" || true
+  local min_size_bytes=$((5 * 1024 * 1024 * 1024))
+  local first=1
+
+  printf 'disks=[' > "$out"
+
+  df -B1 -x tmpfs -x devtmpfs -x squashfs -x overlay -x iso9660 -x efivarfs -x autofs 2>/dev/null \
+    | awk 'NR>1 && $6 !~ /^\/(boot|snap\/|sys|proc|dev|run)/ { print $2, $3, $6 }' \
+    | while read -r total used mp; do
+        if [ "$mp" != "/" ] && [ "$total" -lt "$min_size_bytes" ]; then
+          continue
+        fi
+        total_gb=$(awk -v t="$total" 'BEGIN{printf "%.2f", t/1024/1024/1024}')
+        used_gb=$(awk -v u="$used" 'BEGIN{printf "%.2f", u/1024/1024/1024}')
+        if [ "$first" -eq 1 ]; then
+          first=0
+        else
+          printf ',' >> "$out"
+        fi
+        printf '{"mp":"%s","total_gb":%s,"used_gb":%s}' "$mp" "$total_gb" "$used_gb" >> "$out"
+      done
+
+  printf ']\n' >> "$out"
 }
 
 # NET task
@@ -182,10 +201,16 @@ while true; do
     /^[[:space:]]*$/ { next }
     {
       gsub(/^[[:space:]]+|[[:space:]]+$/,"")
-      split($0, a, "=")
-      k=a[1]; v=a[2]
+      idx = index($0, "=")
+      if (idx == 0) next
+      k = substr($0, 1, idx-1)
+      v = substr($0, idx+1)
       if (!first) printf ", "; first=0
-      printf "\"%s\": %s", k, v
+      if (substr(v, 1, 1) == "[") {
+        printf "\"%s\": %s", k, v
+      } else {
+        printf "\"%s\": %s", k, v
+      }
     }
     END { print "}" }'
 

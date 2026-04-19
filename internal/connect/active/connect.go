@@ -31,6 +31,21 @@ type auth struct {
 	agentNonce   string
 }
 
+func agentDisksToServerDisks(agentDisks []types.DiskInfo) []_type.DiskInfo {
+	if len(agentDisks) == 0 {
+		return nil
+	}
+	disks := make([]_type.DiskInfo, len(agentDisks))
+	for i, d := range agentDisks {
+		disks[i] = _type.DiskInfo{
+			MountPoint: d.MountPoint,
+			TotalGB:    d.TotalGB,
+			UsedGB:     d.UsedGB,
+		}
+	}
+	return disks
+}
+
 func Connect(
 	ctx context.Context,
 	host string, port int,
@@ -99,8 +114,7 @@ func Connect(
 				MemUsedMB:     state.MemUsedMB,
 				SwapTotalMB:   state.SwapTotalMB,
 				SwapUsedMB:    state.SwapUsedMB,
-				DiskTotalGB:   state.DiskTotalGB,
-				DiskUsedGB:    state.DiskUsedGB,
+				Disks:         agentDisksToServerDisks(state.Disks),
 				DiskReadKibS:  state.DiskReadKibS,
 				DiskWriteKibS: state.DiskWriteKibS,
 				DiskReadIOPS:  state.DiskReadIOPS,

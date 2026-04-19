@@ -51,6 +51,21 @@ func passiveInfo(c *echo.Context) error {
 	})
 }
 
+func agentDisksToServerDisks(agentDisks []agentTypes.DiskInfo) []_type.DiskInfo {
+	if len(agentDisks) == 0 {
+		return nil
+	}
+	disks := make([]_type.DiskInfo, len(agentDisks))
+	for i, d := range agentDisks {
+		disks[i] = _type.DiskInfo{
+			MountPoint: d.MountPoint,
+			TotalGB:    d.TotalGB,
+			UsedGB:     d.UsedGB,
+		}
+	}
+	return disks
+}
+
 func passiveWS(c *echo.Context) error {
 	serverId := c.Get("server_id").(int64)
 
@@ -106,8 +121,7 @@ func passiveWS(c *echo.Context) error {
 			MemUsedMB:     data.MemUsedMB,
 			SwapTotalMB:   data.SwapTotalMB,
 			SwapUsedMB:    data.SwapUsedMB,
-			DiskTotalGB:   data.DiskTotalGB,
-			DiskUsedGB:    data.DiskUsedGB,
+			Disks:         agentDisksToServerDisks(data.Disks),
 			DiskReadKibS:  data.DiskReadKibS,
 			DiskWriteKibS: data.DiskWriteKibS,
 			DiskReadIOPS:  data.DiskReadIOPS,

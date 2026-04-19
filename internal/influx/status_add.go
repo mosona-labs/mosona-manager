@@ -2,6 +2,7 @@ package influx
 
 import (
 	"context"
+	"encoding/json"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"strconv"
@@ -11,6 +12,8 @@ import (
 )
 
 func AddServerStatus(serverId int64, status _type.ServerStatusType) error {
+	disksJSON, _ := json.Marshal(status.Disks)
+
 	point := influxdb2.NewPoint(
 		"server_status",
 		map[string]string{
@@ -22,8 +25,7 @@ func AddServerStatus(serverId int64, status _type.ServerStatusType) error {
 			"mem_used_mb":      status.MemUsedMB,
 			"swap_total_mb":    status.SwapTotalMB,
 			"swap_used_mb":     status.SwapUsedMB,
-			"disk_total_gb":    status.DiskTotalGB,
-			"disk_used_gb":     status.DiskUsedGB,
+			"disks":            string(disksJSON),
 			"disk_read_kib_s":  status.DiskReadKibS,
 			"disk_write_kib_s": status.DiskWriteKibS,
 			"disk_read_iops":   status.DiskReadIOPS,

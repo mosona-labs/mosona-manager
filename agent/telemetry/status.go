@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"mosona-manager/agent/types"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -16,8 +15,6 @@ import (
 type Monitor struct {
 	mu sync.Mutex
 
-	diskPath    string
-	diskTotalGB float64
 	memTotalMB  float64
 	swapTotalMB float64
 
@@ -32,15 +29,6 @@ func NewMonitor() *Monitor {
 		lastCheckTime: time.Now(),
 	}
 
-	m.diskPath = "/"
-	if runtime.GOOS == "windows" {
-		m.diskPath = "C:"
-	}
-
-	if diskStat, err := disk.Usage(m.diskPath); err == nil {
-		m.diskTotalGB = float64(diskStat.Total) / 1024 / 1024 / 1024
-	}
-
 	if vmStat, err := mem.VirtualMemory(); err == nil {
 		m.memTotalMB = float64(vmStat.Total) / 1024 / 1024
 	}
@@ -50,6 +38,110 @@ func NewMonitor() *Monitor {
 	}
 
 	return m
+}
+
+// qualifiedPartitions returns disk partitions excluding boot/efi and
+// non-root partitions smaller than 5GB.
+func qualifiedPartitions() []types.DiskInfo {
+	excludeFsTypes := map[string]bool{
+		"tmpfs":     true,
+		"devtmpfs":  true,
+		"devfs":     true,
+		"squashfs":  true,
+		"overlay":   true,
+		"iso9660":   true,
+		"udf":       true,
+		"efivarfs":  true,
+		"binfmt_misc": true,
+		"autofs":    true,
+		"fuse.portal": true,
+		"nsfs":      true,
+		"proc":      true,
+		"sysfs":     true,
+		"cgroup":    true,
+		"cgroup2":   true,
+		"pstore":    true,
+		"debugfs":   true,
+		"tracefs":   true,
+		"securityfs": true,
+		"configfs":  true,
+		"fusectl":   true,
+		"hugetlbfs": true,
+		"mqueue":    true,
+		"bpf":       true,
+		"ramfs":     true,
+	}
+
+	excludeMountPrefixes := []string{"/boot", "/snap/", "/sys", "/proc", "/dev", "/run"}
+
+	partitions, err := disk.Partitions(false)
+	if err != nil {
+		// Fallback to root partition only
+		if usage, e := disk.Usage("/"); e == nil {
+			return []types.DiskInfo{{
+				MountPoint: "/",
+				TotalGB:    float64(usage.Total) / 1024 / 1024 / 1024,
+				UsedGB:     float64(usage.Used) / 1024 / 1024 / 1024,
+			}}
+		}
+		return nil
+	}
+
+	const minSizeGB = 5.0
+	var result []types.DiskInfo
+	seen := make(map[string]bool)
+
+	for _, p := range partitions {
+		if excludeFsTypes[p.Fstype] {
+			continue
+		}
+
+		skip := false
+		for _, prefix := range excludeMountPrefixes {
+			if strings.HasPrefix(p.Mountpoint, prefix) {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+
+		if seen[p.Mountpoint] {
+			continue
+		}
+		seen[p.Mountpoint] = true
+
+		usage, err := disk.Usage(p.Mountpoint)
+		if err != nil || usage.Total == 0 {
+			continue
+		}
+
+		totalGB := float64(usage.Total) / 1024 / 1024 / 1024
+
+		// Keep root partition regardless of size; skip others < 5GB
+		if p.Mountpoint != "/" && totalGB < minSizeGB {
+			continue
+		}
+
+		result = append(result, types.DiskInfo{
+			MountPoint: p.Mountpoint,
+			TotalGB:    totalGB,
+			UsedGB:     float64(usage.Used) / 1024 / 1024 / 1024,
+		})
+	}
+
+	if len(result) == 0 {
+		if usage, e := disk.Usage("/"); e == nil {
+			result = append(result, types.DiskInfo{
+				MountPoint: "/",
+				TotalGB:    float64(usage.Total) / 1024 / 1024 / 1024,
+				UsedGB:     float64(usage.Used) / 1024 / 1024 / 1024,
+			})
+		}
+	}
+
+	return result
 }
 
 func (m *Monitor) Snapshot() (*types.Status, error) {
@@ -82,10 +174,7 @@ func (m *Monitor) Snapshot() (*types.Status, error) {
 			s.SwapTotalMB = m.swapTotalMB
 		}
 	}
-	s.DiskTotalGB = m.diskTotalGB
-	if diskStat, err := disk.Usage(m.diskPath); err == nil {
-		s.DiskUsedGB = float64(diskStat.Used) / 1024 / 1024 / 1024
-	}
+	s.Disks = qualifiedPartitions()
 	if ioCounters, err := disk.IOCounters(); err == nil {
 		for name, io := range ioCounters {
 			if strings.HasPrefix(name, "ram") ||

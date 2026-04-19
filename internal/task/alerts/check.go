@@ -138,12 +138,22 @@ func (a *alertInstance) checkMemoryUsageAlert(serverId int64, r *alertRule) (boo
 }
 
 func (a *alertInstance) checkDiskUsageAlert(serverId int64, r *alertRule) (bool, *time.Time) {
+	// Check the maximum disk usage percentage across all disks
 	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
 		var sum float64
 		var count int
 		for _, item := range statuses {
 			if item.Time.After(startTime) {
-				sum += (item.DiskUsedGB / item.DiskTotalGB) * 100 // Convert to percentage
+				var maxPct float64
+				for _, d := range item.Disks {
+					if d.TotalGB > 0 {
+						pct := (d.UsedGB / d.TotalGB) * 100
+						if pct > maxPct {
+							maxPct = pct
+						}
+					}
+				}
+				sum += maxPct
 				count++
 			}
 		}

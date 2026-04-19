@@ -2,12 +2,80 @@ package influx
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"strconv"
 	"time"
 )
+
+// ParseDisksField parses the disks JSON string from InfluxDB.
+// For backward compatibility, if old disk_total_gb/disk_used_gb fields are present
+// instead of the new disks field, they are converted to a single-element Disks slice.
+func ParseDisksField(status *_type.ServerStatusType, field string, value interface{}) {
+	switch field {
+	case "disks":
+		if v, ok := value.(string); ok && v != "" {
+			var disks []_type.DiskInfo
+			if err := json.Unmarshal([]byte(v), &disks); err == nil {
+				status.Disks = disks
+			}
+		}
+	case "disk_total_gb":
+		// Backward compat: old single-disk format
+		if v, ok := value.(float64); ok {
+			if len(status.Disks) == 0 {
+				status.Disks = []_type.DiskInfo{{MountPoint: "/"}}
+			}
+			status.Disks[0].TotalGB = v
+		}
+	case "disk_used_gb":
+		if v, ok := value.(float64); ok {
+			if len(status.Disks) == 0 {
+				status.Disks = []_type.DiskInfo{{MountPoint: "/"}}
+			}
+			status.Disks[0].UsedGB = v
+		}
+	}
+}
+
+func mapStatusField(status *_type.ServerStatusType, field string, value interface{}) {
+	switch field {
+	case "cpu":
+		status.CPU = value.(float64)
+	case "mem_total_mb":
+		status.MemTotalMB = value.(float64)
+	case "mem_used_mb":
+		status.MemUsedMB = value.(float64)
+	case "swap_total_mb":
+		status.SwapTotalMB = value.(float64)
+	case "swap_used_mb":
+		status.SwapUsedMB = value.(float64)
+	case "disks", "disk_total_gb", "disk_used_gb":
+		ParseDisksField(status, field, value)
+	case "disk_read_kib_s":
+		status.DiskReadKibS = value.(float64)
+	case "disk_write_kib_s":
+		status.DiskWriteKibS = value.(float64)
+	case "disk_read_iops":
+		status.DiskReadIOPS = value.(float64)
+	case "disk_write_iops":
+		status.DiskWriteIOPS = value.(float64)
+	case "rx_kib_s":
+		status.RxKibS = value.(float64)
+	case "tx_kib_s":
+		status.TxKibS = value.(float64)
+	case "rx_total_mb":
+		status.RxTotalMB = value.(float64)
+	case "tx_total_mb":
+		status.TxTotalMB = value.(float64)
+	case "tcp_total":
+		status.TCPTotal = value.(int64)
+	case "udp_total":
+		status.UDPTotal = value.(int64)
+	}
+}
 
 func GetLatestServerStatus(serverID int64) (*_type.ServerStatusType, error) {
 	query := fmt.Sprintf(`from(bucket: "%s")
@@ -29,43 +97,7 @@ func GetLatestServerStatus(serverID int64) (*_type.ServerStatusType, error) {
 		field := result.Record().Field()
 		value := result.Record().Value()
 		latestTime = result.Record().Time()
-
-		switch field {
-		case "cpu":
-			status.CPU = value.(float64)
-		case "mem_total_mb":
-			status.MemTotalMB = value.(float64)
-		case "mem_used_mb":
-			status.MemUsedMB = value.(float64)
-		case "swap_total_mb":
-			status.SwapTotalMB = value.(float64)
-		case "swap_used_mb":
-			status.SwapUsedMB = value.(float64)
-		case "disk_total_gb":
-			status.DiskTotalGB = value.(float64)
-		case "disk_used_gb":
-			status.DiskUsedGB = value.(float64)
-		case "disk_read_kib_s":
-			status.DiskReadKibS = value.(float64)
-		case "disk_write_kib_s":
-			status.DiskWriteKibS = value.(float64)
-		case "disk_read_iops":
-			status.DiskReadIOPS = value.(float64)
-		case "disk_write_iops":
-			status.DiskWriteIOPS = value.(float64)
-		case "rx_kib_s":
-			status.RxKibS = value.(float64)
-		case "tx_kib_s":
-			status.TxKibS = value.(float64)
-		case "rx_total_mb":
-			status.RxTotalMB = value.(float64)
-		case "tx_total_mb":
-			status.TxTotalMB = value.(float64)
-		case "tcp_total":
-			status.TCPTotal = value.(int64)
-		case "udp_total":
-			status.UDPTotal = value.(int64)
-		}
+		mapStatusField(status, field, value)
 	}
 	status.Time = latestTime
 
@@ -116,47 +148,9 @@ func GetLatestServerStatusBatch(serverIDs []int64) (map[int64]*_type.ServerStatu
 			statusMap[serverID] = &_type.ServerStatusType{}
 		}
 
-		field := record.Field()
-		value := record.Value()
 		status := statusMap[serverID]
 		status.Time = record.Time()
-
-		switch field {
-		case "cpu":
-			status.CPU = value.(float64)
-		case "mem_total_mb":
-			status.MemTotalMB = value.(float64)
-		case "mem_used_mb":
-			status.MemUsedMB = value.(float64)
-		case "swap_total_mb":
-			status.SwapTotalMB = value.(float64)
-		case "swap_used_mb":
-			status.SwapUsedMB = value.(float64)
-		case "disk_total_gb":
-			status.DiskTotalGB = value.(float64)
-		case "disk_used_gb":
-			status.DiskUsedGB = value.(float64)
-		case "disk_read_kib_s":
-			status.DiskReadKibS = value.(float64)
-		case "disk_write_kib_s":
-			status.DiskWriteKibS = value.(float64)
-		case "disk_read_iops":
-			status.DiskReadIOPS = value.(float64)
-		case "disk_write_iops":
-			status.DiskWriteIOPS = value.(float64)
-		case "rx_kib_s":
-			status.RxKibS = value.(float64)
-		case "tx_kib_s":
-			status.TxKibS = value.(float64)
-		case "rx_total_mb":
-			status.RxTotalMB = value.(float64)
-		case "tx_total_mb":
-			status.TxTotalMB = value.(float64)
-		case "tcp_total":
-			status.TCPTotal = value.(int64)
-		case "udp_total":
-			status.UDPTotal = value.(int64)
-		}
+		mapStatusField(status, record.Field(), record.Value())
 	}
 
 	if result.Err() != nil {
@@ -200,46 +194,7 @@ func GetServerStatusHistory(serverID int64, start, end time.Time, timeFrame stri
 			history = append(history, statusMap[timestamp])
 		}
 
-		field := record.Field()
-		value := record.Value()
-		status := statusMap[timestamp]
-
-		switch field {
-		case "cpu":
-			status.CPU = value.(float64)
-		case "mem_total_mb":
-			status.MemTotalMB = value.(float64)
-		case "mem_used_mb":
-			status.MemUsedMB = value.(float64)
-		case "swap_total_mb":
-			status.SwapTotalMB = value.(float64)
-		case "swap_used_mb":
-			status.SwapUsedMB = value.(float64)
-		case "disk_total_gb":
-			status.DiskTotalGB = value.(float64)
-		case "disk_used_gb":
-			status.DiskUsedGB = value.(float64)
-		case "disk_read_kib_s":
-			status.DiskReadKibS = value.(float64)
-		case "disk_write_kib_s":
-			status.DiskWriteKibS = value.(float64)
-		case "disk_read_iops":
-			status.DiskReadIOPS = value.(float64)
-		case "disk_write_iops":
-			status.DiskWriteIOPS = value.(float64)
-		case "rx_kib_s":
-			status.RxKibS = value.(float64)
-		case "tx_kib_s":
-			status.TxKibS = value.(float64)
-		case "rx_total_mb":
-			status.RxTotalMB = value.(float64)
-		case "tx_total_mb":
-			status.TxTotalMB = value.(float64)
-		case "tcp_total":
-			status.TCPTotal = value.(int64)
-		case "udp_total":
-			status.UDPTotal = value.(int64)
-		}
+		mapStatusField(statusMap[timestamp], record.Field(), record.Value())
 	}
 
 	if result.Err() != nil {

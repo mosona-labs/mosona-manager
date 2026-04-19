@@ -71,14 +71,12 @@ func statusWindow(serverId int64, duration int, end time.Time) ([]*_type.ServerS
 			if v, ok := value.(float64); ok {
 				status.SwapUsedMB = v
 			}
-		case "disk_total_gb":
-			if v, ok := value.(float64); ok {
-				status.DiskTotalGB = v
+		case "disks":
+			if v, ok := value.(string); ok && v != "" {
+				influx.ParseDisksField(status, field, value)
 			}
-		case "disk_used_gb":
-			if v, ok := value.(float64); ok {
-				status.DiskUsedGB = v
-			}
+		case "disk_total_gb", "disk_used_gb":
+			influx.ParseDisksField(status, field, value)
 		case "disk_read_kib_s":
 			if v, ok := value.(float64); ok {
 				status.DiskReadKibS = v

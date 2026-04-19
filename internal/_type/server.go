@@ -12,25 +12,30 @@ type ServerMinimal struct {
 	Category int64  `json:"category"`
 }
 
+type DiskInfo struct {
+	MountPoint string  `json:"mp"`
+	TotalGB    float64 `json:"total_gb"`
+	UsedGB     float64 `json:"used_gb"`
+}
+
 type ServerStatusType struct {
-	CPU           float64   `json:"cpu"`
-	MemTotalMB    float64   `json:"mem_total_mb"`
-	MemUsedMB     float64   `json:"mem_used_mb"`
-	SwapTotalMB   float64   `json:"swap_total_mb"`
-	SwapUsedMB    float64   `json:"swap_used_mb"`
-	DiskTotalGB   float64   `json:"disk_total_gb"`
-	DiskUsedGB    float64   `json:"disk_used_gb"`
-	DiskReadKibS  float64   `json:"disk_read_kib_s"`
-	DiskWriteKibS float64   `json:"disk_write_kib_s"`
-	DiskReadIOPS  float64   `json:"disk_read_iops"`
-	DiskWriteIOPS float64   `json:"disk_write_iops"`
-	RxKibS        float64   `json:"rx_kib_s"`
-	TxKibS        float64   `json:"tx_kib_s"`
-	RxTotalMB     float64   `json:"rx_total_mb"`
-	TxTotalMB     float64   `json:"tx_total_mb"`
-	TCPTotal      int64     `json:"tcp_total"`
-	UDPTotal      int64     `json:"udp_total"`
-	Time          time.Time `json:"time"`
+	CPU           float64    `json:"cpu"`
+	MemTotalMB    float64    `json:"mem_total_mb"`
+	MemUsedMB     float64    `json:"mem_used_mb"`
+	SwapTotalMB   float64    `json:"swap_total_mb"`
+	SwapUsedMB    float64    `json:"swap_used_mb"`
+	Disks         []DiskInfo `json:"disks"`
+	DiskReadKibS  float64    `json:"disk_read_kib_s"`
+	DiskWriteKibS float64    `json:"disk_write_kib_s"`
+	DiskReadIOPS  float64    `json:"disk_read_iops"`
+	DiskWriteIOPS float64    `json:"disk_write_iops"`
+	RxKibS        float64    `json:"rx_kib_s"`
+	TxKibS        float64    `json:"tx_kib_s"`
+	RxTotalMB     float64    `json:"rx_total_mb"`
+	TxTotalMB     float64    `json:"tx_total_mb"`
+	TCPTotal      int64      `json:"tcp_total"`
+	UDPTotal      int64      `json:"udp_total"`
+	Time          time.Time  `json:"time"`
 }
 
 type ServerInfoType struct {
