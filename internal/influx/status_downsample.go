@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"mosona-manager/internal/config"
+	"strings"
 	"time"
 )
 
@@ -11,6 +12,12 @@ func StartDownsample() {
 	go minuteDownsample()
 	go hourlyDownsample()
 	go dailyDownsample()
+}
+
+func executeDownsampleQuery(query string) error {
+	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
+	_, err := queryAPI.Query(context.Background(), query)
+	return err
 }
 
 func minuteDownsample() {
@@ -24,26 +31,76 @@ func minuteDownsample() {
 	}
 }
 
+func downsampleFieldFilter(fields []string) string {
+	parts := make([]string, 0, len(fields))
+	for _, field := range fields {
+		parts = append(parts, fmt.Sprintf(`r._field == "%s"`, field))
+	}
+	return strings.Join(parts, " or ")
+}
+
+func buildDownsampleQuery(sourceBucket, targetBucket string, start, stop time.Time, every string) string {
+	meanFields := downsampleFieldFilter([]string{
+		"cpu",
+		"mem_total_mb",
+		"mem_used_mb",
+		"swap_total_mb",
+		"swap_used_mb",
+		"disk_read_kib_s",
+		"disk_write_kib_s",
+		"disk_read_iops",
+		"disk_write_iops",
+		"rx_kib_s",
+		"tx_kib_s",
+		"rx_total_mb",
+		"tx_total_mb",
+	})
+	lastFields := downsampleFieldFilter([]string{
+		"disks",
+		"disk_total_gb",
+		"disk_used_gb",
+		"tcp_total",
+		"udp_total",
+	})
+
+	return fmt.Sprintf(`numeric = from(bucket: "%s")
+  |> range(start: %s, stop: %s)
+  |> filter(fn: (r) => r._measurement == "server_status" and (%s))
+  |> group(columns: ["server_id", "_measurement", "_field"])
+  |> aggregateWindow(every: %s, fn: mean, createEmpty: false)
+  |> to(bucket: "%s", org: "%s")
+
+state = from(bucket: "%s")
+  |> range(start: %s, stop: %s)
+  |> filter(fn: (r) => r._measurement == "server_status" and (%s))
+  |> group(columns: ["server_id", "_measurement", "_field"])
+  |> aggregateWindow(every: %s, fn: last, createEmpty: false)
+  |> to(bucket: "%s", org: "%s")`,
+		sourceBucket,
+		start.Format(time.RFC3339),
+		stop.Format(time.RFC3339),
+		meanFields,
+		every,
+		targetBucket,
+		config.Conf.InfluxDBOrg,
+		sourceBucket,
+		start.Format(time.RFC3339),
+		stop.Format(time.RFC3339),
+		lastFields,
+		every,
+		targetBucket,
+		config.Conf.InfluxDBOrg,
+	)
+}
+
 func performMinuteDownsample() error {
 	now := time.Now()
 	start := now.Add(-2 * time.Minute).Truncate(time.Minute)
 	stop := now.Add(-1 * time.Minute).Truncate(time.Minute)
 
-	query := fmt.Sprintf(`from(bucket: "server_status_raw")
-  |> range(start: %s, stop: %s)
-  |> filter(fn: (r) => r._measurement == "server_status")
-  |> group(columns: ["server_id"])
-  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
-  |> to(bucket: "server_status_minute", org: "%s")`,
-		start.Format(time.RFC3339), stop.Format(time.RFC3339), config.Conf.InfluxDBOrg)
+	query := buildDownsampleQuery("server_status_raw", "server_status_minute", start, stop, "1m")
 
-	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
-	_, err := queryAPI.Query(context.Background(), query)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return executeDownsampleQuery(query)
 }
 
 func hourlyDownsample() {
@@ -62,21 +119,9 @@ func performHourlyDownsample() error {
 	start := now.Add(-2 * time.Hour).Truncate(time.Hour)
 	stop := now.Add(-1 * time.Hour).Truncate(time.Hour)
 
-	query := fmt.Sprintf(`from(bucket: "server_status_raw")
-  |> range(start: %s, stop: %s)
-  |> filter(fn: (r) => r._measurement == "server_status")
-  |> group(columns: ["server_id"])
-  |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
-  |> to(bucket: "server_status_hourly", org: "%s")`,
-		start.Format(time.RFC3339), stop.Format(time.RFC3339), config.Conf.InfluxDBOrg)
+	query := buildDownsampleQuery("server_status_raw", "server_status_hourly", start, stop, "1h")
 
-	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
-	_, err := queryAPI.Query(context.Background(), query)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return executeDownsampleQuery(query)
 }
 
 func dailyDownsample() {
@@ -95,19 +140,7 @@ func performDailyDownsample() error {
 	start := now.Add(-48 * time.Hour).Truncate(24 * time.Hour)
 	stop := now.Add(-24 * time.Hour).Truncate(24 * time.Hour)
 
-	query := fmt.Sprintf(`from(bucket: "server_status_hourly")
-  |> range(start: %s, stop: %s)
-  |> filter(fn: (r) => r._measurement == "server_status")
-  |> group(columns: ["server_id"])
-  |> aggregateWindow(every: 1d, fn: mean, createEmpty: false)
-  |> to(bucket: "server_status_daily", org: "%s")`,
-		start.Format(time.RFC3339), stop.Format(time.RFC3339), config.Conf.InfluxDBOrg)
+	query := buildDownsampleQuery("server_status_hourly", "server_status_daily", start, stop, "1d")
 
-	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
-	_, err := queryAPI.Query(context.Background(), query)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return executeDownsampleQuery(query)
 }

@@ -7,6 +7,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -75,6 +76,59 @@ func mapStatusField(status *_type.ServerStatusType, field string, value interfac
 	case "udp_total":
 		status.UDPTotal = value.(int64)
 	}
+}
+
+func historyFieldFilter(fields []string) string {
+	parts := make([]string, 0, len(fields))
+	for _, field := range fields {
+		parts = append(parts, fmt.Sprintf(`r._field == "%s"`, field))
+	}
+	return strings.Join(parts, " or ")
+}
+
+func buildRaw15sAvgHistoryQuery(serverID int64, start, end time.Time) string {
+	numericFields := historyFieldFilter([]string{
+		"cpu",
+		"mem_total_mb",
+		"mem_used_mb",
+		"swap_total_mb",
+		"swap_used_mb",
+		"disk_read_kib_s",
+		"disk_write_kib_s",
+		"disk_read_iops",
+		"disk_write_iops",
+		"rx_kib_s",
+		"tx_kib_s",
+		"rx_total_mb",
+		"tx_total_mb",
+	})
+	stateFields := historyFieldFilter([]string{
+		"disks",
+		"disk_total_gb",
+		"disk_used_gb",
+	})
+
+	return fmt.Sprintf(`numeric = from(bucket: "server_status_raw")
+  |> range(start: %s, stop: %s)
+  |> filter(fn: (r) => r._measurement == "server_status" and r.server_id == "%d" and (%s))
+  |> aggregateWindow(every: 15s, fn: mean, createEmpty: false)
+
+state = from(bucket: "server_status_raw")
+  |> range(start: %s, stop: %s)
+  |> filter(fn: (r) => r._measurement == "server_status" and r.server_id == "%d" and (%s))
+  |> aggregateWindow(every: 15s, fn: last, createEmpty: false)
+
+union(tables: [numeric, state])
+  |> sort(columns: ["_time"])`,
+		start.Format(time.RFC3339),
+		end.Format(time.RFC3339),
+		serverID,
+		numericFields,
+		start.Format(time.RFC3339),
+		end.Format(time.RFC3339),
+		serverID,
+		stateFields,
+	)
 }
 
 func GetLatestServerStatus(serverID int64) (*_type.ServerStatusType, error) {
@@ -161,6 +215,30 @@ func GetLatestServerStatusBatch(serverIDs []int64) (map[int64]*_type.ServerStatu
 }
 
 func GetServerStatusHistory(serverID int64, start, end time.Time, timeFrame string) ([]*_type.ServerStatusType, error) {
+	if timeFrame == "raw_15s_avg" {
+		queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
+		result, err := queryAPI.Query(context.Background(), buildRaw15sAvgHistoryQuery(serverID, start, end))
+		if err != nil {
+			return nil, err
+		}
+
+		var history []*_type.ServerStatusType
+		statusMap := make(map[time.Time]*_type.ServerStatusType)
+		for result.Next() {
+			record := result.Record()
+			timestamp := record.Time()
+			if _, exists := statusMap[timestamp]; !exists {
+				statusMap[timestamp] = &_type.ServerStatusType{Time: timestamp}
+				history = append(history, statusMap[timestamp])
+			}
+			mapStatusField(statusMap[timestamp], record.Field(), record.Value())
+		}
+		if result.Err() != nil {
+			return nil, result.Err()
+		}
+		return history, nil
+	}
+
 	var bucket = "server_status_raw"
 	switch timeFrame {
 	case "minute":
@@ -171,10 +249,29 @@ func GetServerStatusHistory(serverID int64, start, end time.Time, timeFrame stri
 		bucket = "server_status_daily"
 	}
 
+	fields := historyFieldFilter([]string{
+		"cpu",
+		"mem_total_mb",
+		"mem_used_mb",
+		"swap_total_mb",
+		"swap_used_mb",
+		"disks",
+		"disk_total_gb",
+		"disk_used_gb",
+		"disk_read_kib_s",
+		"disk_write_kib_s",
+		"disk_read_iops",
+		"disk_write_iops",
+		"rx_kib_s",
+		"tx_kib_s",
+		"rx_total_mb",
+		"tx_total_mb",
+	})
+
 	query := fmt.Sprintf(`from(bucket: "%s")
   |> range(start: %s, stop: %s)
-  |> filter(fn: (r) => r._measurement == "server_status" and r.server_id == "%d")
-  |> sort(columns:["_time"])`, bucket, start.Format(time.RFC3339), end.Format(time.RFC3339), serverID)
+  |> filter(fn: (r) => r._measurement == "server_status" and r.server_id == "%d" and (%s))
+  |> sort(columns:["_time"])`, bucket, start.Format(time.RFC3339), end.Format(time.RFC3339), serverID, fields)
 
 	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
 	result, err := queryAPI.Query(context.Background(), query)

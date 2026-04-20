@@ -1,10 +1,13 @@
 package amonitor
 
 import (
+	"encoding/json"
+	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
+	"mosona-manager/internal/utils/store"
 	"strconv"
 	"time"
 
@@ -35,6 +38,11 @@ func chart(c *echo.Context) error {
 		})
 	}
 
+	cacheKey := fmt.Sprintf("monitor:chart:%d:%s", serverId, timeFrame)
+	if data, ok := store.GetChartCache(cacheKey); ok {
+		return c.Blob(200, echo.MIMEApplicationJSON, data)
+	}
+
 	var tf string
 	var startTime time.Time
 	endTime := time.Now()
@@ -44,10 +52,10 @@ func chart(c *echo.Context) error {
 		tf = "raw"
 	case "12h":
 		startTime = endTime.Add(-12 * time.Hour)
-		tf = "raw"
+		tf = "raw_15s_avg"
 	case "24h":
 		startTime = endTime.Add(-24 * time.Hour)
-		tf = "raw"
+		tf = "minute"
 	case "7d":
 		startTime = endTime.Add(-7 * 24 * time.Hour)
 		tf = "minute"
@@ -72,9 +80,36 @@ func chart(c *echo.Context) error {
 		return utils.ErrorHandler(c, err, "InfluxDB error")
 	}
 
-	return c.JSON(200, _type.H{
+	chartData := make([]_type.ServerChartStatusType, 0, len(monitorData))
+	for _, item := range monitorData {
+		chartData = append(chartData, _type.ServerChartStatusType{
+			CPU:           item.CPU,
+			MemTotalMB:    item.MemTotalMB,
+			MemUsedMB:     item.MemUsedMB,
+			SwapTotalMB:   item.SwapTotalMB,
+			SwapUsedMB:    item.SwapUsedMB,
+			Disks:         item.Disks,
+			DiskReadKibS:  item.DiskReadKibS,
+			DiskWriteKibS: item.DiskWriteKibS,
+			DiskReadIOPS:  item.DiskReadIOPS,
+			DiskWriteIOPS: item.DiskWriteIOPS,
+			RxKibS:        item.RxKibS,
+			TxKibS:        item.TxKibS,
+			RxTotalMB:     item.RxTotalMB,
+			TxTotalMB:     item.TxTotalMB,
+			Time:          item.Time,
+		})
+	}
+
+	resp := _type.H{
 		Code: "ok",
 		Msg:  "Success",
-		Data: monitorData,
-	})
+		Data: chartData,
+	}
+	body, err := json.Marshal(resp)
+	if err != nil {
+		return utils.ErrorHandler(c, err, "Failed to encode chart data")
+	}
+	store.SetChartCache(cacheKey, body, 30*time.Second)
+	return c.Blob(200, echo.MIMEApplicationJSONCharsetUTF8, body)
 }
