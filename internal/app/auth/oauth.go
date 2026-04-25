@@ -40,6 +40,10 @@ func oauthLogin(c *echo.Context) error {
 	// Generate state parameter
 	state := utils.RandomString(32)
 	store.SetAuthSessionState(state)
+	if err := utils.SaveOAuthState(c, oauthID, state); err != nil {
+		store.DeleteAuthSessionState(state)
+		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
+	}
 
 	authURL := cfg.Config.AuthCodeURL(state, oauth2.AccessTypeOffline)
 	return c.JSON(200, _type.H{
@@ -80,16 +84,17 @@ func oauthCallback(c *echo.Context) error {
 	// Context
 	ctx := c.Request().Context()
 
-	// State validation
-	expireTime, ok := store.GetAuthSessionState(state)
-	if ok && time.Now().After(expireTime) {
-		ok = false
+	ok, err := utils.ConsumeOAuthState(c, oauthID, state)
+	if err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Session update failed"})
 	}
-	if ok {
-		store.DeleteAuthSessionState(state)
+	if !ok || !store.ConsumeAuthSessionState(state, time.Now()) {
+		if ok {
+			store.DeleteAuthSessionState(state)
+		}
 		return c.JSON(400, _type.H{
-			Code: "error",
-			Msg:  "Not Available",
+			Code: "invalid",
+			Msg:  "Invalid or expired OAuth state",
 		})
 	}
 

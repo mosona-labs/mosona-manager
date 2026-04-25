@@ -34,6 +34,19 @@ func SetAuthSessionState(state string) {
 	authSessionStateStore.data[state] = time.Now()
 }
 
+func ConsumeAuthSessionState(state string, now time.Time) bool {
+	authSessionStateStore.Lock()
+	defer authSessionStateStore.Unlock()
+
+	createdAt, ok := authSessionStateStore.data[state]
+	if !ok {
+		return false
+	}
+	delete(authSessionStateStore.data, state)
+
+	return now.Sub(createdAt) <= stateTTL
+}
+
 func DeleteAuthSessionState(state string) {
 	authSessionStateStore.Lock()
 	defer authSessionStateStore.Unlock()

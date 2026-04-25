@@ -95,16 +95,17 @@ func oauthLink(c *echo.Context) error {
 	// Context
 	ctx := c.Request().Context()
 
-	// State validation
-	expireTime, ok := store.GetAuthSessionState(state)
-	if ok && time.Now().After(expireTime) {
-		ok = false
+	ok, err = utils.ConsumeOAuthState(c, oauthID, state)
+	if err != nil {
+		return utils.ErrorHandler(c, err, "Session update failed")
 	}
-	if ok {
-		store.DeleteAuthSessionState(state)
+	if !ok || !store.ConsumeAuthSessionState(state, time.Now()) {
+		if ok {
+			store.DeleteAuthSessionState(state)
+		}
 		return c.JSON(400, _type.H{
-			Code: "error",
-			Msg:  "Not Available",
+			Code: "invalid",
+			Msg:  "Invalid or expired OAuth state",
 		})
 	}
 
