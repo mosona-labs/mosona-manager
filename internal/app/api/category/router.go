@@ -1,11 +1,15 @@
 package acategory
 
-import "github.com/labstack/echo/v5"
+import (
+	"mosona-manager/internal/app/middleware"
+
+	"github.com/labstack/echo/v5"
+)
 
 func Router(e *echo.Group) {
 	e.GET("", list)
-	e.POST("", create)
-	e.PUT("/:id", edit)
-	e.DELETE("/:id", del)
-	e.PUT("/sort", sort)
+	e.POST("", create, middleware.WriteAuth)
+	e.PUT("/:id", edit, middleware.WriteAuth)
+	e.DELETE("/:id", del, middleware.WriteAuth)
+	e.PUT("/sort", sort, middleware.WriteAuth)
 }

@@ -1,9 +1,13 @@
 package anotification
 
-import "github.com/labstack/echo/v5"
+import (
+	"mosona-manager/internal/app/middleware"
+
+	"github.com/labstack/echo/v5"
+)
 
 func Router(e *echo.Group) {
 	e.GET("", list)
-	e.PUT("", update)
-	e.POST("/test", test)
+	e.PUT("", update, middleware.WriteAuth)
+	e.POST("/test", test, middleware.WriteAuth)
 }

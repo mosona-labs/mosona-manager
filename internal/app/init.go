@@ -55,8 +55,10 @@ func Start() {
 	}
 	store.KeyPrefix("mosona:session:")
 	store.Options(sessions.Options{
-		Path:   "/",
-		MaxAge: 43200,
+		Path:     "/",
+		MaxAge:   43200,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
 	})
 	e.Use(session.Middleware(store))
 	// GZIP
@@ -72,7 +74,7 @@ func Start() {
 	// API Routers
 	api := e.Group("/api")
 	{
-		auth.Router(api.Group("/auth"))
+		auth.Router(api.Group("/auth", middleware2.SameOriginWrite))
 		apublic.Router(api.Group("/public"))
 
 		// PING
@@ -80,7 +82,7 @@ func Start() {
 			return c.String(200, "pong!")
 		})
 	}
-	v1 := api.Group("/v1", middleware2.UserAuth, middleware2.UserRole)
+	v1 := api.Group("/v1", middleware2.SameOriginWrite, middleware2.UserAuth, middleware2.UserRole)
 	{
 		auser.Router(v1.Group("/user"))         // User
 		ateam.Router(v1.Group("/team"))         // Team
@@ -91,11 +93,11 @@ func Start() {
 		alogs.Router(v1.Group("/logs"))         // Logs
 	}
 	// Admin
-	admin.Router(api.Group("/admin", middleware2.AdminAuth))
+	admin.Router(api.Group("/admin", middleware2.SameOriginWrite, middleware2.AdminAuth))
 	// Agent
 	agent.Router(api.Group("/agent"))
 	// Init
-	init2.Router(api.Group("/init"))
+	init2.Router(api.Group("/init", middleware2.SameOriginWrite))
 
 	// Health
 	e.GET("/health", func(c *echo.Context) error {

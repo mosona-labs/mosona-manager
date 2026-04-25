@@ -9,7 +9,6 @@ import (
 	"mosona-manager/internal/utils"
 	"time"
 
-	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 )
@@ -62,11 +61,7 @@ func login(c *echo.Context) error {
 	if rememberMe {
 		maxAge = 86400 * 30 // 30 days
 	}
-	sess.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   maxAge,
-		HttpOnly: true,
-	}
+	sess.Options = sessionOptions(maxAge)
 
 	if (user.TOTP != nil && *user.TOTP != "") || config.DynamicConf.EmailVerifyLogin || !user.Verified {
 		sess.Values["pre_2fa_uid"] = user.ID

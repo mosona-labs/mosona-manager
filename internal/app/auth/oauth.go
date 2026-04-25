@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 	"golang.org/x/oauth2"
@@ -172,11 +171,7 @@ func oauthCallback(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session init error"})
 	}
-	sess.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   86400 * 3, // 3 days
-		HttpOnly: true,
-	}
+	sess.Options = sessionOptions(86400 * 3)
 
 	// Already logged in
 	uid := sess.Values["uid"]

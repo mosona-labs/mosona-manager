@@ -33,6 +33,7 @@ func loginSession(c *echo.Context, uid int64, isAdmin bool) *_type.H {
 	sess.Values["user_agent"] = c.Request().Header.Get("User-Agent")
 	sess.Values["time"] = time.Now().Unix()
 	delete(sess.Values, "pre_2fa_uid")
+	sess.Options = sessionOptions(86400 * 3)
 	if err = sess.Save(c.Request(), c.Response()); err != nil {
 		return &_type.H{Code: "error", Msg: "Session save failed"}
 	}
