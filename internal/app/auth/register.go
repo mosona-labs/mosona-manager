@@ -10,7 +10,7 @@ import (
 )
 
 func register(c *echo.Context) error {
-	if config.ReadDynamicConf().RegistrationEnabled {
+	if !config.ReadDynamicConf().RegistrationEnabled {
 		return c.JSON(403, _type.H{Code: "forbidden", Msg: "Registration is disabled"})
 	}
 
