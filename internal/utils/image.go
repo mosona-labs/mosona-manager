@@ -1,22 +1,58 @@
 package utils
 
 import (
+	"bytes"
+	"fmt"
 	"image"
 	"image/draw"
-	"mime/multipart"
+	"io"
 	"os"
 	"path/filepath"
+
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 
 	"github.com/disintegration/imaging"
 	"github.com/gen2brain/avif"
 	_ "golang.org/x/image/webp"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
 )
 
-func ConvertAvatar(file multipart.File, path, filename string) error {
-	img, _, err := image.Decode(file)
+const (
+	MaxAvatarBytes  = 5 << 20
+	MaxAvatarWidth  = 4096
+	MaxAvatarHeight = 4096
+	MaxAvatarPixels = 12_000_000
+)
+
+var allowedAvatarFormats = map[string]struct{}{
+	"jpeg": {},
+	"png":  {},
+	"gif":  {},
+	"webp": {},
+}
+
+func ConvertAvatar(file io.Reader, path, filename string) error {
+	data, err := io.ReadAll(io.LimitReader(file, MaxAvatarBytes+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > MaxAvatarBytes {
+		return fmt.Errorf("avatar image exceeds %d bytes", MaxAvatarBytes)
+	}
+
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	if _, ok := allowedAvatarFormats[format]; !ok {
+		return fmt.Errorf("unsupported avatar image format: %s", format)
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > MaxAvatarWidth || cfg.Height > MaxAvatarHeight || cfg.Width*cfg.Height > MaxAvatarPixels {
+		return fmt.Errorf("avatar image dimensions exceed limit")
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return err
 	}

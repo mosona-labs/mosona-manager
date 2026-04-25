@@ -50,19 +50,10 @@ func edit(c *echo.Context) error {
 	var avatarUrl = ""
 	avatarImage, err := c.FormFile("avatar_image")
 	if err == nil && avatarImage != nil {
-		allowedTypes := []string{"image/jpeg", "image/png", "image/gif", "image/webp"}
-		contentType := avatarImage.Header.Get("Content-Type")
-		isImage := false
-		for _, t := range allowedTypes {
-			if contentType == t {
-				isImage = true
-				break
-			}
-		}
-		if !isImage {
+		if avatarImage.Size > utils.MaxAvatarBytes {
 			return c.JSON(400, _type.H{
 				Code: "error",
-				Msg:  "Invalid file type, only images are allowed",
+				Msg:  "Avatar image is too large",
 			})
 		}
 		file, err := avatarImage.Open()
