@@ -3,10 +3,12 @@ package auth
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo-contrib/v5/session"
@@ -17,10 +19,20 @@ func login(c *echo.Context) error {
 	email := c.FormValue("email")
 	password := c.FormValue("password")
 	rememberMe := c.FormValue("remember_me") == "true"
+	emailKey := strings.ToLower(strings.TrimSpace(email))
+	ip := c.RealIP()
 	if email == "" || password == "" {
 		return c.JSON(400, _type.H{
 			Code: "warning",
 			Msg:  "Email or password is empty",
+		})
+	}
+	if retryIn, err := checkLoginRateLimit(c.Request().Context(), emailKey, ip); err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Rate limit check failed"})
+	} else if retryIn > 0 {
+		return c.JSON(429, _type.H{
+			Code: "rate_limited",
+			Msg:  fmt.Sprintf("Too many failed login attempts. Try again in %d seconds", int(retryIn.Seconds())+1),
 		})
 	}
 
@@ -28,6 +40,7 @@ func login(c *echo.Context) error {
 	user, err := db.GetUserAuthByEmail(email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			_ = recordLoginFailure(c.Request().Context(), emailKey, ip)
 			return c.JSON(500, _type.H{
 				Code: "error",
 				Msg:  "Email or password is incorrect",
@@ -40,11 +53,13 @@ func login(c *echo.Context) error {
 		}
 	}
 	if utils.SHA256(password+user.Salt+config.DynamicConf.Token) != user.Password {
+		_ = recordLoginFailure(c.Request().Context(), emailKey, ip)
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Email or password is incorrect",
 		})
 	}
+	clearLoginFailures(c.Request().Context(), emailKey, ip)
 
 	// Session
 	sess, err := session.Get("session", c)

@@ -192,10 +192,19 @@ func verifyMFACode(c *echo.Context) error {
 func verifyTOTP(c *echo.Context) error {
 	uid, _ := c.Get("pre_2fa_uid").(int64)
 	totpCode := c.FormValue("code")
+	ip := c.RealIP()
 	if totpCode == "" {
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "TOTP code cannot be empty",
+		})
+	}
+	if retryIn, err := checkTOTPRateLimit(c.Request().Context(), uid, ip); err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Rate limit check failed"})
+	} else if retryIn > 0 {
+		return c.JSON(429, _type.H{
+			Code: "rate_limited",
+			Msg:  fmt.Sprintf("Too many failed TOTP attempts. Try again in %d seconds", int(retryIn.Seconds())+1),
 		})
 	}
 
@@ -216,11 +225,13 @@ func verifyTOTP(c *echo.Context) error {
 
 	// Validate TOTP code
 	if !totp.Validate(totpCode, *user.TOTP) {
+		_ = recordTOTPFailure(c.Request().Context(), uid, ip)
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid TOTP code",
 		})
 	}
+	clearTOTPFailures(c.Request().Context(), uid, ip)
 
 	// Create login session
 	if res := loginSession(c, user.ID, user.IsAdmin); res != nil {
