@@ -8,8 +8,8 @@
 English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
 
 <div align="center" style="position: relative">
-  <img alt="home" style="width: 49%" src="https://github.com/user-attachments/assets/0a27bf17-f40c-4fcd-903b-cae9ff9691bb" />
-  <img alt="terminal" style="width: 49%" src="https://github.com/user-attachments/assets/420913b5-db7d-46f3-9942-4cc66c5a728f" />
+  <img alt="home" style="width: 49%" src="https://github.com/user-attachments/assets/6e486a04-647a-4201-a0d8-977d7994f832" />
+  <img alt="terminal" style="width: 49%" src="https://github.com/user-attachments/assets/b164f3c5-ba03-4a31-a8dc-5c60d473af37" />
 </div>
 
 <br />
@@ -26,6 +26,7 @@ Designed as a team-oriented / personal project management server monitor and ter
 - **Web Interface**: User-friendly web interface for easy navigation and management.
 - **API Access**: RESTful API for integration with other tools and services.
 - **Logging and Auditing**: Keep track of all actions and changes within the system.
+- **Public Page**: Share real-time system status with a customizable public-facing dashboard.
 
 ## Connection Modes
 
@@ -49,11 +50,27 @@ This is a passive (reverse) connection. The Hub must be exposed so that it can b
 
 ## Get started & Deploy
 
-Please refer to the [Quickstart (Docs)](https://manager.mosona.cc/quickstart) for detailed instructions on installation and configuration.
+> In progress
+
+~~Please refer to the [Quickstart (Docs)](https://manager.mosona.cc/quickstart) for detailed instructions on installation and configuration.~~
 
 ## Screenshots
 
-...
+| Home | Terminal |
+|---|---|
+| ![home](https://github.com/user-attachments/assets/6e486a04-647a-4201-a0d8-977d7994f832) | ![terminal](https://github.com/user-attachments/assets/b164f3c5-ba03-4a31-a8dc-5c60d473af37) |
+
+| New Serevr | Monitor |
+|---|---|
+| ![new server](https://github.com/user-attachments/assets/60ea1cdb-ec2d-4e4c-95e1-4472fba3c39c) | ![monitor](https://github.com/user-attachments/assets/c586f397-a4e9-4fd1-a0ab-f753ed4bfe8b) |
+
+| Public Page (M) | Public Page |
+|---|---|
+| ![public m](https://github.com/user-attachments/assets/96509eb5-b3ae-4223-8e18-9de5b77466f6) | ![public](https://github.com/user-attachments/assets/15611147-45c2-4358-b5f0-22a5c2fab547) |
+
+| Profile | Admin |
+|---|---|
+| ![profile](https://github.com/user-attachments/assets/2efcc2dc-e87d-4a95-a854-0b44b871a903) | ![admin](https://github.com/user-attachments/assets/3e93b6b7-a41f-4cc6-9b72-4e7419696c0c) |
 
 ## Changelog
 
