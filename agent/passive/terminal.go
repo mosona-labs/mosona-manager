@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/user"
 	"runtime"
+	"sync"
 
 	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
@@ -34,9 +35,9 @@ func terminal(sessionID string) {
 		for _, sh := range []string{
 			"bash", "zsh", "ksh", "ash", "dash",
 		} {
-			path, err := exec.LookPath("/bin/" + sh)
+			path, err := exec.LookPath(sh)
 			if err == nil {
-				shell = "/bin/" + path
+				shell = path
 				break
 			}
 		}
@@ -82,7 +83,15 @@ func terminal(sessionID string) {
 		_ = cmd.Wait()
 	}()
 
+	var once sync.Once
 	done := make(chan struct{})
+	cleanup := func() {
+		once.Do(func() {
+			close(done)
+			_ = client.Close()
+			_ = ptmx.Close()
+		})
+	}
 
 	// Handle pty output -> websocket
 	go func() {
@@ -90,14 +99,14 @@ func terminal(sessionID string) {
 		for {
 			n, err := ptmx.Read(buf)
 			if err != nil {
-				done <- struct{}{}
+				cleanup()
 				return
 			}
 
 			if n > 0 {
 				err = client.SendMessage(websocket.TextMessage, buf[:n])
 				if err != nil {
-					done <- struct{}{}
+					cleanup()
 					return
 				}
 			}
@@ -109,8 +118,7 @@ func terminal(sessionID string) {
 		for {
 			_, msg, err := client.ReadMessage()
 			if err != nil {
-				_ = ptmx.Close()
-				done <- struct{}{}
+				cleanup()
 				return
 			}
 

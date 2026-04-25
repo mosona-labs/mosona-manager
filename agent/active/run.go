@@ -15,7 +15,9 @@ func Run() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/ws/state", middleware.WsMiddleware(handleStateWebSocket))
-	mux.HandleFunc("/api/ws/terminal", middleware.WsMiddleware(handleTerminalWebSocket))
+	if !config.Current.NoTerminal {
+		mux.HandleFunc("/api/ws/terminal", middleware.WsMiddleware(handleTerminalWebSocket))
+	}
 	mux.HandleFunc("/api/info", handleInfo)
 
 	handler := middleware.AuthMiddleware(mux)

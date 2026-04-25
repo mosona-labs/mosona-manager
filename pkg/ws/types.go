@@ -14,6 +14,7 @@ type Client struct {
 	header        http.Header
 	url           string
 	mu            sync.RWMutex
+	writeMu       sync.Mutex
 	reconnecting  bool
 	maxRetries    int
 	retryInterval time.Duration

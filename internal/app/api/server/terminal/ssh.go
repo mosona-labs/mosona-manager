@@ -2,7 +2,6 @@ package aterminal
 
 import (
 	"encoding/json"
-	"fmt"
 	"mosona-manager/internal/_type"
 	connectSSH "mosona-manager/internal/connect/ssh"
 	pbTypes "mosona-manager/pkg/types"
@@ -32,16 +31,15 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 		keyPwd = *serverAuth.KeyPwd
 	}
 
-	authMethods, err := connectSSH.BuildAuthMethods(password, key, keyPwd)
-	if err != nil {
-		return err
-	}
-
-	sshClient, err := gossh.Dial("tcp", fmt.Sprintf("%s:%d", *serverAuth.Address, *serverAuth.Port), &gossh.ClientConfig{
-		User:            *serverAuth.Username,
-		Auth:            authMethods,
-		HostKeyCallback: gossh.InsecureIgnoreHostKey(),
-	})
+	sshClient, err := connectSSH.Dial(
+		*serverAuth.Address,
+		*serverAuth.Port,
+		*serverAuth.Username,
+		password,
+		key,
+		keyPwd,
+		connectSSH.DefaultDialTimeout,
+	)
 	if err != nil {
 		return wsConn.WriteMessage(websocket.TextMessage, []byte("Failed to connect to target server: "+err.Error()+"\n"))
 	}
@@ -89,6 +87,12 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 	}
 
 	var wg sync.WaitGroup
+	var writeMu sync.Mutex
+	writeMessage := func(messageType int, data []byte) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		return wsConn.WriteMessage(messageType, data)
+	}
 	wg.Add(2)
 
 	// Read from stdout (SSH)
@@ -101,7 +105,7 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 				return
 			}
 			if n > 0 {
-				_ = wsConn.WriteMessage(websocket.TextMessage, buf[:n])
+				_ = writeMessage(websocket.TextMessage, buf[:n])
 			}
 		}
 	}()
@@ -116,7 +120,7 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 				return
 			}
 			if n > 0 {
-				_ = wsConn.WriteMessage(websocket.TextMessage, buf[:n])
+				_ = writeMessage(websocket.TextMessage, buf[:n])
 			}
 		}
 	}()

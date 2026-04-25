@@ -123,10 +123,6 @@ func handleInstall() {
 	mode := os.Args[2]
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	noMonitor := fs.Bool("no-monitor", false, "Disable monitoring")
-	if fs.Parse(os.Args[3:]) != nil {
-		fmt.Println("Failed to parse flags")
-		return
-	}
 	noTerminal := fs.Bool("no-terminal", false, "Disallow terminal")
 	if fs.Parse(os.Args[3:]) != nil {
 		fmt.Println("Failed to parse flags")

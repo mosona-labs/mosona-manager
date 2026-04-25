@@ -14,27 +14,16 @@ import (
 )
 
 func connectHub(path string) (*ws.Client, error) {
-	nonceBytes := make([]byte, 16)
-	if _, err := rand.Read(nonceBytes); err != nil {
-		return nil, err
-	}
-	nonce := base64.StdEncoding.EncodeToString(nonceBytes)
-
-	ts := time.Now().Unix()
-
 	client := ws.NewClient()
-	client.SetHeader("X-Agent-Id", config.Current.UUID)
-	client.SetHeader("X-Agent-Timestamp", fmt.Sprintf("%d", ts))
-	client.SetHeader("X-Agent-Nonce", nonce)
-	signature, err := identity.SignHeaders(config.PrivateKey, config.Current.UUID, ts, nonce)
-	if err != nil {
+	if err := setAuthHeaders(client); err != nil {
 		return nil, err
 	}
-	client.SetHeader("X-Agent-Signature", signature)
-
 	client.SetHeader("User-Agent", "mosona-manager-agent/"+runtime.Version)
 
 	client.SetReconnectConfig(-1, 10*time.Second)
+	client.OnReconnect(func() {
+		_ = setAuthHeaders(client)
+	})
 
 	url := strings.Replace(
 		strings.Replace(
@@ -53,4 +42,24 @@ func connectHub(path string) (*ws.Client, error) {
 	}
 
 	return client, nil
+}
+
+func setAuthHeaders(client *ws.Client) error {
+	nonceBytes := make([]byte, 16)
+	if _, err := rand.Read(nonceBytes); err != nil {
+		return err
+	}
+	nonce := base64.StdEncoding.EncodeToString(nonceBytes)
+
+	ts := time.Now().Unix()
+	signature, err := identity.SignHeaders(config.PrivateKey, config.Current.UUID, ts, nonce)
+	if err != nil {
+		return err
+	}
+
+	client.SetHeader("X-Agent-Id", config.Current.UUID)
+	client.SetHeader("X-Agent-Timestamp", fmt.Sprintf("%d", ts))
+	client.SetHeader("X-Agent-Nonce", nonce)
+	client.SetHeader("X-Agent-Signature", signature)
+	return nil
 }

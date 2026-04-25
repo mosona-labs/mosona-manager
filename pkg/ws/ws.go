@@ -72,11 +72,11 @@ func (c *Client) reconnect() error {
 
 		time.Sleep(c.retryInterval)
 
+		if c.onReconnect != nil {
+			c.onReconnect()
+		}
 		err := c.dial(c.ctx)
 		if err == nil {
-			if c.onReconnect != nil {
-				c.onReconnect()
-			}
 			return nil
 		}
 
@@ -105,7 +105,9 @@ func (c *Client) SendMessage(messageType int, data []byte) error {
 		return websocket.ErrCloseSent
 	}
 
+	c.writeMu.Lock()
 	err := conn.WriteMessage(messageType, data)
+	c.writeMu.Unlock()
 	if err != nil {
 		_ = c.reconnect()
 	}

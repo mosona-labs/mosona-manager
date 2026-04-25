@@ -86,12 +86,12 @@ func passiveWS(c *echo.Context) error {
 		_ = ws.Close()
 	}()
 
-	connection.MainSet(serverId, ws)
+	mainConn := connection.MainSet(serverId, ws)
 
 	// Heartbeat
 	go func() {
 		for {
-			if err := ws.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
+			if err := mainConn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
 				log.Println("ping:", err)
 				return
 			}

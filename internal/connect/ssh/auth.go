@@ -12,7 +12,7 @@ import (
 
 var errSSHCertificateRequiresPrivateKey = errors.New("ssh certificate requires a matching private key")
 
-const defaultDialTimeout = 10 * time.Second
+const DefaultDialTimeout = 10 * time.Second
 
 func BuildAuthMethods(password, key, keyPwd string) ([]gossh.AuthMethod, error) {
 	if key == "" {
@@ -52,7 +52,7 @@ func Dial(host string, port int, user, password, key, keyPwd string, timeout tim
 }
 
 func ValidateConnection(host string, port int, user, password, key, keyPwd string) error {
-	client, err := Dial(host, port, user, password, key, keyPwd, defaultDialTimeout)
+	client, err := Dial(host, port, user, password, key, keyPwd, DefaultDialTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to connect to %s:%d as %s: %w", host, port, user, err)
 	}

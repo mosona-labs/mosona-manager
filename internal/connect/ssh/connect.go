@@ -28,7 +28,7 @@ func SSH(
 		default:
 		}
 
-		client, err := Dial(host, port, user, password, key, keyPwd, defaultDialTimeout)
+		client, err := Dial(host, port, user, password, key, keyPwd, DefaultDialTimeout)
 
 		if err != nil {
 			select {

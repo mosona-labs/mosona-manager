@@ -3,12 +3,12 @@ package middleware
 import (
 	"crypto/ed25519"
 	"database/sql"
-	"encoding/base64"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
+	"mosona-manager/pkg/identity"
+	"time"
 
 	"github.com/labstack/echo/v5"
 )
@@ -46,17 +46,10 @@ func PassiveAuth(next echo.HandlerFunc) echo.HandlerFunc {
 			})
 		}
 		pubKey := ed25519.PublicKey(block.Bytes)
-		sig, err := base64.StdEncoding.DecodeString(signature)
-		if err != nil {
+		if err := identity.VerifySignedHeaders(pubKey, uid, ts, nonce, signature, time.Now()); err != nil {
 			return c.JSON(400, _type.H{
 				Code: "unauthorized",
-				Msg:  "Invalid signature encoding",
-			})
-		}
-		if !ed25519.Verify(pubKey, []byte(fmt.Sprintf("%s\n%s\n%s", uid, ts, nonce)), sig) {
-			return c.JSON(400, _type.H{
-				Code: "unauthorized",
-				Msg:  "Signature verification failed",
+				Msg:  err.Error(),
 			})
 		}
 

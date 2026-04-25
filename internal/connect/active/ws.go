@@ -37,7 +37,7 @@ func (a *auth) connectAgent(ctx context.Context, path string) (*ws.Client, error
 
 	client.SetHeader("User-Agent", "mosona-manager-hub/"+runtime.Version)
 
-	//client.SetReconnectConfig(-1, 10*time.Second)
+	client.SetReconnectConfig(0, 0)
 
 	if err = client.Connect(ctx, fmt.Sprintf("ws://%s:%d%s", a.host, a.port, path)); err != nil {
 		return nil, err

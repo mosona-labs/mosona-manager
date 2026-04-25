@@ -1,11 +1,10 @@
 package middleware
 
 import (
-	"crypto/ed25519"
-	"encoding/base64"
-	"fmt"
 	"mosona-manager/agent/config"
+	"mosona-manager/pkg/identity"
 	"net/http"
+	"time"
 )
 
 func AuthMiddleware(next http.Handler) http.Handler {
@@ -23,14 +22,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		sig, err := base64.StdEncoding.DecodeString(signature)
-		if err != nil {
-			http.Error(w, "Invalid signature encoding", http.StatusUnauthorized)
-			return
-		}
-
-		if !ed25519.Verify(config.PublicKey, []byte(fmt.Sprintf("%s\n%s\n%s", uid, ts, nonce)), sig) {
-			http.Error(w, "Signature verification failed", http.StatusUnauthorized)
+		if err := identity.VerifySignedHeaders(config.PublicKey, uid, ts, nonce, signature, time.Now()); err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
 
