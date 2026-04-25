@@ -7,6 +7,7 @@ import (
 	"mosona-manager/internal/utils"
 
 	"github.com/google/uuid"
+	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 )
 
@@ -26,9 +27,10 @@ func create(c *echo.Context) error {
 		})
 	}
 	hasOwner := false
-	for _, m := range members {
+	for i, m := range members {
 		if m.ID == uid {
 			hasOwner = true
+			members[i].Role = 0
 		}
 	}
 	if !hasOwner {
@@ -87,7 +89,19 @@ func create(c *echo.Context) error {
 	}
 
 	// Set Active Team
-	_ = db.SetUserActiveTeam(uid, teamId)
+	if err = db.SetUserActiveTeam(uid, teamId); err != nil {
+		return utils.ErrorHandler(c, err, "Failed to set active team")
+	}
+	sess, err := session.Get("session", c)
+	if err != nil {
+		return utils.ErrorHandler(c, err, "Session error")
+	}
+	sess.Values["tid"] = teamId
+	if err = sess.Save(c.Request(), c.Response()); err != nil {
+		return utils.ErrorHandler(c, err, "Session update failed")
+	}
+	c.Set("tid", teamId)
+	c.Set("role", 0)
 
 	return c.JSON(200, _type.H{
 		Code: "ok",

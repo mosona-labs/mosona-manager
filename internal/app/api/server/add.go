@@ -3,6 +3,7 @@ package aserver
 import (
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
@@ -34,6 +35,15 @@ func add(c *echo.Context) error {
 			Code: "error",
 			Msg:  "Invalid server data",
 		})
+	}
+	if _, err := db.GetCategoryById(tid, categoryId); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.JSON(400, _type.H{
+				Code: "error",
+				Msg:  "Invalid category",
+			})
+		}
+		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Display

@@ -47,6 +47,7 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 				return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 			}
 			sess.Values["tid"] = activeTid
+			tid = activeTid
 			if err = sess.Save(c.Request(), c.Response()); err != nil {
 				return c.JSON(500, _type.H{Code: "error", Msg: "Session update failed"})
 			}
