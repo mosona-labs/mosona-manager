@@ -41,6 +41,7 @@ import (
 func Start() {
 	e := echo.New()
 	e.Logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
+	configureClientIPExtractor(e)
 
 	address := fmt.Sprintf("%s:%d", config.Conf.Host, config.Conf.Port)
 
