@@ -90,7 +90,12 @@ func reinstall(c *echo.Context) error {
 		enrollToken := utils.RandomString(32)
 		tokenHash := utils.SHA256(enrollToken + config.DynamicConf.Token)
 		if _, err = tx.Exec(
-			"INSERT INTO enroll_tokens (server_id, token_hash) VALUES ($1, $2)",
+			`INSERT INTO enroll_tokens (server_id, token_hash, is_revoked, created_at)
+			 VALUES ($1, $2, FALSE, NOW())
+			 ON CONFLICT (server_id) DO UPDATE
+			 SET token_hash = EXCLUDED.token_hash,
+			     is_revoked = FALSE,
+			     created_at = NOW()`,
 			id, tokenHash,
 		); err != nil {
 			_ = tx.Rollback()
