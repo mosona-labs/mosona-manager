@@ -9,6 +9,7 @@ import (
 )
 
 var cdnClientIPHeaders = []string{
+	"CF-Connecting-IPv6",
 	"CF-Connecting-IP",
 	"True-Client-IP",
 	"Fastly-Client-IP",

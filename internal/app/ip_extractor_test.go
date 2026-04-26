@@ -19,6 +19,12 @@ func TestCDNClientIPExtractor(t *testing.T) {
 			want:       "203.0.113.10",
 		},
 		{
+			name:       "cloudflare real ipv6 wins over pseudo ipv4",
+			headers:    map[string][]string{"CF-Connecting-IPv6": {"2001:db8::1"}, "CF-Connecting-IP": {"240.16.0.1"}},
+			remoteAddr: "10.0.0.8:443",
+			want:       "2001:db8::1",
+		},
+		{
 			name:       "x-forwarded-for uses original client",
 			headers:    map[string][]string{"X-Forwarded-For": {"198.51.100.7, 10.0.0.8"}},
 			remoteAddr: "10.0.0.8:443",
