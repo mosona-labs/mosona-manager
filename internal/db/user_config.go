@@ -6,6 +6,11 @@ import (
 )
 
 func SetUserActiveTeam(uid, tid int64) error {
+	if tid == 0 {
+		_, err := Db.Exec("DELETE FROM users_config WHERE uid = $1", uid)
+		return err
+	}
+
 	var exists int
 	err := Db.Get(&exists, "SELECT 1 FROM m_team_user WHERE team_id = $1 AND user_id = $2", tid, uid)
 	if err != nil {

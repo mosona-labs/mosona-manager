@@ -1,6 +1,8 @@
 package ateam
 
 import (
+	"database/sql"
+	"errors"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
@@ -24,6 +26,21 @@ func leave(c *echo.Context) error {
 
 	isOwner, err := db.IsTeamOwner(targetId, uid)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			teams, teamErr := db.GetTeamsByUserId(uid)
+			if teamErr != nil {
+				return utils.ErrorHandler(c, teamErr, "Database error")
+			}
+			if len(teams) == 0 {
+				if err = saveActiveTeam(c, uid, 0); err != nil {
+					return err
+				}
+				return c.JSON(200, _type.H{
+					Code: "ok",
+					Msg:  "Left team successfully",
+				})
+			}
+		}
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
@@ -70,16 +87,8 @@ func leave(c *echo.Context) error {
 			newActiveTeamId = teams[0].ID
 		}
 
-		if err = db.SetUserActiveTeam(uid, newActiveTeamId); err != nil {
-			return utils.ErrorHandler(c, err, "Database error")
-		}
-		sess, err := session.Get("session", c)
-		if err != nil {
-			return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
-		}
-		sess.Values["tid"] = newActiveTeamId
-		if err = sess.Save(c.Request(), c.Response()); err != nil {
-			return c.JSON(500, _type.H{Code: "error", Msg: "Session update failed"})
+		if err = saveActiveTeam(c, uid, newActiveTeamId); err != nil {
+			return err
 		}
 	}
 
@@ -87,4 +96,27 @@ func leave(c *echo.Context) error {
 		Code: "ok",
 		Msg:  "Left team successfully",
 	})
+}
+
+func saveActiveTeam(c *echo.Context, uid, tid int64) error {
+	if err := db.SetUserActiveTeam(uid, tid); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			tid = 0
+			if err = db.SetUserActiveTeam(uid, tid); err != nil {
+				return utils.ErrorHandler(c, err, "Database error")
+			}
+		} else {
+			return utils.ErrorHandler(c, err, "Database error")
+		}
+	}
+
+	sess, err := session.Get("session", c)
+	if err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
+	}
+	sess.Values["tid"] = tid
+	if err = sess.Save(c.Request(), c.Response()); err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Session update failed"})
+	}
+	return nil
 }
