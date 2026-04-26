@@ -1,6 +1,8 @@
 package db
 
 import (
+	"database/sql"
+	"errors"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/utils/encrypt"
 
@@ -48,6 +50,9 @@ func GetServerInfo(teamId, serverId int64) (_type.ServerFullType, error) {
 			&data.AgentVersion,
 			&data.AgentLastSeenAt,
 		)
+	}
+	if errors.Is(err, sql.ErrNoRows) && (data.Type == 1 || data.Type == 2) {
+		return data, nil
 	}
 
 	return data, err
