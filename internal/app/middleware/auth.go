@@ -4,6 +4,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils"
 
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
@@ -21,18 +22,18 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		// Session
 		sess, err := session.Get("session", c)
 		if err != nil {
-			return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
+			return utils.ErrorHandler(c, err, "Session error")
 		}
 
 		// 2FA Required
 		if sess.Values["pre_2fa_uid"] != nil {
-			return c.JSON(200, _type.H{Code: "2fa_required", Msg: "Two-factor authentication required"})
+			return utils.ErrorHandler(c, err, "Two-factor authentication required")
 		}
 
 		// User ID
 		uid := sess.Values["uid"]
 		if uid == nil || uid == 0 {
-			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
+			return utils.ErrorHandler(c, err, "permission denied")
 		}
 		userAgent := sess.Values["user_agent"]
 		if userAgent == nil || userAgent != c.Request().Header.Get("User-Agent") {
@@ -44,12 +45,12 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		if tid == nil || tid == 0 {
 			activeTid, err := db.GetUserActiveTeam(uid.(int64))
 			if err != nil {
-				return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
+				return utils.ErrorHandler(c, err, "Database error")
 			}
 			sess.Values["tid"] = activeTid
 			tid = activeTid
 			if err = sess.Save(c.Request(), c.Response()); err != nil {
-				return c.JSON(500, _type.H{Code: "error", Msg: "Session update failed"})
+				return utils.ErrorHandler(c, err, "Session update failed")
 			}
 		}
 

@@ -7,6 +7,7 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 
+	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 )
 
@@ -47,7 +48,27 @@ func me(c *echo.Context) error {
 	} else {
 		team, err := db.GetTeamById(tid)
 		if err != nil {
-			return utils.ErrorHandler(c, err, "Database error")
+			if errors.Is(err, sql.ErrNoRows) {
+				sess, err := session.Get("session", c)
+				if err != nil {
+					return utils.ErrorHandler(c, err, "Session error")
+				}
+				sess.Values["tid"] = 0
+				if err = sess.Save(c.Request(), c.Response()); err != nil {
+					return utils.ErrorHandler(c, err, "Session update failed")
+				}
+				return c.JSON(200, _type.H{
+					Code: "ok",
+					Msg:  "Success",
+					Data: map[string]interface{}{
+						"user":  userInfo,
+						"team":  nil,
+						"teams": teams,
+					},
+				})
+			} else {
+				return utils.ErrorHandler(c, err, "Database error")
+			}
 		}
 
 		return c.JSON(200, _type.H{
