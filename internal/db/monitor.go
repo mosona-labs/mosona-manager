@@ -6,8 +6,8 @@ import (
 	"github.com/Masterminds/squirrel"
 )
 
-func ListMonitoredServers(teamId int64) ([]_type.Monitor, error) {
-	var servers = make([]_type.Monitor, 0)
+func ListMonitoredServers(teamId int64) ([]_type.MonitorList, error) {
+	var servers = make([]_type.MonitorList, 0)
 
 	psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 

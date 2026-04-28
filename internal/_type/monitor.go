@@ -18,8 +18,6 @@ type Monitor struct {
 	OS            *string    `json:"os"`
 	County        *string    `json:"county"`
 	Area          *string    `json:"area"`
-	CoreC         *int       `json:"core_c" db:"core_c"`
-	CoreT         *int       `json:"core_t" db:"core_t"`
 	OpenTime      *time.Time `json:"open_time" db:"open_time"`
 	Note          *string    `json:"note"`
 	Provider      *string    `json:"provider"`
@@ -31,6 +29,12 @@ type Monitor struct {
 	Traffic       *string    `json:"traffic"`
 	TrafficType   *int8      `json:"traffic_type" db:"traffic_type"`
 	NotePublic    *string    `json:"note_public" db:"note_public"`
+}
+
+type MonitorList struct {
+	Monitor
+	CoreC *int `json:"core_c" db:"core_c"`
+	CoreT *int `json:"core_t" db:"core_t"`
 }
 
 type MonitorDetail struct {
