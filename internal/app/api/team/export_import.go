@@ -42,16 +42,16 @@ type teamExportBundle struct {
 }
 
 type teamExportTeam struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Color       string `json:"color"`
-	Image       string `json:"image"`
+	Name        string `json:"name" db:"name"`
+	Description string `json:"description" db:"description"`
+	Color       string `json:"color" db:"color"`
+	Image       string `json:"image" db:"image"`
 }
 
 type teamExportCategory struct {
-	RefID int64  `json:"ref_id"`
-	Name  string `json:"name"`
-	Sort  int    `json:"sort"`
+	RefID int64  `json:"ref_id" db:"ref_id"`
+	Name  string `json:"name" db:"name"`
+	Sort  int    `json:"sort" db:"sort"`
 }
 
 type teamExportKey struct {
@@ -64,28 +64,28 @@ type teamExportKey struct {
 }
 
 type teamExportAlert struct {
-	Item        string `json:"item"`
-	Threshold   int    `json:"threshold"`
-	ForDuration int    `json:"for_duration"`
+	Item        string `json:"item" db:"item"`
+	Threshold   int    `json:"threshold" db:"threshold"`
+	ForDuration int    `json:"for_duration" db:"for_duration"`
 }
 
 type teamExportPublicPage struct {
-	Enabled     bool    `json:"enabled"`
-	Name        *string `json:"name,omitempty"`
-	Domain      *string `json:"domain,omitempty"`
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	CustomCSS   *string `json:"custom_css,omitempty"`
+	Enabled     bool    `json:"enabled" db:"enabled"`
+	Name        *string `json:"name,omitempty" db:"name"`
+	Domain      *string `json:"domain,omitempty" db:"domain"`
+	Title       *string `json:"title,omitempty" db:"title"`
+	Description *string `json:"description,omitempty" db:"description"`
+	CustomCSS   *string `json:"custom_css,omitempty" db:"custom_css"`
 }
 
 type teamExportServer struct {
-	RefID         int64                   `json:"ref_id"`
-	CategoryRef   int64                   `json:"category_ref"`
-	Type          int16                   `json:"type"`
-	Name          string                  `json:"name"`
-	AllowMonitor  bool                    `json:"allow_monitor"`
-	AllowTerminal bool                    `json:"allow_terminal"`
-	Weight        int                     `json:"weight"`
+	RefID         int64                   `json:"ref_id" db:"ref_id"`
+	CategoryRef   int64                   `json:"category_ref" db:"category_ref"`
+	Type          int16                   `json:"type" db:"type"`
+	Name          string                  `json:"name" db:"name"`
+	AllowMonitor  bool                    `json:"allow_monitor" db:"allow_monitor"`
+	AllowTerminal bool                    `json:"allow_terminal" db:"allow_terminal"`
+	Weight        int                     `json:"weight" db:"weight"`
 	Info          teamExportServerInfo    `json:"info"`
 	AdvancedInfo  teamExportServerInfoAdv `json:"advanced_info"`
 	SSH           *teamExportSSH          `json:"ssh,omitempty"`
@@ -95,32 +95,32 @@ type teamExportServer struct {
 }
 
 type teamExportServerInfo struct {
-	OS          *string    `json:"os,omitempty"`
-	County      *string    `json:"county,omitempty"`
-	Area        *string    `json:"area,omitempty"`
-	OpenTime    *time.Time `json:"open_time,omitempty"`
-	Note        *string    `json:"note,omitempty"`
-	Provider    *string    `json:"provider,omitempty"`
-	Cycle       *int       `json:"cycle,omitempty"`
-	StartTime   *time.Time `json:"start_time,omitempty"`
-	EndTime     *time.Time `json:"end_time,omitempty"`
-	Amount      *string    `json:"amount,omitempty"`
-	AutoRenew   *bool      `json:"auto_renew,omitempty"`
-	Bandwidth   *string    `json:"bandwidth,omitempty"`
-	Traffic     *string    `json:"traffic,omitempty"`
-	TrafficType *int       `json:"traffic_type,omitempty"`
-	NotePublic  *string    `json:"note_public,omitempty"`
-	Online      bool       `json:"online"`
+	OS          *string    `json:"os,omitempty" db:"os"`
+	County      *string    `json:"county,omitempty" db:"county"`
+	Area        *string    `json:"area,omitempty" db:"area"`
+	OpenTime    *time.Time `json:"open_time,omitempty" db:"open_time"`
+	Note        *string    `json:"note,omitempty" db:"note"`
+	Provider    *string    `json:"provider,omitempty" db:"provider"`
+	Cycle       *int       `json:"cycle,omitempty" db:"cycle"`
+	StartTime   *time.Time `json:"start_time,omitempty" db:"start_time"`
+	EndTime     *time.Time `json:"end_time,omitempty" db:"end_time"`
+	Amount      *string    `json:"amount,omitempty" db:"amount"`
+	AutoRenew   *bool      `json:"auto_renew,omitempty" db:"auto_renew"`
+	Bandwidth   *string    `json:"bandwidth,omitempty" db:"bandwidth"`
+	Traffic     *string    `json:"traffic,omitempty" db:"traffic"`
+	TrafficType *int       `json:"traffic_type,omitempty" db:"traffic_type"`
+	NotePublic  *string    `json:"note_public,omitempty" db:"note_public"`
+	Online      bool       `json:"online" db:"online"`
 }
 
 type teamExportServerInfoAdv struct {
-	Hostname *string `json:"hostname,omitempty"`
-	CPUName  *string `json:"cpu_name,omitempty"`
-	CoreC    *int    `json:"core_c,omitempty"`
-	CoreT    *int    `json:"core_t,omitempty"`
-	Kernel   *string `json:"kernel,omitempty"`
-	IP       *string `json:"ip,omitempty"`
-	Arch     *string `json:"arch,omitempty"`
+	Hostname *string `json:"hostname,omitempty" db:"hostname"`
+	CPUName  *string `json:"cpu_name,omitempty" db:"cpu_name"`
+	CoreC    *int    `json:"core_c,omitempty" db:"core_c"`
+	CoreT    *int    `json:"core_t,omitempty" db:"core_t"`
+	Kernel   *string `json:"kernel,omitempty" db:"kernel"`
+	IP       *string `json:"ip,omitempty" db:"ip"`
+	Arch     *string `json:"arch,omitempty" db:"arch"`
 }
 
 type teamExportSSH struct {
@@ -132,21 +132,21 @@ type teamExportSSH struct {
 }
 
 type teamExportAgent struct {
-	AgentUID    string     `json:"agent_uid"`
-	Status      int16      `json:"status"`
-	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
-	LastIP      string     `json:"last_ip"`
-	LastVersion string     `json:"last_version"`
-	PublicKey   string     `json:"public_key"`
-	PrivateKey  string     `json:"private_key"`
-	Host        string     `json:"host"`
-	Port        int        `json:"port"`
+	AgentUID    string     `json:"agent_uid" db:"agent_uid"`
+	Status      int16      `json:"status" db:"status"`
+	LastSeenAt  *time.Time `json:"last_seen_at,omitempty" db:"last_seen_at"`
+	LastIP      string     `json:"last_ip" db:"last_ip"`
+	LastVersion string     `json:"last_version" db:"last_version"`
+	PublicKey   string     `json:"public_key" db:"public_key"`
+	PrivateKey  string     `json:"private_key" db:"private_key"`
+	Host        string     `json:"host" db:"host"`
+	Port        int        `json:"port" db:"port"`
 }
 
 type teamExportEnrollToken struct {
-	TokenHash string    `json:"token_hash"`
-	IsRevoked bool      `json:"is_revoked"`
-	CreatedAt time.Time `json:"created_at"`
+	TokenHash string    `json:"token_hash" db:"token_hash"`
+	IsRevoked bool      `json:"is_revoked" db:"is_revoked"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 func exportTeam(c *echo.Context) error {
