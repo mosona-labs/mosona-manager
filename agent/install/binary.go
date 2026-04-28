@@ -4,7 +4,7 @@ import (
 	"io"
 	agentruntime "mosona-manager/agent/runtime"
 	"os"
-	"path"
+	"path/filepath"
 	"runtime"
 )
 
@@ -16,9 +16,9 @@ func copyBinaryToInstallDir() error {
 
 	var destPath string
 	if runtime.GOOS == "windows" {
-		destPath = path.Join(agentruntime.InstallDir, "mosona-agent.exe")
+		destPath = filepath.Join(agentruntime.InstallDir, "mosona-agent.exe")
 	} else {
-		destPath = path.Join(agentruntime.InstallDir, "mosona-agent")
+		destPath = filepath.Join(agentruntime.InstallDir, "mosona-agent")
 	}
 
 	sourceFile, err := os.Open(execPath)

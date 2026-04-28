@@ -6,7 +6,7 @@ import (
 	"mosona-manager/agent/runtime"
 	"mosona-manager/pkg/identity"
 	"os"
-	"path"
+	"path/filepath"
 )
 
 func Passive(hub, enrollKey string, noMonitor, noTerminal bool, ipPreference string) error {
@@ -39,7 +39,7 @@ func Passive(hub, enrollKey string, noMonitor, noTerminal bool, ipPreference str
 
 	// Save private key
 	privateKeyFile, err := os.Create(
-		path.Join(runtime.InstallDir, "private_key.pem"),
+		filepath.Join(runtime.InstallDir, "private_key.pem"),
 	)
 	if err != nil {
 		return err

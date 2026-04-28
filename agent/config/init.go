@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"mosona-manager/agent/runtime"
 	"os"
-	"path"
+	"path/filepath"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 )
 
 func Load() error {
-	file, err := os.ReadFile(path.Join(runtime.InstallDir, "config.json"))
+	file, err := os.ReadFile(filepath.Join(runtime.InstallDir, "config.json"))
 	if err != nil {
 		return fmt.Errorf("read config file: %w", err)
 	}
@@ -33,7 +33,7 @@ func (conf Config) Save() error {
 	if err != nil {
 		return err
 	}
-	if err = os.WriteFile(path.Join(runtime.InstallDir, "config.json"), data, 0644); err != nil {
+	if err = os.WriteFile(filepath.Join(runtime.InstallDir, "config.json"), data, 0644); err != nil {
 		return err
 	}
 
@@ -43,7 +43,7 @@ func (conf Config) Save() error {
 }
 
 func LoadPrivateKey() error {
-	data, err := os.ReadFile(path.Join(runtime.InstallDir, "private_key.pem"))
+	data, err := os.ReadFile(filepath.Join(runtime.InstallDir, "private_key.pem"))
 	if err != nil {
 		return fmt.Errorf("read private key file: %w", err)
 	}
@@ -59,7 +59,7 @@ func LoadPrivateKey() error {
 }
 
 func LoadPublicKey() error {
-	data, err := os.ReadFile(path.Join(runtime.InstallDir, "public_key.pem"))
+	data, err := os.ReadFile(filepath.Join(runtime.InstallDir, "public_key.pem"))
 	if err != nil {
 		return fmt.Errorf("read public key file: %w", err)
 	}

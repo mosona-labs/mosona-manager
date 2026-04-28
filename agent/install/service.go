@@ -5,7 +5,14 @@ import (
 	agentruntime "mosona-manager/agent/runtime"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
+)
+
+const (
+	serviceName     = "mosona-agent"
+	macLaunchdLabel = "cc.mosona.agent"
+	macPlistPath    = "/Library/LaunchDaemons/cc.mosona.agent.plist"
 )
 
 func installService() error {
@@ -59,15 +66,17 @@ WantedBy=multi-user.target`, agentruntime.InstallDir)
 
 // macOS Launchd
 func installMacService() error {
+	execPath := filepath.Join(agentruntime.InstallDir, "mosona-agent")
 	plistContent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>cc.mosona.agent</string>
+	<string>%s</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>%s/mosona-agent run</string>
+		<string>%s</string>
+		<string>run</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
@@ -78,15 +87,15 @@ func installMacService() error {
 	<key>StandardErrorPath</key>
 	<string>/var/log/mosona-agent.error.log</string>
 </dict>
-</plist>`, agentruntime.InstallDir)
+</plist>`, macLaunchdLabel, execPath)
 
-	plistPath := "/Library/LaunchDaemons/cc.mosona.agent.plist"
-	if err := os.WriteFile(plistPath, []byte(plistContent), 0644); err != nil {
+	_ = exec.Command("launchctl", "unload", macPlistPath).Run()
+	if err := os.WriteFile(macPlistPath, []byte(plistContent), 0644); err != nil {
 		return err
 	}
 
 	// Load and start the service
-	cmd := exec.Command("launchctl", "load", plistPath)
+	cmd := exec.Command("launchctl", "load", macPlistPath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to load service: %w", err)
 	}
@@ -96,8 +105,16 @@ func installMacService() error {
 
 // Windows
 func installWindowsService() error {
-	cmd := exec.Command("sc", "create", "MosonaAgent",
-		"binPath=", fmt.Sprintf(`%s\mosona-agent.exe run`, agentruntime.InstallDir),
+	execPath := filepath.Join(agentruntime.InstallDir, "mosona-agent.exe")
+	binPath := fmt.Sprintf(`"%s" run`, execPath)
+
+	_ = exec.Command("sc", "stop", serviceName).Run()
+	_ = exec.Command("sc", "delete", serviceName).Run()
+	_ = exec.Command("sc", "stop", "MosonaAgent").Run()
+	_ = exec.Command("sc", "delete", "MosonaAgent").Run()
+
+	cmd := exec.Command("sc", "create", serviceName,
+		"binPath=", binPath,
 		"start=", "auto",
 		"DisplayName=", "Mosona Agent Service")
 
@@ -106,7 +123,7 @@ func installWindowsService() error {
 	}
 
 	// Start
-	startCmd := exec.Command("sc", "start", "MosonaAgent")
+	startCmd := exec.Command("sc", "start", serviceName)
 	if err := startCmd.Run(); err != nil {
 		return fmt.Errorf("failed to start service: %w", err)
 	}
@@ -154,13 +171,11 @@ func uninstallLinuxService() error {
 
 // macOS Launchd
 func uninstallMacService() error {
-	plistPath := "/Library/LaunchDaemons/cc.mosona.agent.plist"
-
-	cmd := exec.Command("launchctl", "unload", plistPath)
+	cmd := exec.Command("launchctl", "unload", macPlistPath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to unload service: %w", err)
 	}
-	if err := os.Remove(plistPath); err != nil {
+	if err := os.Remove(macPlistPath); err != nil {
 		return err
 	}
 
@@ -169,12 +184,16 @@ func uninstallMacService() error {
 
 // Windows
 func uninstallWindowsService() error {
-	stopCmd := exec.Command("sc", "stop", "MosonaAgent")
-	_ = stopCmd.Run()
-	delCmd := exec.Command("sc", "delete", "MosonaAgent")
-	if err := delCmd.Run(); err != nil {
-		return fmt.Errorf("failed to delete service: %w", err)
+	currentErr := deleteWindowsService(serviceName)
+	legacyErr := deleteWindowsService("MosonaAgent")
+	if currentErr != nil && legacyErr != nil {
+		return fmt.Errorf("failed to delete service: %w", currentErr)
 	}
 
 	return nil
+}
+
+func deleteWindowsService(name string) error {
+	_ = exec.Command("sc", "stop", name).Run()
+	return exec.Command("sc", "delete", name).Run()
 }

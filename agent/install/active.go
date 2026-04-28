@@ -5,7 +5,7 @@ import (
 	"mosona-manager/agent/config"
 	"mosona-manager/agent/runtime"
 	"os"
-	"path"
+	"path/filepath"
 )
 
 func Active(uid, publicKey, host string, port int, noMonitor, noTerminal bool) error {
@@ -29,7 +29,7 @@ func Active(uid, publicKey, host string, port int, noMonitor, noTerminal bool) e
 
 	// Save public key
 	publicKeyFile, err := os.Create(
-		path.Join(runtime.InstallDir, "public_key.pem"),
+		filepath.Join(runtime.InstallDir, "public_key.pem"),
 	)
 	if err != nil {
 		return err
