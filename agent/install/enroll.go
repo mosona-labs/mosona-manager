@@ -12,8 +12,7 @@ type EnrollResponse struct {
 	Data string `json:"data,omitempty"`
 }
 
-// EnrollPassive registers the agent in passive mode and returns the new agent id.
-func EnrollPassive(hub, token, publicKey string) (string, error) {
+func EnrollPassive(hub, token, publicKey, ipPreference string) (string, error) {
 	var data EnrollResponse
 	if err := httpclient.PostForm(
 		fmt.Sprintf(
@@ -27,6 +26,7 @@ func EnrollPassive(hub, token, publicKey string) (string, error) {
 		},
 		map[string]string{},
 		&data,
+		ipPreference,
 	); err != nil {
 		return "", err
 	}

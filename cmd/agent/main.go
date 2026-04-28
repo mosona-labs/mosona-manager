@@ -116,7 +116,7 @@ func handleStatus() {
 
 func handleInstall() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: agent install <active|passive> [--no-monitor] <args>")
+		fmt.Println("Usage: agent install <active|passive> [--no-monitor] [--no-terminal] <args>")
 		os.Exit(1)
 	}
 
@@ -124,9 +124,15 @@ func handleInstall() {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	noMonitor := fs.Bool("no-monitor", false, "Disable monitoring")
 	noTerminal := fs.Bool("no-terminal", false, "Disallow terminal")
+	ipv4 := fs.Bool("ipv4", false, "Prefer IPv4 for outbound hub connections")
+	ipv6 := fs.Bool("ipv6", false, "Prefer IPv6 for outbound hub connections")
 	if fs.Parse(os.Args[3:]) != nil {
 		fmt.Println("Failed to parse flags")
 		return
+	}
+	if *ipv4 && *ipv6 {
+		fmt.Println("--ipv4 and --ipv6 cannot be used together")
+		os.Exit(1)
 	}
 
 	switch mode {
@@ -160,7 +166,7 @@ func handleInstall() {
 	case "passive":
 		args := fs.Args()
 		if len(args) < 2 {
-			fmt.Println("Usage: agent install passive [--no-monitor] [--no-terminal] <hub> <enroll_key>")
+			fmt.Println("Usage: agent install passive [--no-monitor] [--no-terminal] [--ipv4|--ipv6] <hub> <enroll_key>")
 			os.Exit(1)
 		}
 
@@ -180,7 +186,14 @@ func handleInstall() {
 			os.Exit(1)
 		}
 
-		if err := install.Passive(hub, token, *noMonitor, *noTerminal); err != nil {
+		ipPreference := ""
+		if *ipv4 {
+			ipPreference = "ipv4"
+		} else if *ipv6 {
+			ipPreference = "ipv6"
+		}
+
+		if err := install.Passive(hub, token, *noMonitor, *noTerminal, ipPreference); err != nil {
 			fmt.Printf("Installation failed: %v\n", err)
 			os.Exit(1)
 		}

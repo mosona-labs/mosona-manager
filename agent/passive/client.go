@@ -19,6 +19,9 @@ func connectHub(path string) (*ws.Client, error) {
 		return nil, err
 	}
 	client.SetHeader("User-Agent", "mosona-manager-agent/"+runtime.Version)
+	if err := client.SetIPPreference(config.Current.IPPreference); err != nil {
+		return nil, err
+	}
 
 	client.SetReconnectConfig(-1, 10*time.Second)
 	client.OnReconnect(func() {

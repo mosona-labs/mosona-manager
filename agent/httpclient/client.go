@@ -1,23 +1,37 @@
 package httpclient
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mosona-manager/agent/runtime"
+	"mosona-manager/pkg/netutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 )
 
-func PostForm(urlStr string, data map[string]interface{}, headers map[string]string, res any) error {
+func PostForm(urlStr string, data map[string]interface{}, headers map[string]string, res any, ipPreference string) error {
 	formData := make(url.Values)
 	for k, v := range data {
 		formData.Set(k, fmt.Sprint(v))
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if ipPreference != "" {
+		network, err := netutil.NetworkForIPPreference(ipPreference)
+		if err != nil {
+			return err
+		}
+		netDialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+		transport.DialContext = func(ctx context.Context, networkAddr, addr string) (net.Conn, error) {
+			return netDialer.DialContext(ctx, network, addr)
+		}
+	}
+	client := &http.Client{Timeout: 30 * time.Second, Transport: transport}
 	req, err := http.NewRequest("POST", urlStr, strings.NewReader(formData.Encode()))
 	if err != nil {
 		return err

@@ -20,4 +20,5 @@ type Client struct {
 	retryInterval time.Duration
 	onReconnect   func()
 	ctx           context.Context
+	ipPreference  string
 }

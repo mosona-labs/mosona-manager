@@ -2,7 +2,9 @@ package ws
 
 import (
 	"context"
+	"mosona-manager/pkg/netutil"
 	"mosona-manager/pkg/wsutil"
+	"net"
 	"net/http"
 	"time"
 
@@ -30,6 +32,14 @@ func (c *Client) OnReconnect(fn func()) {
 	c.onReconnect = fn
 }
 
+func (c *Client) SetIPPreference(preference string) error {
+	if _, err := netutil.NetworkForIPPreference(preference); err != nil {
+		return err
+	}
+	c.ipPreference = preference
+	return nil
+}
+
 func (c *Client) Connect(ctx context.Context, url string) error {
 	c.url = url
 	c.ctx = ctx
@@ -38,6 +48,16 @@ func (c *Client) Connect(ctx context.Context, url string) error {
 
 func (c *Client) dial(ctx context.Context) error {
 	dialer := websocket.Dialer{}
+	if c.ipPreference != "" {
+		network, err := netutil.NetworkForIPPreference(c.ipPreference)
+		if err != nil {
+			return err
+		}
+		netDialer := &net.Dialer{}
+		dialer.NetDialContext = func(ctx context.Context, networkAddr, addr string) (net.Conn, error) {
+			return netDialer.DialContext(ctx, network, addr)
+		}
+	}
 	conn, _, err := dialer.DialContext(ctx, c.url, c.header)
 	if err != nil {
 		return err

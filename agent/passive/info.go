@@ -10,6 +10,7 @@ import (
 	"mosona-manager/agent/runtime"
 	"mosona-manager/agent/telemetry"
 	"mosona-manager/pkg/identity"
+	"mosona-manager/pkg/netutil"
 	"os"
 	"time"
 )
@@ -46,5 +47,5 @@ func reportInfo() error {
 		"X-Agent-Nonce":     nonce,
 		"X-Agent-Signature": signature,
 		"User-Agent":        "mosona-manager-agent/" + runtime.Version,
-	}, nil)
+	}, nil, netutil.IPPreferenceAuto)
 }

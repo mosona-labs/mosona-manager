@@ -6,6 +6,8 @@ type Config struct {
 	NoMonitor  bool `json:"no_monitor"`
 	NoTerminal bool `json:"no_terminal"`
 
+	IPPreference string `json:"ip_preference,omitempty"` // "" | ipv4 | ipv6
+
 	// Active
 	Uid  string `json:"uid,omitempty"`
 	Host string `json:"host,omitempty"`

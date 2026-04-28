@@ -9,7 +9,7 @@ import (
 	"path"
 )
 
-func Passive(hub, enrollKey string, noMonitor, noTerminal bool) error {
+func Passive(hub, enrollKey string, noMonitor, noTerminal bool, ipPreference string) error {
 	fmt.Println("Initializing agent in passive mode...")
 
 	if _, err := os.Stat(runtime.InstallDir); !os.IsNotExist(err) {
@@ -32,7 +32,7 @@ func Passive(hub, enrollKey string, noMonitor, noTerminal bool) error {
 		return err
 	}
 
-	agentUID, err := EnrollPassive(hub, enrollKey, publicKey)
+	agentUID, err := EnrollPassive(hub, enrollKey, publicKey, ipPreference)
 	if err != nil {
 		return err
 	}
@@ -58,8 +58,9 @@ func Passive(hub, enrollKey string, noMonitor, noTerminal bool) error {
 		NoMonitor:  noMonitor,
 		NoTerminal: noTerminal,
 
-		Hub:  hub,
-		UUID: agentUID,
+		IPPreference: ipPreference,
+		Hub:          hub,
+		UUID:         agentUID,
 	}
 	if err = conf.Save(); err != nil {
 		return err
