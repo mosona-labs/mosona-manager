@@ -15,7 +15,7 @@ func loginEvent(
 ) {
 	// Update login time & Save session ID
 	go func() {
-		if _, err := db.Db.Exec("UPDATE users SET login_at=NOW() WHERE id=?", uid); err != nil {
+		if _, err := db.Db.Exec("UPDATE users SET login_at=NOW() WHERE id=$1", uid); err != nil {
 			log.Println(err)
 		}
 		if err := redis.AddSessionID(context.Background(), uid, sessionId); err != nil {
@@ -25,7 +25,7 @@ func loginEvent(
 	// Logs
 	go func(ip, ua string) {
 		var teamIDs []int64
-		rows, err := db.Db.Query("SELECT team_id FROM m_team_user WHERE user_id=?", uid)
+		rows, err := db.Db.Query("SELECT team_id FROM m_team_user WHERE user_id=$1", uid)
 		if err != nil {
 			log.Println(err)
 			return

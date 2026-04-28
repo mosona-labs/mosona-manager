@@ -514,6 +514,14 @@ ALTER TABLE "agents" ADD CONSTRAINT "agents_pkey" PRIMARY KEY ("server_id");
 ALTER TABLE "auth_identity" ADD CONSTRAINT "U_OAUTH" UNIQUE ("provider_id", "subject");
 
 -- ----------------------------
+-- Indexes structure for table auth_identity
+-- ----------------------------
+CREATE INDEX "IDX_AIUP" ON "auth_identity" USING btree (
+  "user_id" "pg_catalog"."int8_ops" ASC NULLS LAST,
+  "provider_id" "pg_catalog"."int4_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
 -- Primary Key structure for table auth_identity
 -- ----------------------------
 ALTER TABLE "auth_identity" ADD CONSTRAINT "auth_identity_pkey" PRIMARY KEY ("id");
@@ -529,6 +537,19 @@ ALTER TABLE "auth_provider" ADD CONSTRAINT "auth_provider_pkey" PRIMARY KEY ("id
 ALTER TABLE "categories" ADD CONSTRAINT "categories_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Indexes structure for table categories
+-- ----------------------------
+CREATE INDEX "IDX_CTS" ON "categories" USING btree (
+  "team" "pg_catalog"."int8_ops" ASC NULLS LAST,
+  "sort" "pg_catalog"."int4_ops" ASC NULLS LAST,
+  "id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+CREATE UNIQUE INDEX "IDX_CTN" ON "categories" USING btree (
+  "team" "pg_catalog"."int8_ops" ASC NULLS LAST,
+  "name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
 -- Primary Key structure for table config
 -- ----------------------------
 ALTER TABLE "config" ADD CONSTRAINT "config_pkey" PRIMARY KEY ("key");
@@ -539,14 +560,37 @@ ALTER TABLE "config" ADD CONSTRAINT "config_pkey" PRIMARY KEY ("key");
 ALTER TABLE "enroll_tokens" ADD CONSTRAINT "enroll_tokens_pkey" PRIMARY KEY ("server_id");
 
 -- ----------------------------
+-- Indexes structure for table enroll_tokens
+-- ----------------------------
+CREATE INDEX "IDX_ETTH" ON "enroll_tokens" USING btree (
+  "token_hash" COLLATE "pg_catalog"."default" "pg_catalog"."bpchar_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
 -- Primary Key structure for table keys
 -- ----------------------------
 ALTER TABLE "keys" ADD CONSTRAINT "keys_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Indexes structure for table keys
+-- ----------------------------
+CREATE INDEX "IDX_KTI" ON "keys" USING btree (
+  "team_id" "pg_catalog"."int8_ops" ASC NULLS LAST,
+  "id" "pg_catalog"."int8_ops" DESC NULLS LAST
+);
+
+-- ----------------------------
 -- Primary Key structure for table m_team_user
 -- ----------------------------
 ALTER TABLE "m_team_user" ADD CONSTRAINT "m_team_user_pkey" PRIMARY KEY ("team_id", "user_id");
+
+-- ----------------------------
+-- Indexes structure for table m_team_user
+-- ----------------------------
+CREATE INDEX "IDX_MTUU" ON "m_team_user" USING btree (
+  "user_id" "pg_catalog"."int8_ops" ASC NULLS LAST,
+  "team_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
 
 -- ----------------------------
 -- Indexes structure for table server_alerts
@@ -570,6 +614,13 @@ ALTER TABLE "server_alerts" ADD CONSTRAINT "server_alerts_pkey" PRIMARY KEY ("id
 ALTER TABLE "server_info" ADD CONSTRAINT "server_info_pkey" PRIMARY KEY ("sid");
 
 -- ----------------------------
+-- Indexes structure for table server_info
+-- ----------------------------
+CREATE INDEX "IDX_SIARD" ON "server_info" USING btree (
+  "end_time" "pg_catalog"."timestamptz_ops" ASC NULLS LAST
+) WHERE "auto_renew" = true AND "cycle" > 0 AND "end_time" IS NOT NULL;
+
+-- ----------------------------
 -- Primary Key structure for table server_info_adv
 -- ----------------------------
 ALTER TABLE "server_info_adv" ADD CONSTRAINT "server_info_adv_pkey" PRIMARY KEY ("sid");
@@ -578,6 +629,25 @@ ALTER TABLE "server_info_adv" ADD CONSTRAINT "server_info_adv_pkey" PRIMARY KEY 
 -- Primary Key structure for table servers
 -- ----------------------------
 ALTER TABLE "servers" ADD CONSTRAINT "servers_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table servers
+-- ----------------------------
+CREATE INDEX "IDX_STMO" ON "servers" USING btree (
+  "team_id" "pg_catalog"."int8_ops" ASC NULLS LAST,
+  "allow_monitor" "pg_catalog"."bool_ops" ASC NULLS LAST,
+  "weight" "pg_catalog"."int4_ops" DESC NULLS LAST,
+  "id" "pg_catalog"."int8_ops" DESC NULLS LAST
+);
+CREATE INDEX "IDX_STTO" ON "servers" USING btree (
+  "team_id" "pg_catalog"."int8_ops" ASC NULLS LAST,
+  "allow_terminal" "pg_catalog"."bool_ops" ASC NULLS LAST,
+  "weight" "pg_catalog"."int4_ops" DESC NULLS LAST,
+  "id" "pg_catalog"."int8_ops" DESC NULLS LAST
+);
+CREATE INDEX "IDX_SC" ON "servers" USING btree (
+  "category" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
 
 -- ----------------------------
 -- Primary Key structure for table ssh
@@ -621,6 +691,13 @@ ALTER TABLE "team_public_pages" ADD CONSTRAINT "team_public_pages_pkey" PRIMARY 
 ALTER TABLE "teams" ADD CONSTRAINT "teams_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Indexes structure for table teams
+-- ----------------------------
+CREATE INDEX "IDX_TOI" ON "teams" USING btree (
+  "owner_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
 -- Indexes structure for table teams_notifications
 -- ----------------------------
 CREATE INDEX "IDX_TNTI" ON "teams_notifications" USING btree (
@@ -638,9 +715,21 @@ ALTER TABLE "teams_notifications" ADD CONSTRAINT "teams_notifications_pkey" PRIM
 ALTER TABLE "users" ADD CONSTRAINT "users_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Uniques structure for table users
+-- ----------------------------
+ALTER TABLE "users" ADD CONSTRAINT "users_email_unique" UNIQUE ("email");
+
+-- ----------------------------
 -- Primary Key structure for table users_config
 -- ----------------------------
 ALTER TABLE "users_config" ADD CONSTRAINT "users_config_pkey" PRIMARY KEY ("uid");
+
+-- ----------------------------
+-- Indexes structure for table users_config
+-- ----------------------------
+CREATE INDEX "IDX_UCAT" ON "users_config" USING btree (
+  "active_team" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
 
 -- ----------------------------
 -- Foreign Keys structure for table agents

@@ -42,7 +42,7 @@ func sessionRevoke(c *echo.Context) error {
 		})
 	}
 
-	if err := redis.RemoveSessionIDs(ctx, []string{sid}); err != nil {
+	if err := redis.RemoveUserSessionIDs(ctx, uid, []string{sid}); err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
@@ -67,7 +67,7 @@ func sessionRevokeAll(c *echo.Context) error {
 		sidList = append(sidList, s.ID)
 	}
 
-	if err = redis.RemoveSessionIDs(ctx, sidList); err != nil {
+	if err = redis.RemoveUserSessionIDs(ctx, uid, sidList); err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 

@@ -14,12 +14,28 @@ func ParseSessionData(id, data string) (*_type.SessionData, error) {
 	if err := decoder.Decode(&session); err != nil {
 		return nil, fmt.Errorf("failed to decode session data: %w", err)
 	}
+	uid, ok := session["uid"].(int64)
+	if !ok {
+		return nil, fmt.Errorf("session uid is missing")
+	}
+	tid, ok := session["tid"].(int64)
+	if !ok {
+		return nil, fmt.Errorf("session tid is missing")
+	}
+	userAgent, ok := session["user_agent"].(string)
+	if !ok {
+		return nil, fmt.Errorf("session user_agent is missing")
+	}
+	loginTime, ok := session["time"].(int64)
+	if !ok {
+		return nil, fmt.Errorf("session time is missing")
+	}
 	return &_type.SessionData{
 		ID:        id,
-		UID:       session["uid"].(int64),
-		TID:       session["tid"].(int64),
-		UserAgent: session["user_agent"].(string),
-		Time:      session["time"].(int64),
+		UID:       uid,
+		TID:       tid,
+		UserAgent: userAgent,
+		Time:      loginTime,
 	}, nil
 }
 
@@ -54,7 +70,7 @@ func GetUserSessions(ctx context.Context, uid int64) ([]*_type.SessionData, erro
 
 	// Clean up non-existing sessions
 	if len(notExistIDs) > 0 {
-		if err = RemoveSessionIDs(ctx, notExistIDs); err != nil {
+		if err = RemoveUserSessionIDs(ctx, uid, notExistIDs); err != nil {
 			return nil, fmt.Errorf("failed to clean up sessions: %w", err)
 		}
 	}
@@ -79,5 +95,23 @@ func RemoveSessionIDs(ctx context.Context, sessionIDs []string) error {
 		}
 	}
 
+	return nil
+}
+
+func RemoveUserSessionIDs(ctx context.Context, uid int64, sessionIDs []string) error {
+	if len(sessionIDs) == 0 {
+		return nil
+	}
+	if err := RemoveSessionIDs(ctx, sessionIDs); err != nil {
+		return err
+	}
+	key := fmt.Sprintf("user:sessions:%d", uid)
+	values := make([]interface{}, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		values = append(values, sessionID)
+	}
+	if err := Client.SRem(ctx, key, values...).Err(); err != nil {
+		return fmt.Errorf("failed to remove sessions from user set: %w", err)
+	}
 	return nil
 }

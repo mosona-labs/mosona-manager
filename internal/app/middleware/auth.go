@@ -33,7 +33,10 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		// User ID
 		uid := sess.Values["uid"]
 		if uid == nil || uid == 0 {
-			return utils.ErrorHandler(c, err, "permission denied")
+			return c.JSON(401, _type.H{
+				Code: "login",
+				Msg:  "Login error",
+			})
 		}
 		userAgent := sess.Values["user_agent"]
 		if userAgent == nil || userAgent != c.Request().Header.Get("User-Agent") {

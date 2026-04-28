@@ -2,6 +2,7 @@ package auth
 
 import (
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/redis"
 	"net/http"
 
 	"github.com/gorilla/sessions"
@@ -13,6 +14,12 @@ func logout(c *echo.Context) error {
 	sess, err := session.Get("session", c)
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session error"})
+	}
+
+	if uid, ok := sess.Values["uid"].(int64); ok && uid != 0 && sess.ID != "" {
+		if err = redis.RemoveUserSessionIDs(c.Request().Context(), uid, []string{sess.ID}); err != nil {
+			return c.JSON(500, _type.H{Code: "error", Msg: "Session cleanup failed"})
+		}
 	}
 
 	for k := range sess.Values {
