@@ -16,9 +16,11 @@ func ListPublicMonitoredServers(teamID int64) ([]_type.PublicMonitor, error) {
 		"i.os", "i.county", "i.area", "i.open_time", "i.provider", "i.cycle",
 		"i.start_time", "i.end_time", "i.amount", "i.bandwidth", "i.traffic", "i.traffic_type",
 		"i.note_public",
+		"ia.core_c", "ia.core_t",
 	).
 		From("servers s").
 		LeftJoin("server_info i ON s.id = i.sid").
+		LeftJoin("server_info_adv ia ON s.id = ia.sid").
 		Where(squirrel.Eq{
 			"s.team_id":       teamID,
 			"s.allow_monitor": true,

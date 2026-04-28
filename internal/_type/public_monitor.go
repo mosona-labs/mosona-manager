@@ -10,6 +10,8 @@ type PublicMonitor struct {
 	OS          *string    `json:"os" db:"os"`
 	County      *string    `json:"county" db:"county"`
 	Area        *string    `json:"area" db:"area"`
+	CoreC       *int       `json:"core_c" db:"core_c"`
+	CoreT       *int       `json:"core_t" db:"core_t"`
 	OpenTime    *time.Time `json:"open_time" db:"open_time"`
 	Provider    *string    `json:"provider" db:"provider"`
 	Cycle       *int16     `json:"cycle" db:"cycle"`
