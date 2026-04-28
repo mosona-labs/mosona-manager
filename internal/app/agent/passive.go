@@ -8,6 +8,7 @@ import (
 	"mosona-manager/internal/connect/callback"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/pkg/wsutil"
 	"net/http"
 	"strconv"
 	"time"
@@ -88,21 +89,7 @@ func passiveWS(c *echo.Context) error {
 
 	mainConn := connection.MainSet(serverId, ws)
 
-	// Heartbeat
-	go func() {
-		for {
-			if err := mainConn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
-				log.Println("ping:", err)
-				return
-			}
-			// Ping every 30 seconds
-			select {
-			case <-c.Request().Context().Done():
-				return
-			case <-time.After(30 * time.Second):
-			}
-		}
-	}()
+	wsutil.StartPing(c.Request().Context(), ws, mainConn.WriteMutex(), "passive agent ping")
 
 	for {
 		_, msg, err := ws.ReadMessage()

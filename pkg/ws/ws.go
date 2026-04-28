@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"mosona-manager/pkg/wsutil"
 	"net/http"
 	"time"
 
@@ -45,6 +46,8 @@ func (c *Client) dial(ctx context.Context) error {
 	c.mu.Lock()
 	c.conn = conn
 	c.mu.Unlock()
+
+	wsutil.SetSafePingHandler(conn, &c.writeMu)
 
 	return nil
 }

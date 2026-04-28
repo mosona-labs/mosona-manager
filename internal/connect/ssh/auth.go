@@ -1,9 +1,11 @@
 package ssh
 
 import (
+	"context"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 var errSSHCertificateRequiresPrivateKey = errors.New("ssh certificate requires a matching private key")
 
 const DefaultDialTimeout = 10 * time.Second
+const keepAliveInterval = 20 * time.Second
 
 func BuildAuthMethods(password, key, keyPwd string) ([]gossh.AuthMethod, error) {
 	if key == "" {
@@ -61,6 +64,26 @@ func ValidateConnection(host string, port int, user, password, key, keyPwd strin
 	}()
 
 	return nil
+}
+
+func KeepAlive(ctx context.Context, client *gossh.Client) {
+	ticker := time.NewTicker(keepAliveInterval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_, _, err := client.SendRequest("keepalive@openssh.com", false, nil)
+				if err != nil {
+					log.Println("ssh keepalive:", err)
+					_ = client.Close()
+					return
+				}
+			}
+		}
+	}()
 }
 
 func parseSigner(key, keyPwd string) (gossh.Signer, error) {

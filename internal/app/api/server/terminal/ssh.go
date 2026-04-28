@@ -1,20 +1,24 @@
 package aterminal
 
 import (
+	"context"
 	"encoding/json"
 	"mosona-manager/internal/_type"
 	connectSSH "mosona-manager/internal/connect/ssh"
 	pbTypes "mosona-manager/pkg/types"
+	"mosona-manager/pkg/wsutil"
 	"sync"
 
 	"github.com/gorilla/websocket"
 	gossh "golang.org/x/crypto/ssh"
 )
 
-func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error {
+func terminalSSH(ctx context.Context, serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error {
 	defer func() {
 		_ = wsConn.Close()
 	}()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	password := ""
 	if serverAuth.Password != nil {
@@ -46,6 +50,7 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 	defer func() {
 		_ = sshClient.Close()
 	}()
+	connectSSH.KeepAlive(ctx, sshClient)
 
 	session, err := sshClient.NewSession()
 	if err != nil {
@@ -88,6 +93,7 @@ func terminalSSH(serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error 
 
 	var wg sync.WaitGroup
 	var writeMu sync.Mutex
+	wsutil.StartPing(ctx, wsConn, &writeMu, "ssh terminal websocket ping")
 	writeMessage := func(messageType int, data []byte) error {
 		writeMu.Lock()
 		defer writeMu.Unlock()

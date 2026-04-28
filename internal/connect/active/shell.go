@@ -7,6 +7,7 @@ import (
 	"errors"
 	"mosona-manager/internal/db"
 	secureWS "mosona-manager/pkg/securews"
+	"mosona-manager/pkg/wsutil"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -56,6 +57,7 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 	}
 
 	var once sync.Once
+	var wsWriteMu sync.Mutex
 	done := make(chan struct{})
 
 	cleanup := func() {
@@ -65,6 +67,7 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 			_ = wsConn.Close()
 		})
 	}
+	wsutil.StartPing(ctx, wsConn, &wsWriteMu, "active terminal browser websocket ping")
 
 	// Agent WS -> Client WS
 	go func() {
@@ -79,7 +82,10 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 				return
 			}
 
-			if err := wsConn.WriteMessage(websocket.TextMessage, data); err != nil {
+			wsWriteMu.Lock()
+			err = wsConn.WriteMessage(websocket.TextMessage, data)
+			wsWriteMu.Unlock()
+			if err != nil {
 				return
 			}
 		}

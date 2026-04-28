@@ -42,3 +42,7 @@ func (c *ManagedConn) WriteMessage(messageType int, data []byte) error {
 	defer c.writeMu.Unlock()
 	return c.conn.WriteMessage(messageType, data)
 }
+
+func (c *ManagedConn) WriteMutex() *sync.Mutex {
+	return &c.writeMu
+}

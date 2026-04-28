@@ -44,6 +44,7 @@ func SSH(
 		}
 
 		backoff = initialBackoff
+		KeepAlive(ctx, client)
 
 		connClosed := make(chan struct{})
 		go func() {

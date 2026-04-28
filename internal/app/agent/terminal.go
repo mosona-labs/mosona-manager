@@ -3,6 +3,7 @@ package agent
 import (
 	"log"
 	"mosona-manager/internal/app/agent/connection"
+	"mosona-manager/pkg/wsutil"
 	"net/http"
 	"sync"
 
@@ -33,6 +34,8 @@ func terminal(c *echo.Context) error {
 	}
 
 	var once sync.Once
+	var wsWriteMu sync.Mutex
+	var userWriteMu sync.Mutex
 	done := make(chan struct{})
 
 	cleanup := func() {
@@ -42,6 +45,8 @@ func terminal(c *echo.Context) error {
 			connection.UserRemove(sessionID)
 		})
 	}
+	wsutil.StartPing(c.Request().Context(), ws, &wsWriteMu, "passive terminal agent websocket ping")
+	wsutil.StartPing(c.Request().Context(), userConn, &userWriteMu, "passive terminal browser websocket ping")
 
 	// User WS -> Agent WS
 	go func() {
@@ -51,7 +56,10 @@ func terminal(c *echo.Context) error {
 			if err != nil {
 				return
 			}
-			if err := userConn.WriteMessage(mt, message); err != nil {
+			userWriteMu.Lock()
+			err = userConn.WriteMessage(mt, message)
+			userWriteMu.Unlock()
+			if err != nil {
 				return
 			}
 		}
@@ -65,7 +73,10 @@ func terminal(c *echo.Context) error {
 			if err != nil {
 				return
 			}
-			if err := ws.WriteMessage(mt, message); err != nil {
+			wsWriteMu.Lock()
+			err = ws.WriteMessage(mt, message)
+			wsWriteMu.Unlock()
+			if err != nil {
 				return
 			}
 		}
