@@ -16,6 +16,7 @@ type publicPageUpdateRequest struct {
 	Domain      string `json:"domain"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	CustomCSS   string `json:"custom_css"`
 }
 
 type publicPageResponse struct {
@@ -24,6 +25,7 @@ type publicPageResponse struct {
 	Domain      *string `json:"domain,omitempty"`
 	Title       *string `json:"title,omitempty"`
 	Description *string `json:"description,omitempty"`
+	CustomCSS   *string `json:"custom_css,omitempty"`
 	URLByName   *string `json:"url_by_name,omitempty"`
 	URLByDomain *string `json:"url_by_domain,omitempty"`
 }
@@ -102,6 +104,13 @@ func normalizePublicPageDescription(raw string) *string {
 		return nil
 	}
 	return &description
+}
+
+func normalizePublicPageCustomCSS(raw string) *string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	return &raw
 }
 
 func normalizeConfiguredBaseDomain(raw string) string {

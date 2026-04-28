@@ -11,7 +11,7 @@ func GetTeamPublicPage(teamID int64) (_type.TeamPublicPage, error) {
 	var page _type.TeamPublicPage
 	err := Db.Get(
 		&page,
-		`SELECT team_id, enabled, name, domain, title, description, created_at, updated_at
+		`SELECT team_id, enabled, name, domain, title, description, custom_css, created_at, updated_at
 		 FROM team_public_pages
 		 WHERE team_id = $1`,
 		teamID,
@@ -29,19 +29,20 @@ func GetTeamPublicPage(teamID int64) (_type.TeamPublicPage, error) {
 	return page, nil
 }
 
-func UpsertTeamPublicPage(teamID int64, enabled bool, name, domain, title, description *string) error {
+func UpsertTeamPublicPage(teamID int64, enabled bool, name, domain, title, description, customCSS *string) error {
 	_, err := Db.Exec(
-		`INSERT INTO team_public_pages (team_id, enabled, name, domain, title, description, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, now())
+		`INSERT INTO team_public_pages (team_id, enabled, name, domain, title, description, custom_css, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, now())
 		 ON CONFLICT (team_id)
 		 DO UPDATE SET
-		 	enabled = EXCLUDED.enabled,
-		 	name = EXCLUDED.name,
-		 	domain = EXCLUDED.domain,
-		 	title = EXCLUDED.title,
-		 	description = EXCLUDED.description,
-		 	updated_at = now()`,
-		teamID, enabled, name, domain, title, description,
+			enabled = EXCLUDED.enabled,
+			name = EXCLUDED.name,
+			domain = EXCLUDED.domain,
+			title = EXCLUDED.title,
+			description = EXCLUDED.description,
+			custom_css = EXCLUDED.custom_css,
+			updated_at = now()`,
+		teamID, enabled, name, domain, title, description, customCSS,
 	)
 	return err
 }
@@ -50,7 +51,7 @@ func GetEnabledTeamPublicPageByName(name string) (_type.ResolvedPublicPage, erro
 	var page _type.ResolvedPublicPage
 	err := Db.Get(
 		&page,
-		`SELECT p.team_id, p.enabled, p.name, p.domain, p.title, p.description, p.created_at, p.updated_at,
+		`SELECT p.team_id, p.enabled, p.name, p.domain, p.title, p.description, p.custom_css, p.created_at, p.updated_at,
 		        t.name AS team_name, t.color AS team_color, t.image AS team_image
 		 FROM team_public_pages p
 		 JOIN teams t ON t.id = p.team_id
@@ -64,7 +65,7 @@ func GetEnabledTeamPublicPageByDomain(domain string) (_type.ResolvedPublicPage, 
 	var page _type.ResolvedPublicPage
 	err := Db.Get(
 		&page,
-		`SELECT p.team_id, p.enabled, p.name, p.domain, p.title, p.description, p.created_at, p.updated_at,
+		`SELECT p.team_id, p.enabled, p.name, p.domain, p.title, p.description, p.custom_css, p.created_at, p.updated_at,
 		        t.name AS team_name, t.color AS team_color, t.image AS team_image
 		 FROM team_public_pages p
 		 JOIN teams t ON t.id = p.team_id

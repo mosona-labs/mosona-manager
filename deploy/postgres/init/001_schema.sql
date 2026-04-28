@@ -410,6 +410,7 @@ CREATE TABLE "team_public_pages" (
   "domain" varchar(255) COLLATE "pg_catalog"."default",
   "title" varchar(255) COLLATE "pg_catalog"."default",
   "description" text COLLATE "pg_catalog"."default",
+  "custom_css" text COLLATE "pg_catalog"."default",
   "created_at" timestamp(6) NOT NULL DEFAULT now(),
   "updated_at" timestamp(6) NOT NULL DEFAULT now()
 )

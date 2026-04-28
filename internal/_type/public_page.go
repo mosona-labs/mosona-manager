@@ -9,6 +9,7 @@ type TeamPublicPage struct {
 	Domain      *string   `json:"domain,omitempty" db:"domain"`
 	Title       *string   `json:"title,omitempty" db:"title"`
 	Description *string   `json:"description,omitempty" db:"description"`
+	CustomCSS   *string   `json:"custom_css,omitempty" db:"custom_css"`
 	CreatedAt   time.Time `json:"created_at,omitempty" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at,omitempty" db:"updated_at"`
 }
@@ -25,6 +26,7 @@ type PublicPageSummary struct {
 	Name        *string `json:"name,omitempty"`
 	Domain      *string `json:"domain,omitempty"`
 	Description *string `json:"description,omitempty"`
+	CustomCSS   *string `json:"custom_css,omitempty"`
 	TeamName    string  `json:"team_name"`
 	TeamColor   string  `json:"team_color,omitempty"`
 	TeamImage   string  `json:"team_image,omitempty"`

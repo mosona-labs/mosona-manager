@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -24,18 +25,20 @@ import (
 
 const publicPageContextKey = "public_page"
 
+var styleCloseTagPattern = regexp.MustCompile(`(?i)</style`)
+
 func PageByName(c *echo.Context) error {
-	_, err := resolvePageByName(c.Param("name"))
+	page, err := resolvePageByName(c.Param("name"))
 	if err != nil {
 		return publicResolveError(c, err)
 	}
 
 	setPublicPageHeaders(c)
-	return c.FileFS("index.html", previewFS())
+	return servePreviewIndex(c, &page)
 }
 
 func TryServeDomainRequest(c *echo.Context) (bool, error) {
-	_, err := resolvePageByDomainHost(c.Request().Host)
+	page, err := resolvePageByDomainHost(c.Request().Host)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
@@ -52,7 +55,7 @@ func TryServeDomainRequest(c *echo.Context) (bool, error) {
 		}
 	}
 
-	return true, c.FileFS("index.html", previewFS())
+	return true, servePreviewIndex(c, &page)
 }
 
 func bootstrap(c *echo.Context) error {
@@ -229,6 +232,7 @@ func buildPublicPageSummary(page *_type.ResolvedPublicPage) _type.PublicPageSumm
 		Name:        page.Name,
 		Domain:      page.Domain,
 		Description: page.Description,
+		CustomCSS:   page.CustomCSS,
 		TeamName:    page.TeamName,
 		TeamColor:   page.TeamColor,
 		TeamImage:   page.TeamImage,
@@ -246,6 +250,32 @@ func previewFS() fs.FS {
 
 func frontendFS() fs.FS {
 	return echo.NewDefaultFS(config.Conf.FrontendDir)
+}
+
+func servePreviewIndex(c *echo.Context, page *_type.ResolvedPublicPage) error {
+	index, err := fs.ReadFile(previewFS(), "index.html")
+	if err != nil {
+		return err
+	}
+
+	css := ""
+	if page != nil && page.CustomCSS != nil {
+		css = strings.TrimSpace(*page.CustomCSS)
+	}
+	if css == "" {
+		return c.HTMLBlob(200, index)
+	}
+
+	style := "<style id=\"mosona-public-page-custom-css\">\n" + sanitizeStyleContent(css) + "\n</style>\n"
+	html := strings.Replace(string(index), "</head>", style+"</head>", 1)
+	if html == string(index) {
+		html = style + string(index)
+	}
+	return c.HTMLBlob(200, []byte(html))
+}
+
+func sanitizeStyleContent(css string) string {
+	return styleCloseTagPattern.ReplaceAllString(css, `<\/style`)
 }
 
 func setPublicPageHeaders(c *echo.Context) {

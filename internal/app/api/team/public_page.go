@@ -72,6 +72,7 @@ func setPublicPage(c *echo.Context) error {
 		})
 	}
 	description := normalizePublicPageDescription(req.Description)
+	customCSS := normalizePublicPageCustomCSS(req.CustomCSS)
 	if req.Enabled && name == nil && domain == nil {
 		return c.JSON(400, _type.H{
 			Code: "invalid",
@@ -88,7 +89,7 @@ func setPublicPage(c *echo.Context) error {
 		}
 	}
 
-	err = db.UpsertTeamPublicPage(tid, req.Enabled, name, domain, title, description)
+	err = db.UpsertTeamPublicPage(tid, req.Enabled, name, domain, title, description, customCSS)
 	if err != nil {
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
@@ -139,6 +140,7 @@ func buildPublicPageResponse(c *echo.Context, page _type.TeamPublicPage) publicP
 		Domain:      page.Domain,
 		Title:       page.Title,
 		Description: page.Description,
+		CustomCSS:   page.CustomCSS,
 		URLByName:   urlByName,
 		URLByDomain: urlByDomain,
 	}
