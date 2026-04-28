@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"mosona-manager/agent/types"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -44,32 +45,32 @@ func NewMonitor() *Monitor {
 // non-root partitions smaller than 5GB.
 func qualifiedPartitions() []types.DiskInfo {
 	excludeFsTypes := map[string]bool{
-		"tmpfs":     true,
-		"devtmpfs":  true,
-		"devfs":     true,
-		"squashfs":  true,
-		"overlay":   true,
-		"iso9660":   true,
-		"udf":       true,
-		"efivarfs":  true,
+		"tmpfs":       true,
+		"devtmpfs":    true,
+		"devfs":       true,
+		"squashfs":    true,
+		"overlay":     true,
+		"iso9660":     true,
+		"udf":         true,
+		"efivarfs":    true,
 		"binfmt_misc": true,
-		"autofs":    true,
+		"autofs":      true,
 		"fuse.portal": true,
-		"nsfs":      true,
-		"proc":      true,
-		"sysfs":     true,
-		"cgroup":    true,
-		"cgroup2":   true,
-		"pstore":    true,
-		"debugfs":   true,
-		"tracefs":   true,
-		"securityfs": true,
-		"configfs":  true,
-		"fusectl":   true,
-		"hugetlbfs": true,
-		"mqueue":    true,
-		"bpf":       true,
-		"ramfs":     true,
+		"nsfs":        true,
+		"proc":        true,
+		"sysfs":       true,
+		"cgroup":      true,
+		"cgroup2":     true,
+		"pstore":      true,
+		"debugfs":     true,
+		"tracefs":     true,
+		"securityfs":  true,
+		"configfs":    true,
+		"fusectl":     true,
+		"hugetlbfs":   true,
+		"mqueue":      true,
+		"bpf":         true,
+		"ramfs":       true,
 	}
 
 	excludeMountPrefixes := []string{"/boot", "/snap/", "/sys", "/proc", "/dev", "/run"}
@@ -93,6 +94,10 @@ func qualifiedPartitions() []types.DiskInfo {
 
 	for _, p := range partitions {
 		if excludeFsTypes[p.Fstype] {
+			continue
+		}
+
+		if runtime.GOOS == "darwin" && isDarwinSystemVolume(p.Mountpoint) {
 			continue
 		}
 
@@ -142,6 +147,23 @@ func qualifiedPartitions() []types.DiskInfo {
 	}
 
 	return result
+}
+
+func isDarwinSystemVolume(mountpoint string) bool {
+	if strings.HasPrefix(mountpoint, "/System/Volumes/") {
+		return true
+	}
+
+	switch mountpoint {
+	case "/Volumes/Recovery",
+		"/Volumes/Preboot",
+		"/Volumes/Update",
+		"/Volumes/VM",
+		"/Volumes/Data":
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *Monitor) Snapshot() (*types.Status, error) {

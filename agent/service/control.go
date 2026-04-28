@@ -6,13 +6,23 @@ import (
 	"runtime"
 )
 
+const (
+	macLaunchdLabel = "cc.mosona.agent"
+	macPlistPath    = "/Library/LaunchDaemons/cc.mosona.agent.plist"
+)
+
 func Start() ([]byte, error) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
 		cmd = exec.Command("sc", "start", "mosona-agent")
 	case "darwin":
-		cmd = exec.Command("launchctl", "load", "/Library/LaunchDaemons/cc.mosona.agent.plist")
+		if err := exec.Command("launchctl", "print", "system/"+macLaunchdLabel).Run(); err != nil {
+			if output, err := exec.Command("launchctl", "bootstrap", "system", macPlistPath).CombinedOutput(); err != nil {
+				return output, err
+			}
+		}
+		cmd = exec.Command("launchctl", "kickstart", "-k", "system/"+macLaunchdLabel)
 	case "linux":
 		cmd = exec.Command("systemctl", "start", "mosona-agent")
 	}
@@ -28,7 +38,7 @@ func Stop() ([]byte, error) {
 	case "windows":
 		cmd = exec.Command("sc", "stop", "mosona-agent")
 	case "darwin":
-		cmd = exec.Command("launchctl", "unload", "/Library/LaunchDaemons/cc.mosona.agent.plist")
+		cmd = exec.Command("launchctl", "bootout", "system/"+macLaunchdLabel)
 	case "linux":
 		cmd = exec.Command("systemctl", "stop", "mosona-agent")
 	}
@@ -48,11 +58,11 @@ func Restart() ([]byte, error) {
 		}
 		cmd = exec.Command("sc", "start", "mosona-agent")
 	case "darwin":
-		cmd = exec.Command("launchctl", "unload", "/Library/LaunchDaemons/cc.mosona.agent.plist")
-		if output, err := cmd.CombinedOutput(); err != nil {
+		_ = exec.Command("launchctl", "bootout", "system/"+macLaunchdLabel).Run()
+		if output, err := exec.Command("launchctl", "bootstrap", "system", macPlistPath).CombinedOutput(); err != nil {
 			return output, err
 		}
-		cmd = exec.Command("launchctl", "load", "/Library/LaunchDaemons/cc.mosona.agent.plist")
+		cmd = exec.Command("launchctl", "kickstart", "-k", "system/"+macLaunchdLabel)
 	case "linux":
 		cmd = exec.Command("systemctl", "restart", "mosona-agent")
 	}
@@ -68,7 +78,7 @@ func Status() ([]byte, error) {
 	case "windows":
 		cmd = exec.Command("sc", "query", "mosona-agent")
 	case "darwin":
-		cmd = exec.Command("launchctl", "list", "cc.mosona.agent")
+		cmd = exec.Command("launchctl", "print", "system/"+macLaunchdLabel)
 	case "linux":
 		cmd = exec.Command("systemctl", "status", "mosona-agent")
 	}

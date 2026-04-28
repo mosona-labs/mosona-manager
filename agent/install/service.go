@@ -89,15 +89,16 @@ func installMacService() error {
 </dict>
 </plist>`, macLaunchdLabel, execPath)
 
-	_ = exec.Command("launchctl", "unload", macPlistPath).Run()
+	_ = exec.Command("launchctl", "bootout", "system/"+macLaunchdLabel).Run()
 	if err := os.WriteFile(macPlistPath, []byte(plistContent), 0644); err != nil {
 		return err
 	}
 
-	// Load and start the service
-	cmd := exec.Command("launchctl", "load", macPlistPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to load service: %w", err)
+	if err := exec.Command("launchctl", "bootstrap", "system", macPlistPath).Run(); err != nil {
+		return fmt.Errorf("failed to bootstrap service: %w", err)
+	}
+	if err := exec.Command("launchctl", "kickstart", "-k", "system/"+macLaunchdLabel).Run(); err != nil {
+		return fmt.Errorf("failed to start service: %w", err)
 	}
 
 	return nil
@@ -171,10 +172,7 @@ func uninstallLinuxService() error {
 
 // macOS Launchd
 func uninstallMacService() error {
-	cmd := exec.Command("launchctl", "unload", macPlistPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to unload service: %w", err)
-	}
+	_ = exec.Command("launchctl", "bootout", "system/"+macLaunchdLabel).Run()
 	if err := os.Remove(macPlistPath); err != nil {
 		return err
 	}
