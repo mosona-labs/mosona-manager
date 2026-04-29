@@ -251,11 +251,14 @@ SQL
   done
 }
 
+run_bootstrap() {
+  docker compose up --no-deps --force-recreate --exit-code-from bootstrap bootstrap
+}
+
 require_commands
 fetch_deployment_files
 check_postgres_volume_layout
-docker compose up -d --no-deps --force-recreate bootstrap
-docker compose logs -f bootstrap
+run_bootstrap
 run_db_migrations
 docker compose build app
 docker compose up -d --no-deps --force-recreate app
