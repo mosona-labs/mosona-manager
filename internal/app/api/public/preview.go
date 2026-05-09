@@ -14,6 +14,7 @@ import (
 	"mosona-manager/internal/utils"
 	"net"
 	"net/http"
+	"net/url"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -25,7 +26,10 @@ import (
 
 const publicPageContextKey = "public_page"
 
-var styleCloseTagPattern = regexp.MustCompile(`(?i)</style`)
+var (
+	styleCloseTagPattern = regexp.MustCompile(`(?i)</style`)
+	faviconLinkPattern   = regexp.MustCompile(`(?i)<link\b[^>]*\brel=["'](?:shortcut\s+)?icon["'][^>]*>`)
+)
 
 func PageByName(c *echo.Context) error {
 	page, err := resolvePageByName(c.Param("name"))
@@ -238,8 +242,10 @@ func buildPublicPageSummary(page *_type.ResolvedPublicPage) _type.PublicPageSumm
 		TeamImage:   page.TeamImage,
 	}
 	if page.TeamImage != "" {
-		avatar := "/avatars/" + page.TeamImage
-		summary.TeamAvatar = &avatar
+		avatar := publicAvatarURL(page.TeamImage)
+		if avatar != "" {
+			summary.TeamAvatar = &avatar
+		}
 	}
 	return summary
 }
@@ -258,24 +264,60 @@ func servePreviewIndex(c *echo.Context, page *_type.ResolvedPublicPage) error {
 		return err
 	}
 
+	html := applyPreviewFavicon(string(index), page)
 	css := ""
 	if page != nil && page.CustomCSS != nil {
 		css = strings.TrimSpace(*page.CustomCSS)
 	}
 	if css == "" {
-		return c.HTMLBlob(200, index)
+		return c.HTML(200, html)
 	}
 
 	style := "<style id=\"mosona-public-page-custom-css\">\n" + sanitizeStyleContent(css) + "\n</style>\n"
-	html := strings.Replace(string(index), "</head>", style+"</head>", 1)
-	if html == string(index) {
-		html = style + string(index)
+	withStyle := strings.Replace(html, "</head>", style+"</head>", 1)
+	if withStyle == html {
+		withStyle = style + html
 	}
-	return c.HTMLBlob(200, []byte(html))
+	return c.HTML(200, withStyle)
 }
 
 func sanitizeStyleContent(css string) string {
 	return styleCloseTagPattern.ReplaceAllString(css, `<\/style`)
+}
+
+func applyPreviewFavicon(html string, page *_type.ResolvedPublicPage) string {
+	if page == nil || strings.TrimSpace(page.TeamImage) == "" {
+		return html
+	}
+
+	href := publicAvatarURL(page.TeamImage)
+	if href == "" {
+		return html
+	}
+
+	link := `<link rel="icon" href="` + href + `" />`
+	if faviconLinkPattern.MatchString(html) {
+		replaced := false
+		return faviconLinkPattern.ReplaceAllStringFunc(html, func(match string) string {
+			if replaced {
+				return ""
+			}
+			replaced = true
+			return link
+		})
+	}
+	if strings.Contains(html, "</head>") {
+		return strings.Replace(html, "</head>", link+"\n</head>", 1)
+	}
+	return link + "\n" + html
+}
+
+func publicAvatarURL(image string) string {
+	image = path.Base(strings.TrimSpace(image))
+	if image == "" || image == "." || image == "/" {
+		return ""
+	}
+	return "/avatars/" + url.PathEscape(image)
 }
 
 func setPublicPageHeaders(c *echo.Context) {

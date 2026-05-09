@@ -93,6 +93,14 @@ English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
     <img src=".readme/sponsors.svg" alt="Sponsors" width="460" />
 </a>
 
+本项目能够持续发展，离不开以下赞助者的支持。
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/Asahina1096"><img src="https://avatars.githubusercontent.com/u/52925955?s=52&v=4" width="50px;" alt="Asahina1096"/><br />Asahina1096</a></td>
+  </tr>
+</table>
+
 ## 许可
 
 本项目采用 MIT 许可证。详情请参阅 [LICENSE](./LICENSE) 文件。

@@ -93,6 +93,14 @@ Tu apoyo ayuda a mantener y mejorar el proyecto.
     <img src=".readme/sponsors.svg" alt="Sponsors" width="460" />
 </a>
 
+Este proyecto es posible gracias al apoyo de los siguientes patrocinadores.
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/Asahina1096"><img src="https://avatars.githubusercontent.com/u/52925955?s=52&v=4" width="50px;" alt="Asahina1096"/><br />Asahina1096</a></td>
+  </tr>
+</table>
+
 ## Licencia
 
 Este proyecto está licenciado bajo la Licencia MIT. Consulta el archivo [LICENSE](./LICENSE) para más detalles.
