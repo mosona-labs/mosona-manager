@@ -27,6 +27,10 @@ func SyncConfig() error {
 			config.DynamicConf.Init = item.Value == "true"
 		case "debug":
 			config.DynamicConf.Debug = item.Value == "true"
+		case "title":
+			config.DynamicConf.Title = item.Value
+		case "favicon":
+			config.DynamicConf.Favicon = item.Value
 		case "domain":
 			config.DynamicConf.Domain = item.Value
 		case "token":

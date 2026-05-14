@@ -15,6 +15,8 @@ func get(c *echo.Context) error {
 		Msg:  "Success",
 		Data: Response{
 			Debug:                   dc.Debug,
+			Title:                   dc.Title,
+			Favicon:                 dc.Favicon,
 			Domain:                  dc.Domain,
 			EmailProvider:           dc.EmailProvider,
 			SMTPHost:                dc.SMTPHost,

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
+	"io/fs"
 	"log"
 	"log/slog"
 	"mosona-manager/internal/_type"
@@ -23,10 +25,12 @@ import (
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/redis"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -36,6 +40,11 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 	"github.com/rbcervilla/redisstore/v9"
+)
+
+var (
+	siteTitlePattern       = regexp.MustCompile(`(?is)<title\b[^>]*>.*?</title>`)
+	siteFaviconLinkPattern = regexp.MustCompile(`(?i)<link\b[^>]*\brel=["'](?:shortcut\s+)?icon["'][^>]*>`)
 )
 
 func Start() {
@@ -127,7 +136,7 @@ func Start() {
 			relativePath := strings.TrimPrefix(path.Clean("/"+reqPath), "/")
 			return c.FileFS(relativePath, frontendFS)
 		}
-		return c.FileFS("index.html", frontendFS)
+		return serveFrontendIndex(c, frontendFS)
 	}
 	e.GET("/", frontendHandler)
 	e.GET("/*", frontendHandler)
@@ -152,6 +161,65 @@ func Start() {
 		log.Fatal("failed to start or shutdown server", "error", err)
 	}
 	e.Logger.Info("Server stopped gracefully")
+}
+
+func serveFrontendIndex(c *echo.Context, frontendFS fs.FS) error {
+	index, err := fs.ReadFile(frontendFS, "index.html")
+	if err != nil {
+		return err
+	}
+	return c.HTML(http.StatusOK, applySiteMetadata(string(index)))
+}
+
+func applySiteMetadata(htmlDoc string) string {
+	dc := config.ReadDynamicConf()
+
+	if title := strings.TrimSpace(dc.Title); title != "" {
+		titleTag := "<title>" + html.EscapeString(title) + "</title>"
+		if siteTitlePattern.MatchString(htmlDoc) {
+			htmlDoc = siteTitlePattern.ReplaceAllString(htmlDoc, titleTag)
+		} else if strings.Contains(htmlDoc, "</head>") {
+			htmlDoc = strings.Replace(htmlDoc, "</head>", titleTag+"\n</head>", 1)
+		} else {
+			htmlDoc = titleTag + "\n" + htmlDoc
+		}
+	}
+
+	if favicon := siteFaviconURL(dc.Favicon); favicon != "" {
+		link := `<link rel="icon" href="` + html.EscapeString(favicon) + `" />`
+		if siteFaviconLinkPattern.MatchString(htmlDoc) {
+			replaced := false
+			htmlDoc = siteFaviconLinkPattern.ReplaceAllStringFunc(htmlDoc, func(match string) string {
+				if replaced {
+					return ""
+				}
+				replaced = true
+				return link
+			})
+		} else if strings.Contains(htmlDoc, "</head>") {
+			htmlDoc = strings.Replace(htmlDoc, "</head>", link+"\n</head>", 1)
+		} else {
+			htmlDoc = link + "\n" + htmlDoc
+		}
+	}
+
+	return htmlDoc
+}
+
+func siteFaviconURL(favicon string) string {
+	favicon = strings.TrimSpace(favicon)
+	if favicon == "" {
+		return ""
+	}
+	if strings.HasPrefix(favicon, "/") && !strings.HasPrefix(favicon, "//") {
+		return favicon
+	}
+
+	name := path.Base(favicon)
+	if name == "" || name == "." || name == "/" {
+		return ""
+	}
+	return "/avatars/" + url.PathEscape(name)
 }
 
 func HealthCheck() error {

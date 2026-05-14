@@ -33,8 +33,18 @@ func set(c *echo.Context) error {
 	stmt := `INSERT INTO config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2`
 	for _, item := range *req {
 		// Skip protected keys
-		if item.Key == "init" || item.Key == "token" {
+		if item.Key == "init" || item.Key == "token" || item.Key == "favicon" {
 			continue
+		}
+		if item.Key == "title" {
+			item.Value = strings.TrimSpace(item.Value)
+			if len(item.Value) > 255 {
+				_ = tx.Rollback()
+				return c.JSON(400, _type.H{
+					Code: "invalid",
+					Msg:  "Title is too long",
+				})
+			}
 		}
 		// Execute upsert
 		if _, err = tx.Exec(stmt, item.Key, item.Value); err != nil {

@@ -3,6 +3,10 @@ package msettings
 type Response struct {
 	Debug bool `json:"debug"`
 
+	// Site
+	Title   string `json:"title"`
+	Favicon string `json:"favicon"`
+
 	// Domain
 	Domain string `json:"domain"`
 

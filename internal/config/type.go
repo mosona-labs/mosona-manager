@@ -29,6 +29,10 @@ type DynamicConfigType struct {
 	Init  bool
 	Debug bool
 
+	// Site
+	Title   string
+	Favicon string
+
 	// Domain
 	Domain string
 
