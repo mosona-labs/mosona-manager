@@ -8,7 +8,6 @@ services:
             POSTGRES_PASSWORD: ${PG_PASSWORD}
         volumes:
             - pg_data:/var/lib/postgresql
-            - ./postgres/init:/docker-entrypoint-initdb.d:ro
         ulimits:
             nofile:
                 soft: 65536
@@ -49,7 +48,6 @@ services:
             GOGC: "80"
         volumes:
             - influx_data:/var/lib/influxdb2
-            - ./config/influxdb:/etc/influxdb2
         ulimits:
             nofile:
                 soft: 65536

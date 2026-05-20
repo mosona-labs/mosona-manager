@@ -51,6 +51,11 @@ func Init() {
 }
 
 func runMigrations() error {
+	initialSchemaApplied, err := ensureInitialSchema()
+	if err != nil {
+		return err
+	}
+
 	if _, err := Db.Exec(`
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version varchar(255) PRIMARY KEY,
@@ -67,6 +72,13 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 	for _, migration := range migrations {
 		version := path.Base(migration)
+
+		if initialSchemaApplied {
+			if _, err := Db.Exec("INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING", version); err != nil {
+				return fmt.Errorf("record baseline migration %s: %w", version, err)
+			}
+			continue
+		}
 
 		var applied bool
 		if err := Db.Get(&applied, "SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)", version); err != nil {
@@ -101,4 +113,38 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 	}
 
 	return nil
+}
+
+func ensureInitialSchema() (bool, error) {
+	var schemaExists bool
+	if err := Db.Get(&schemaExists, "SELECT to_regclass('public.users') IS NOT NULL"); err != nil {
+		return false, err
+	}
+	if schemaExists {
+		return false, nil
+	}
+
+	var tableCount int
+	if err := Db.Get(&tableCount, `
+SELECT count(*)
+FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_type = 'BASE TABLE'`); err != nil {
+		return false, err
+	}
+	if tableCount > 0 {
+		return false, fmt.Errorf("public schema is not empty but users table is missing")
+	}
+
+	schemaSQL, err := postgres.InitSchema.ReadFile("init/001_schema.sql")
+	if err != nil {
+		return false, err
+	}
+
+	if _, err = Db.Exec(string(schemaSQL)); err != nil {
+		return false, fmt.Errorf("apply initial schema: %w", err)
+	}
+
+	log.Println("Applied Postgres initial schema")
+	return true, nil
 }
