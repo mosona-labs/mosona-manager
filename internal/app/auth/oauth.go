@@ -174,9 +174,11 @@ func oauthCallback(c *echo.Context) error {
 	sess.Options = sessionOptions(86400 * 3)
 
 	// Already logged in
-	uid := sess.Values["uid"]
-	if uid != nil && uid.(int64) != 0 {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Already logged in"})
+	if sess.Values["uid"] != nil {
+		currentUID, ok := sess.Values["uid"].(int64)
+		if ok && currentUID > 0 {
+			return c.JSON(500, _type.H{Code: "error", Msg: "Already logged in"})
+		}
 	}
 
 	// MFA & TOTP Check

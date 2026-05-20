@@ -20,7 +20,10 @@ func loginSession(c *echo.Context, uid int64, isAdmin bool) *_type.H {
 
 	// Already logged in
 	if sess.Values["uid"] != nil {
-		return &_type.H{Code: "error", Msg: "Already logged in"}
+		currentUID, ok := sess.Values["uid"].(int64)
+		if ok && currentUID > 0 {
+			return &_type.H{Code: "error", Msg: "Already logged in"}
+		}
 	}
 
 	// Active Team

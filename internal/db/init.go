@@ -2,8 +2,12 @@ package db
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
+	"mosona-manager/deploy/postgres"
 	"mosona-manager/internal/config"
+	"path"
+	"sort"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -34,6 +38,9 @@ func Init() {
 
 	for i := 0; i < 5; i++ {
 		if err = Db.Ping(); err == nil {
+			if err = runMigrations(); err != nil {
+				log.Fatalln("Failed to run Postgres migrations:", err)
+			}
 			return
 		}
 		log.Printf("Postgres ping failed (attempt %d): %v", i+1, err)
@@ -41,4 +48,57 @@ func Init() {
 	}
 
 	log.Fatalln("Failed to connect to Postgres after retries:", err)
+}
+
+func runMigrations() error {
+	if _, err := Db.Exec(`
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version varchar(255) PRIMARY KEY,
+  applied_at timestamptz NOT NULL DEFAULT now()
+)`); err != nil {
+		return err
+	}
+
+	migrations, err := fs.Glob(postgres.Migrations, "migrations/*.sql")
+	if err != nil {
+		return err
+	}
+	sort.Strings(migrations)
+
+	for _, migration := range migrations {
+		version := path.Base(migration)
+
+		var applied bool
+		if err := Db.Get(&applied, "SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)", version); err != nil {
+			return err
+		}
+		if applied {
+			continue
+		}
+
+		sqlBytes, err := postgres.Migrations.ReadFile(migration)
+		if err != nil {
+			return err
+		}
+
+		tx, err := Db.Beginx()
+		if err != nil {
+			return err
+		}
+		if _, err = tx.Exec(string(sqlBytes)); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("apply migration %s: %w", version, err)
+		}
+		if _, err = tx.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", version); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("record migration %s: %w", version, err)
+		}
+		if err = tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration %s: %w", version, err)
+		}
+
+		log.Printf("Applied Postgres migration: %s", version)
+	}
+
+	return nil
 }

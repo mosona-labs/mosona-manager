@@ -69,7 +69,10 @@ func login(c *echo.Context) error {
 
 	// Already logged in
 	if sess.Values["uid"] != nil {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Already logged in"})
+		currentUID, ok := sess.Values["uid"].(int64)
+		if ok && currentUID > 0 {
+			return c.JSON(500, _type.H{Code: "error", Msg: "Already logged in"})
+		}
 	}
 
 	var maxAge = 86400 * 3 // 3 days

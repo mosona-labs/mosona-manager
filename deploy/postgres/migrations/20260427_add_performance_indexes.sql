@@ -11,8 +11,7 @@ CREATE INDEX IF NOT EXISTS "IDX_KTI" ON keys (team_id, id DESC);
 
 CREATE INDEX IF NOT EXISTS "IDX_MTUU" ON m_team_user (user_id, team_id);
 
-CREATE INDEX IF NOT EXISTS "IDX_SIARD" ON server_info (end_time)
-WHERE auto_renew = TRUE AND cycle > 0 AND end_time IS NOT NULL;
+CREATE INDEX IF NOT EXISTS "IDX_SIARD" ON server_info (end_time) WHERE auto_renew = TRUE AND cycle > 0 AND end_time IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS "IDX_STMO" ON servers (team_id, allow_monitor, weight DESC, id DESC);
 CREATE INDEX IF NOT EXISTS "IDX_STTO" ON servers (team_id, allow_terminal, weight DESC, id DESC);
