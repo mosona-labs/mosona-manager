@@ -25,15 +25,15 @@ func Init() {
 			continue
 		}
 		semaphore <- struct{}{}
-		go func(id int64) {
+		go func(id int64, typ int16) {
 			defer func() { <-semaphore }()
 			for {
-				if err := conn.StartServer(id, serverType); err != nil {
+				if err := conn.StartServer(id, typ); err != nil {
 					log.Printf("Failed to start monitoring for server %d: %v\n", id, err)
 				} else {
 					break
 				}
 			}
-		}(serverId)
+		}(serverId, serverType)
 	}
 }

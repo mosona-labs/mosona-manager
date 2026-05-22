@@ -3,6 +3,7 @@ package aterminal
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"mosona-manager/internal/_type"
 	connectSSH "mosona-manager/internal/connect/ssh"
 	pbTypes "mosona-manager/pkg/types"
@@ -91,14 +92,34 @@ func terminalSSH(ctx context.Context, serverAuth _type.TerminalDetail, wsConn *w
 		return err
 	}
 
-	var wg sync.WaitGroup
+	var once sync.Once
+	done := make(chan struct{})
 	var writeMu sync.Mutex
-	wsutil.StartPing(ctx, wsConn, &writeMu, "ssh terminal websocket ping")
+	cleanup := func() {
+		once.Do(func() {
+			cancel()
+			_ = session.Close()
+			_ = sshClient.Close()
+			_ = wsConn.Close()
+			close(done)
+		})
+	}
+	defer cleanup()
+
 	writeMessage := func(messageType int, data []byte) error {
 		writeMu.Lock()
 		defer writeMu.Unlock()
 		return wsConn.WriteMessage(messageType, data)
 	}
+	wsutil.SetSafePingHandler(wsConn, &writeMu)
+	wsutil.StartPing(ctx, wsConn, &writeMu, "ssh terminal websocket ping")
+
+	go func() {
+		<-ctx.Done()
+		cleanup()
+	}()
+
+	var wg sync.WaitGroup
 	wg.Add(2)
 
 	// Read from stdout (SSH)
@@ -108,10 +129,16 @@ func terminalSSH(ctx context.Context, serverAuth _type.TerminalDetail, wsConn *w
 		for {
 			n, err := stdout.Read(buf)
 			if err != nil {
+				log.Println("ssh terminal stdout:", err)
+				cleanup()
 				return
 			}
 			if n > 0 {
-				_ = writeMessage(websocket.TextMessage, buf[:n])
+				if err := writeMessage(websocket.BinaryMessage, buf[:n]); err != nil {
+					log.Println("ssh terminal stdout websocket:", err)
+					cleanup()
+					return
+				}
 			}
 		}
 	}()
@@ -123,18 +150,23 @@ func terminalSSH(ctx context.Context, serverAuth _type.TerminalDetail, wsConn *w
 		for {
 			n, err := stderr.Read(buf)
 			if err != nil {
+				log.Println("ssh terminal stderr:", err)
+				cleanup()
 				return
 			}
 			if n > 0 {
-				_ = writeMessage(websocket.TextMessage, buf[:n])
+				if err := writeMessage(websocket.BinaryMessage, buf[:n]); err != nil {
+					log.Println("ssh terminal stderr websocket:", err)
+					cleanup()
+					return
+				}
 			}
 		}
 	}()
 
-	done := make(chan struct{})
 	go func() {
 		wg.Wait()
-		close(done)
+		cleanup()
 	}()
 
 	// Read from WebSocket
@@ -142,19 +174,32 @@ func terminalSSH(ctx context.Context, serverAuth _type.TerminalDetail, wsConn *w
 		for {
 			_, msg, err := wsConn.ReadMessage()
 			if err != nil {
-				_ = session.Close()
+				log.Println("ssh terminal websocket read:", err)
+				cleanup()
 				return
 			}
 
 			var xtermMsg pbTypes.XTermMessage
 			if err := json.Unmarshal(msg, &xtermMsg); err != nil {
-				_, _ = stdin.Write(msg)
+				if _, err := stdin.Write(msg); err != nil {
+					log.Println("ssh terminal stdin:", err)
+					cleanup()
+					return
+				}
 			} else {
 				switch xtermMsg.Type {
 				case "input":
-					_, _ = stdin.Write([]byte(xtermMsg.Data))
+					if _, err := stdin.Write([]byte(xtermMsg.Data)); err != nil {
+						log.Println("ssh terminal stdin:", err)
+						cleanup()
+						return
+					}
 				case "resize":
-					_ = session.WindowChange(int(xtermMsg.Rows), int(xtermMsg.Cols))
+					if err := session.WindowChange(int(xtermMsg.Rows), int(xtermMsg.Cols)); err != nil {
+						log.Println("ssh terminal resize:", err)
+						cleanup()
+						return
+					}
 				}
 			}
 		}

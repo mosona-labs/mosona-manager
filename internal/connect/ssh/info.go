@@ -1,11 +1,13 @@
 package ssh
 
 import (
-	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect/ssh/script"
+	"sync"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -26,18 +28,31 @@ func information(client *ssh.Client, callback func(data _type.ServerInfoType)) e
 		return err
 	}
 
-	reader := io.MultiReader(stdout, stderr)
-	scanner := bufio.NewScanner(reader)
-	done := make(chan struct{})
+	stdoutScanner := newLineScanner(stdout)
+	stderrScanner := newLineScanner(stderr)
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
-		for scanner.Scan() {
+		defer wg.Done()
+		for stdoutScanner.Scan() {
 			var data _type.ServerInfoType
-			if err = json.Unmarshal([]byte(scanner.Text()), &data); err != nil {
+			if err := json.Unmarshal([]byte(stdoutScanner.Text()), &data); err != nil {
 				continue
 			}
 			callback(data)
 		}
-		close(done)
+		if err := stdoutScanner.Err(); err != nil {
+			log.Println("ssh info stdout:", err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for stderrScanner.Scan() {
+			log.Println("ssh info stderr:", stderrScanner.Text())
+		}
+		if err := stderrScanner.Err(); err != nil {
+			log.Println("ssh info stderr:", err)
+		}
 	}()
 
 	stdin, err := session.StdinPipe()
@@ -57,9 +72,9 @@ func information(client *ssh.Client, callback func(data _type.ServerInfoType)) e
 	_ = stdin.Close()
 
 	if err = session.Wait(); err != nil {
-		<-done
-		return err
+		wg.Wait()
+		return fmt.Errorf("script error: %w", err)
 	}
-	<-done
+	wg.Wait()
 	return nil
 }

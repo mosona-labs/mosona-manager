@@ -12,7 +12,9 @@ if [ -d /dev/shm ] && mkdir -p /dev/shm 2>/dev/null; then
 else
   tmpdir="$(mktemp -d)"
 fi
-trap 'rm -rf "$tmpdir"; exit 0' INT TERM EXIT
+trap 'status=$?; rm -rf "$tmpdir"; exit "$status"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # CPU task
 cpu_task() {

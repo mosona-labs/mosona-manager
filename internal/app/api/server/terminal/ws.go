@@ -23,6 +23,9 @@ func ws(c *echo.Context) error {
 
 	serverId, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	serverAuth, err := db.GetTerminalInfo(tid, serverId)
+	if err != nil {
+		return err
+	}
 
 	// Log action
 	influx.LogAdd(

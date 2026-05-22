@@ -44,16 +44,16 @@ func SSH(
 		}
 
 		backoff = initialBackoff
-		KeepAlive(ctx, client)
+		connCtx, connCancel := context.WithCancel(ctx)
+		KeepAlive(connCtx, client)
 
-		connClosed := make(chan struct{})
 		go func() {
-			<-ctx.Done()
+			<-connCtx.Done()
 			_ = client.Close()
-			close(connClosed)
 		}()
 
 		workErr := func() error {
+			defer connCancel()
 			defer func() { _ = client.Close() }()
 
 			osName, err := oS(client)
@@ -106,6 +106,5 @@ func SSH(
 		case <-time.After(2 * time.Second):
 		}
 
-		_ = connClosed
 	}
 }

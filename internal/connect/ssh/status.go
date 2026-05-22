@@ -1,17 +1,20 @@
 package ssh
 
 import (
-	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect/ssh/script"
 	"mosona-manager/internal/influx"
+	"sync"
 
 	"golang.org/x/crypto/ssh"
 )
+
+var errStatusMonitorEnded = errors.New("ssh status monitor ended unexpectedly")
 
 func status(client *ssh.Client, serverId int64) error {
 	session, err := client.NewSession()
@@ -29,20 +32,33 @@ func status(client *ssh.Client, serverId int64) error {
 		return err
 	}
 
-	reader := io.MultiReader(stdout, stderr)
-	scanner := bufio.NewScanner(reader)
-	done := make(chan struct{})
+	stdoutScanner := newLineScanner(stdout)
+	stderrScanner := newLineScanner(stderr)
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
-		for scanner.Scan() {
+		defer wg.Done()
+		for stdoutScanner.Scan() {
 			var data _type.ServerStatusType
-			if err = json.Unmarshal([]byte(scanner.Text()), &data); err != nil {
+			if err := json.Unmarshal([]byte(stdoutScanner.Text()), &data); err != nil {
 				continue
 			}
-			if err = influx.AddServerStatus(serverId, data); err != nil {
+			if err := influx.AddServerStatus(serverId, data); err != nil {
 				log.Println("Failed to add server status:", err)
 			}
 		}
-		close(done)
+		if err := stdoutScanner.Err(); err != nil {
+			log.Println("ssh status stdout:", err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for stderrScanner.Scan() {
+			log.Println("ssh status stderr:", stderrScanner.Text())
+		}
+		if err := stderrScanner.Err(); err != nil {
+			log.Println("ssh status stderr:", err)
+		}
 	}()
 
 	stdin, err := session.StdinPipe()
@@ -62,9 +78,9 @@ func status(client *ssh.Client, serverId int64) error {
 	_ = stdin.Close()
 
 	if err = session.Wait(); err != nil {
-		<-done
+		wg.Wait()
 		return fmt.Errorf("script error: %w", err)
 	}
-	<-done
-	return nil
+	wg.Wait()
+	return errStatusMonitorEnded
 }
