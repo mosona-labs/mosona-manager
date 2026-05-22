@@ -83,7 +83,7 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 			}
 
 			wsWriteMu.Lock()
-			err = wsConn.WriteMessage(websocket.TextMessage, data)
+			err = wsConn.WriteMessage(websocket.BinaryMessage, data)
 			wsWriteMu.Unlock()
 			if err != nil {
 				return

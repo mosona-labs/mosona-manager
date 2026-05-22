@@ -78,9 +78,9 @@ func qualifiedPartitions() []types.DiskInfo {
 	partitions, err := disk.Partitions(false)
 	if err != nil {
 		// Fallback to root partition only
-		if usage, e := disk.Usage("/"); e == nil {
+		if usage, e := disk.Usage(fallbackUsagePath()); e == nil {
 			return []types.DiskInfo{{
-				MountPoint: "/",
+				MountPoint: fallbackUsagePath(),
 				TotalGB:    float64(usage.Total) / 1024 / 1024 / 1024,
 				UsedGB:     float64(usage.Used) / 1024 / 1024 / 1024,
 			}}
@@ -137,9 +137,9 @@ func qualifiedPartitions() []types.DiskInfo {
 	}
 
 	if len(result) == 0 {
-		if usage, e := disk.Usage("/"); e == nil {
+		if usage, e := disk.Usage(fallbackUsagePath()); e == nil {
 			result = append(result, types.DiskInfo{
-				MountPoint: "/",
+				MountPoint: fallbackUsagePath(),
 				TotalGB:    float64(usage.Total) / 1024 / 1024 / 1024,
 				UsedGB:     float64(usage.Used) / 1024 / 1024 / 1024,
 			})
@@ -147,6 +147,13 @@ func qualifiedPartitions() []types.DiskInfo {
 	}
 
 	return result
+}
+
+func fallbackUsagePath() string {
+	if runtime.GOOS == "windows" {
+		return `C:\`
+	}
+	return "/"
 }
 
 func isDarwinSystemVolume(mountpoint string) bool {
@@ -206,15 +213,15 @@ func (m *Monitor) Snapshot() (*types.Status, error) {
 			}
 
 			if last, ok := m.lastDiskIO[name]; ok {
-				readBytes := float64(io.ReadBytes - last.ReadBytes)
-				writeBytes := float64(io.WriteBytes - last.WriteBytes)
-				readCount := float64(io.ReadCount - last.ReadCount)
-				writeCount := float64(io.WriteCount - last.WriteCount)
+				readBytes := deltaUint64(io.ReadBytes, last.ReadBytes)
+				writeBytes := deltaUint64(io.WriteBytes, last.WriteBytes)
+				readCount := deltaUint64(io.ReadCount, last.ReadCount)
+				writeCount := deltaUint64(io.WriteCount, last.WriteCount)
 
-				s.DiskReadKibS += (readBytes / 1024) / elapsed
-				s.DiskWriteKibS += (writeBytes / 1024) / elapsed
-				s.DiskReadIOPS += readCount / elapsed
-				s.DiskWriteIOPS += writeCount / elapsed
+				s.DiskReadKibS += (float64(readBytes) / 1024) / elapsed
+				s.DiskWriteKibS += (float64(writeBytes) / 1024) / elapsed
+				s.DiskReadIOPS += float64(readCount) / elapsed
+				s.DiskWriteIOPS += float64(writeCount) / elapsed
 			}
 			m.lastDiskIO[name] = io
 		}
@@ -237,10 +244,10 @@ func (m *Monitor) Snapshot() (*types.Status, error) {
 		s.TxTotalMB = float64(totalSent) / 1024 / 1024
 
 		if m.lastNetIO.BytesRecv > 0 {
-			rxBytes := float64(totalRecv - m.lastNetIO.BytesRecv)
-			txBytes := float64(totalSent - m.lastNetIO.BytesSent)
-			s.RxKibS = (rxBytes / 1024) / elapsed
-			s.TxKibS = (txBytes / 1024) / elapsed
+			rxBytes := deltaUint64(totalRecv, m.lastNetIO.BytesRecv)
+			txBytes := deltaUint64(totalSent, m.lastNetIO.BytesSent)
+			s.RxKibS = (float64(rxBytes) / 1024) / elapsed
+			s.TxKibS = (float64(txBytes) / 1024) / elapsed
 		}
 		m.lastNetIO = net.IOCountersStat{
 			BytesRecv: totalRecv,
@@ -259,4 +266,11 @@ func (m *Monitor) Snapshot() (*types.Status, error) {
 
 	m.lastCheckTime = now
 	return s, nil
+}
+
+func deltaUint64(current, previous uint64) uint64 {
+	if current < previous {
+		return 0
+	}
+	return current - previous
 }

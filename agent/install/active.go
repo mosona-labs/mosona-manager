@@ -3,7 +3,6 @@ package install
 import (
 	"fmt"
 	"mosona-manager/agent/config"
-	"mosona-manager/agent/runtime"
 	"os"
 	"path/filepath"
 )
@@ -12,24 +11,13 @@ func Active(uid, publicKey, host string, port int, noMonitor, noTerminal bool) e
 	fmt.Println("Initializing agent in active mode...")
 	fmt.Printf("Will be listening on %s:%d\n", host, port)
 
-	if _, err := os.Stat(runtime.InstallDir); !os.IsNotExist(err) {
-		fmt.Print("Do you want to reinstall agent? (y/N): ")
-		var response string
-		_, _ = fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
-			return fmt.Errorf("installation cancelled by user")
-		}
-		if err = os.RemoveAll(runtime.InstallDir); err != nil {
-			return err
-		}
-	}
-	if err := os.MkdirAll(runtime.InstallDir, 0755); err != nil {
+	if err := prepareInstallDir(); err != nil {
 		return err
 	}
 
 	// Save public key
 	publicKeyFile, err := os.Create(
-		filepath.Join(runtime.InstallDir, "public_key.pem"),
+		filepath.Join(installDir(), "public_key.pem"),
 	)
 	if err != nil {
 		return err

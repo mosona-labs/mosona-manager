@@ -8,6 +8,7 @@ import (
 	"mosona-manager/agent/config"
 	"mosona-manager/agent/install"
 	"mosona-manager/agent/passive"
+	"mosona-manager/agent/runhost"
 	"mosona-manager/agent/runtime"
 	"mosona-manager/agent/service"
 	"os"
@@ -71,15 +72,20 @@ func handleRun() {
 	fmt.Println(Logo)
 	fmt.Println("⇨ Mosona manager agent v" + runtime.Version + " starting...")
 
-	switch config.Current.Mode {
-	case "passive":
-		fmt.Println("⇨ Running in passive mode, connecting to hub:", config.Current.Hub)
-		passive.Run()
-	case "active":
-		fmt.Printf("⇨ Running in active mode, listening on %s:%d\n", config.Current.Host, config.Current.Port)
-		active.Run()
-	default:
-		fmt.Println("Unknown mode:", config.Current.Mode)
+	if err := runhost.Run("mosona-agent", func() {
+		switch config.Current.Mode {
+		case "passive":
+			fmt.Println("⇨ Running in passive mode, connecting to hub:", config.Current.Hub)
+			passive.Run()
+		case "active":
+			fmt.Printf("⇨ Running in active mode, listening on %s:%d\n", config.Current.Host, config.Current.Port)
+			active.Run()
+		default:
+			fmt.Println("Unknown mode:", config.Current.Mode)
+			os.Exit(1)
+		}
+	}); err != nil {
+		fmt.Println("Failed to start run host:", err)
 		os.Exit(1)
 	}
 }

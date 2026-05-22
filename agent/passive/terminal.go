@@ -4,15 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"mosona-manager/agent/shellsession"
 	pbTypes "mosona-manager/pkg/types"
 	"mosona-manager/pkg/ws"
-	"os"
-	"os/exec"
-	"os/user"
-	"runtime"
 	"sync"
 
-	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 )
 
@@ -26,61 +22,13 @@ func terminal(sessionID string) {
 		_ = client.Close()
 	}(client)
 
-	var shell string
-	var args []string
-	switch runtime.GOOS {
-	case "windows":
-		shell = "powershell.exe"
-	case "darwin", "linux":
-		for _, sh := range []string{
-			"bash", "zsh", "ksh", "ash", "dash",
-		} {
-			path, err := exec.LookPath(sh)
-			if err == nil {
-				shell = path
-				break
-			}
-		}
-		if shell == "" {
-			shell = "/bin/sh"
-		}
-	default:
-		shell = "/bin/sh"
-	}
-
-	cmd := exec.Command(shell, args...)
-
-	u, err := user.Current()
-	if err == nil {
-		switch runtime.GOOS {
-		case "windows":
-			cmd.Dir = u.HomeDir
-			cmd.Env = append(os.Environ(), []string{
-				"USERPROFILE=" + u.HomeDir,
-				"USERNAME=" + u.Username,
-				"TERM=xterm-256color",
-			}...)
-		case "darwin", "linux":
-			cmd.Dir = u.HomeDir
-			cmd.Env = append(os.Environ(), []string{
-				"HOME=" + u.HomeDir,
-				"USER=" + u.Name,
-				"LOGNAME=" + u.Name,
-				"SHELL=" + shell,
-				"TERM=xterm-256color",
-			}...)
-		}
-	}
-
-	ptmx, err := pty.Start(cmd)
+	session, err := shellsession.Start()
 	if err != nil {
-		log.Printf("Failed to start pty for session %s: %v", sessionID, err)
+		log.Printf("Failed to start terminal session %s: %v", sessionID, err)
 		return
 	}
 	defer func() {
-		_ = ptmx.Close()
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
+		_ = session.Close()
 	}()
 
 	var once sync.Once
@@ -89,7 +37,7 @@ func terminal(sessionID string) {
 		once.Do(func() {
 			close(done)
 			_ = client.Close()
-			_ = ptmx.Close()
+			_ = session.Close()
 		})
 	}
 
@@ -97,14 +45,14 @@ func terminal(sessionID string) {
 	go func() {
 		buf := make([]byte, 1024)
 		for {
-			n, err := ptmx.Read(buf)
+			n, err := session.Read(buf)
 			if err != nil {
 				cleanup()
 				return
 			}
 
 			if n > 0 {
-				err = client.SendMessage(websocket.TextMessage, buf[:n])
+				err = client.SendMessage(websocket.BinaryMessage, buf[:n])
 				if err != nil {
 					cleanup()
 					return
@@ -124,16 +72,13 @@ func terminal(sessionID string) {
 
 			var xtermMsg pbTypes.XTermMessage
 			if err := json.Unmarshal(msg, &xtermMsg); err != nil {
-				_, _ = ptmx.Write(msg)
+				_, _ = session.Write(msg)
 			} else {
 				switch xtermMsg.Type {
 				case "input":
-					_, _ = ptmx.Write([]byte(xtermMsg.Data))
+					_, _ = session.Write([]byte(xtermMsg.Data))
 				case "resize":
-					_ = pty.Setsize(ptmx, &pty.Winsize{
-						Rows: xtermMsg.Rows,
-						Cols: xtermMsg.Cols,
-					})
+					_ = session.Resize(xtermMsg.Rows, xtermMsg.Cols)
 				}
 			}
 		}

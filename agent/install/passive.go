@@ -3,7 +3,6 @@ package install
 import (
 	"fmt"
 	"mosona-manager/agent/config"
-	"mosona-manager/agent/runtime"
 	"mosona-manager/pkg/identity"
 	"os"
 	"path/filepath"
@@ -12,18 +11,7 @@ import (
 func Passive(hub, enrollKey string, noMonitor, noTerminal bool, ipPreference string) error {
 	fmt.Println("Initializing agent in passive mode...")
 
-	if _, err := os.Stat(runtime.InstallDir); !os.IsNotExist(err) {
-		fmt.Print("Do you want to reinstall agent? (y/N): ")
-		var response string
-		_, _ = fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
-			return fmt.Errorf("installation cancelled by user")
-		}
-		if err = os.RemoveAll(runtime.InstallDir); err != nil {
-			return err
-		}
-	}
-	if err := os.MkdirAll(runtime.InstallDir, 0755); err != nil {
+	if err := prepareInstallDir(); err != nil {
 		return err
 	}
 
@@ -39,7 +27,7 @@ func Passive(hub, enrollKey string, noMonitor, noTerminal bool, ipPreference str
 
 	// Save private key
 	privateKeyFile, err := os.Create(
-		filepath.Join(runtime.InstallDir, "private_key.pem"),
+		filepath.Join(installDir(), "private_key.pem"),
 	)
 	if err != nil {
 		return err

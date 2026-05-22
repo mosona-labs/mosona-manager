@@ -45,7 +45,9 @@ func handleStateWebSocket(
 			}
 
 			if frame, err := sc.Encrypt(data); err == nil {
-				_ = conn.WriteMessage(websocket.BinaryMessage, frame)
+				if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil {
+					return
+				}
 			}
 
 			sleepFor := 3*time.Second - time.Since(start)

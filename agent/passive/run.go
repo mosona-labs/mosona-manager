@@ -5,6 +5,7 @@ import (
 	"mosona-manager/agent/config"
 	"mosona-manager/agent/telemetry"
 	pbTypes "mosona-manager/pkg/types"
+	"mosona-manager/pkg/ws"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -16,13 +17,25 @@ func Run() {
 		log.Fatalln("Failed to load private key:", err)
 	}
 
-	if err := reportInfo(); err != nil {
-		log.Fatalln("Failed to report info:", err)
+	for {
+		if err := reportInfo(); err != nil {
+			log.Println("Failed to report info:", err)
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		break
 	}
 
-	client, err := connectHub("/api/agent/ws")
-	if err != nil {
-		log.Fatalln("Failed to connect to hub:", err)
+	var client *ws.Client
+	for {
+		var err error
+		client, err = connectHub("/api/agent/ws")
+		if err != nil {
+			log.Println("Failed to connect to hub:", err)
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		break
 	}
 
 	// Monitoring loop
@@ -42,7 +55,7 @@ func Run() {
 				}
 
 				if err = client.SendMessage(websocket.BinaryMessage, data); err != nil {
-					log.Fatalln("Failed to send status:", err)
+					log.Println("Failed to send status:", err)
 				}
 
 				sleepFor := 3*time.Second - time.Since(start)
