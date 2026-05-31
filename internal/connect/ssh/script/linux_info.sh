@@ -6,7 +6,7 @@ cpu_cores=$(awk '/^processor/ {nproc++} /^physical id/ {phy=$NF} /^core id/ {pai
 kernel_version=$(uname -r)
 
 if command -v curl >/dev/null 2>&1; then
-  ip_address=$( (curl -sS -A 'Mozilla' --connect-timeout 5 --max-time 10 --fail https://api.ip.sb/ip || curl -sS -A 'Mozilla' --connect-timeout 5 --max-time 10 --fail https://cdid.c-ctrip.com/model-poc2/h) 2>/dev/null )
+  ip_address=$( (curl -4 -sS -A 'Mozilla' --connect-timeout 4 --max-time 10 --fail https://api.ip.sb/ip || curl -4 -sS -A 'Mozilla' --connect-timeout 4 --max-time 10 --fail https://cdid.c-ctrip.com/model-poc2/h || curl -6 -sS -A 'Mozilla' --connect-timeout 4 --max-time 10 --fail https://api.ip.sb/ip || curl -6 -sS -A 'Mozilla' --connect-timeout 4 --max-time 10 --fail https://cdid.c-ctrip.com/model-poc2/h) 2>/dev/null )
 else
   ip_address="unknown"
 fi
