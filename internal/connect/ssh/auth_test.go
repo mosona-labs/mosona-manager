@@ -79,6 +79,42 @@ func TestParseSignerRejectsMismatchedCertificate(t *testing.T) {
 	}
 }
 
+func TestSSHAddress(t *testing.T) {
+	tests := []struct {
+		name string
+		host string
+		port int
+		want string
+	}{
+		{
+			name: "ipv4",
+			host: "192.0.2.10",
+			port: 22,
+			want: "192.0.2.10:22",
+		},
+		{
+			name: "hostname",
+			host: "example.com",
+			port: 2222,
+			want: "example.com:2222",
+		},
+		{
+			name: "ipv6",
+			host: "2a14:67c0:308:3::a",
+			port: 22,
+			want: "[2a14:67c0:308:3::a]:22",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sshAddress(tt.host, tt.port); got != tt.want {
+				t.Fatalf("sshAddress(%q, %d) = %q, want %q", tt.host, tt.port, got, tt.want)
+			}
+		})
+	}
+}
+
 func newTestPrivateKeyAndCertificate(t *testing.T) (string, string) {
 	t.Helper()
 

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +43,7 @@ func Dial(host string, port int, user, password, key, keyPwd string, timeout tim
 		return nil, err
 	}
 
-	client, err := gossh.Dial("tcp", fmt.Sprintf("%s:%d", host, port), &gossh.ClientConfig{
+	client, err := gossh.Dial("tcp", sshAddress(host, port), &gossh.ClientConfig{
 		User:            user,
 		Auth:            authMethods,
 		HostKeyCallback: gossh.InsecureIgnoreHostKey(),
@@ -57,13 +59,17 @@ func Dial(host string, port int, user, password, key, keyPwd string, timeout tim
 func ValidateConnection(host string, port int, user, password, key, keyPwd string) error {
 	client, err := Dial(host, port, user, password, key, keyPwd, DefaultDialTimeout)
 	if err != nil {
-		return fmt.Errorf("failed to connect to %s:%d as %s: %w", host, port, user, err)
+		return fmt.Errorf("failed to connect to %s as %s: %w", sshAddress(host, port), user, err)
 	}
 	defer func() {
 		_ = client.Close()
 	}()
 
 	return nil
+}
+
+func sshAddress(host string, port int) string {
+	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
 func KeepAlive(ctx context.Context, client *gossh.Client) {
