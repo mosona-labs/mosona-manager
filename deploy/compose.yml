@@ -91,6 +91,8 @@ services:
             INFLUXDB_BUCKET: ${INFLUX_BUCKET}
             INFLUXDB_TOKEN: ${INFLUX_TOKEN}
 
+            IS_CONTAINER: "1"
+
             FRONTEND_DIR: /srv/frontend
         volumes:
             - app_data:/var/lib/mosona-manager

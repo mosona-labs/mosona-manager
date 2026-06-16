@@ -11,19 +11,20 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/app/agent"
 	"mosona-manager/internal/app/api/admin"
-	"mosona-manager/internal/app/api/category"
-	"mosona-manager/internal/app/api/keys"
-	"mosona-manager/internal/app/api/logs"
+	acategory "mosona-manager/internal/app/api/category"
+	akeys "mosona-manager/internal/app/api/keys"
+	alogs "mosona-manager/internal/app/api/logs"
 	apublic "mosona-manager/internal/app/api/public"
-	"mosona-manager/internal/app/api/server"
+	aserver "mosona-manager/internal/app/api/server"
 	aalert "mosona-manager/internal/app/api/server/alert"
-	"mosona-manager/internal/app/api/team"
-	"mosona-manager/internal/app/api/user"
+	ateam "mosona-manager/internal/app/api/team"
+	auser "mosona-manager/internal/app/api/user"
 	"mosona-manager/internal/app/auth"
 	init2 "mosona-manager/internal/app/init"
 	middleware2 "mosona-manager/internal/app/middleware"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/redis"
+	"mosona-manager/internal/runtime"
 	"mosona-manager/internal/utils"
 	"net/http"
 	"net/url"
@@ -97,6 +98,14 @@ func Start() {
 		aserver.Router(v1.Group("/server"))     // Server
 		aalert.Router(v1.Group("/alert"))       // Alert
 		alogs.Router(v1.Group("/logs"))         // Logs
+
+		// Version
+		v1.GET("/version", func(c *echo.Context) error {
+			return c.JSON(200, _type.Map{
+				"code":    "ok",
+				"version": runtime.Version,
+			})
+		})
 	}
 	// Admin
 	admin.Router(api.Group("/admin", middleware2.SameOriginWrite, middleware2.AdminAuth))

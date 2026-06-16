@@ -112,6 +112,7 @@ if [ -z "$VERSION" ]; then
   usage >&2
   exit 1
 fi
+HUB_LDFLAGS="-s -w -X mosona-manager/internal/runtime.Version=${VERSION}"
 
 if [ "$MODE" = "load" ] && [[ "$PLATFORMS" == *,* ]]; then
   echo "--load only supports one platform. Use --platform linux/amd64 or --platform linux/arm64." >&2
@@ -203,8 +204,8 @@ if [ "$BUILD_BACKEND" = "yes" ]; then
   rm -f "$CTX/hub_linux_amd64" "$CTX/hub_linux_arm64"
   (
     cd "$REPO_ROOT"
-    GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o "$CTX/hub_linux_amd64" cmd/hub/main.go
-    GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o "$CTX/hub_linux_arm64" cmd/hub/main.go
+    GOOS=linux GOARCH=amd64 go build -ldflags="$HUB_LDFLAGS" -o "$CTX/hub_linux_amd64" cmd/hub/main.go
+    GOOS=linux GOARCH=arm64 go build -ldflags="$HUB_LDFLAGS" -o "$CTX/hub_linux_arm64" cmd/hub/main.go
   )
 fi
 
