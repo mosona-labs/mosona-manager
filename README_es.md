@@ -78,7 +78,7 @@ Consulta [CHANGELOG.md](./CHANGELOG.md) para el historial de cambios.
 
 ## Comunidad
 
-- [Discord](https://discord.gg/NzKFaZGe)
+- [Discord](https://discord.gg/gmWzrXFXsB)
 - [GitHub Discussions](https://github.com/mosona-labs/mosona-manager/discussions)
 
 ## Patrocinadores

@@ -78,7 +78,7 @@ English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
 
 ## 社区
 
-- [Discord](https://discord.gg/NzKFaZGe)
+- [Discord](https://discord.gg/gmWzrXFXsB)
 - [GitHub Discussions](https://github.com/mosona-labs/mosona-manager/discussions)
 
 ## 赞助
