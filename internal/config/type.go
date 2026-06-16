@@ -23,6 +23,9 @@ type configType struct {
 
 	// Frontend
 	FrontendDir string
+
+	// TrustProxy: when false (default), client IP is RemoteAddr only (prevents X-Forwarded-For spoofing).
+	TrustProxy bool
 }
 
 type DynamicConfigType struct {

@@ -144,6 +144,7 @@ func sendMFACode(c *echo.Context) error {
 
 func verifyMFACode(c *echo.Context) error {
 	uid, _ := c.Get("pre_2fa_uid").(int64)
+	ip := c.RealIP()
 	code := c.FormValue("code")
 	if code == "" {
 		return c.JSON(400, _type.H{
@@ -151,16 +152,27 @@ func verifyMFACode(c *echo.Context) error {
 			Msg:  "MFA code cannot be empty",
 		})
 	}
+	if retryIn, err := CheckMFARateLimit(c.Request().Context(), uid, ip); err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Rate limit check failed"})
+	} else if retryIn > 0 {
+		return c.JSON(429, _type.H{
+			Code: "rate_limited",
+			Msg:  fmt.Sprintf("Too many failed MFA attempts. Try again in %d seconds", int(retryIn.Seconds())+1),
+		})
+	}
 
 	storedData, ok := store.GetTwoFACodeState(code)
 	if !ok || storedData.UID != uid {
 		store.DeleteTwoFACodeByUID(uid)
+		_ = RecordMFAFailure(c.Request().Context(), uid, ip)
 
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid MFA code",
 		})
 	}
+
+	ClearMFAFailures(c.Request().Context(), uid, ip)
 
 	// Delete used code
 	store.DeleteTwoFACodeState(code)

@@ -47,6 +47,8 @@ func init() {
 
 	// Frontend
 	Conf.FrontendDir = getEnv("FRONTEND_DIR", "./static/")
+
+	Conf.TrustProxy = getEnv("TRUST_PROXY", "") == "true"
 }
 
 func getEnv(key string, defaultValue string) string {

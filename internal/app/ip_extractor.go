@@ -1,6 +1,7 @@
 package app
 
 import (
+	"mosona-manager/internal/config"
 	"net"
 	"net/http"
 	"strings"
@@ -25,6 +26,9 @@ func configureClientIPExtractor(e *echo.Echo) {
 }
 
 func cdnClientIPExtractor(req *http.Request) string {
+	if !config.Conf.TrustProxy {
+		return directRemoteIP(req.RemoteAddr)
+	}
 	for _, header := range cdnClientIPHeaders {
 		for _, value := range req.Header.Values(header) {
 			if ip := firstValidIP(value); ip != "" {

@@ -24,6 +24,7 @@ import (
 	middleware2 "mosona-manager/internal/app/middleware"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/redis"
+	"mosona-manager/internal/utils"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,7 +36,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
@@ -64,12 +64,7 @@ func Start() {
 		log.Fatalln("Init Redis:", err)
 	}
 	store.KeyPrefix("mosona:session:")
-	store.Options(sessions.Options{
-		Path:     "/",
-		MaxAge:   43200,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
+	store.Options(*auth.StoreOptions(43200))
 	e.Use(session.Middleware(store))
 	// GZIP
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
@@ -131,7 +126,10 @@ func Start() {
 		}
 
 		reqPath := c.Request().URL.Path
-		fsPath := filepath.Join(config.Conf.FrontendDir, path.Clean(reqPath))
+		fsPath, err := utils.SafeJoinUnderRoot(config.Conf.FrontendDir, reqPath)
+		if err != nil {
+			return serveFrontendIndex(c, frontendFS)
+		}
 		if fi, err := os.Stat(fsPath); err == nil && !fi.IsDir() {
 			relativePath := strings.TrimPrefix(path.Clean("/"+reqPath), "/")
 			return c.FileFS(relativePath, frontendFS)

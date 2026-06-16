@@ -17,6 +17,12 @@ const (
 
 	totpFailureWindow = 10 * time.Minute
 	totpMaxFailures   = 5
+
+	enrollFailureWindow = 15 * time.Minute
+	enrollMaxFailures   = 30
+
+	mfaFailureWindow = 10 * time.Minute
+	mfaMaxFailures   = 8
 )
 
 func checkLoginRateLimit(ctx context.Context, email, ip string) (time.Duration, error) {
@@ -100,4 +106,32 @@ func loginIPKey(ip string) string {
 
 func totpUIDIPKey(uid int64, ip string) string {
 	return "auth:fail:totp:uid_ip:" + utils.SHA256(fmt.Sprintf("%d|%s", uid, ip))
+}
+
+func CheckEnrollRateLimit(ctx context.Context, ip string) (time.Duration, error) {
+	return retryAfter(ctx, enrollIPKey(ip), enrollMaxFailures)
+}
+
+func RecordEnrollFailure(ctx context.Context, ip string) error {
+	return incrementFailure(ctx, enrollIPKey(ip), enrollFailureWindow)
+}
+
+func enrollIPKey(ip string) string {
+	return "auth:fail:enroll:ip:" + utils.SHA256(ip)
+}
+
+func CheckMFARateLimit(ctx context.Context, uid int64, ip string) (time.Duration, error) {
+	return retryAfter(ctx, mfaUIDIPKey(uid, ip), mfaMaxFailures)
+}
+
+func RecordMFAFailure(ctx context.Context, uid int64, ip string) error {
+	return incrementFailure(ctx, mfaUIDIPKey(uid, ip), mfaFailureWindow)
+}
+
+func ClearMFAFailures(ctx context.Context, uid int64, ip string) {
+	_ = redis.Client.Del(ctx, mfaUIDIPKey(uid, ip)).Err()
+}
+
+func mfaUIDIPKey(uid int64, ip string) string {
+	return "auth:fail:mfa:uid_ip:" + utils.SHA256(fmt.Sprintf("%d|%s", uid, ip))
 }

@@ -3,7 +3,9 @@ package agent
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/app/auth"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
@@ -13,6 +15,17 @@ import (
 )
 
 func enroll(c *echo.Context) error {
+	ip := c.RealIP()
+	ctx := c.Request().Context()
+	if retryIn, err := auth.CheckEnrollRateLimit(ctx, ip); err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Rate limit check failed"})
+	} else if retryIn > 0 {
+		return c.JSON(429, _type.H{
+			Code: "rate_limited",
+			Msg:  fmt.Sprintf("Too many enroll attempts. Try again in %d seconds", int(retryIn.Seconds())+1),
+		})
+	}
+
 	token := c.FormValue("token")
 	publicKey := c.FormValue("public_key")
 	version := c.FormValue("version")
@@ -24,10 +37,19 @@ func enroll(c *echo.Context) error {
 		})
 	}
 
+	if _, err := utils.ParseAgentEd25519PublicKeyPEM(publicKey); err != nil {
+		_ = auth.RecordEnrollFailure(ctx, ip)
+		return c.JSON(400, _type.H{
+			Code: "error",
+			Msg:  "Invalid public key",
+		})
+	}
+
 	tokenHash := utils.SHA256(token + config.DynamicConf.Token)
 	serverId, err := db.GetEnrollToken(tokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			_ = auth.RecordEnrollFailure(ctx, ip)
 			return c.JSON(400, _type.H{
 				Code: "error",
 				Msg:  "Enroll token is invalid",
@@ -39,6 +61,7 @@ func enroll(c *echo.Context) error {
 		})
 	}
 	if serverId == 0 {
+		_ = auth.RecordEnrollFailure(ctx, ip)
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Enroll token is invalid",

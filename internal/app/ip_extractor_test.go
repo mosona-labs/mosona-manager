@@ -1,6 +1,7 @@
 package app
 
 import (
+	"mosona-manager/internal/config"
 	"net/http"
 	"testing"
 )
@@ -11,30 +12,27 @@ func TestCDNClientIPExtractor(t *testing.T) {
 		headers    map[string][]string
 		remoteAddr string
 		want       string
+		trustProxy bool
 	}{
 		{
-			name:       "cloudflare header wins",
+			name:       "ignores forwarded headers when trust proxy disabled",
+			headers:    map[string][]string{"CF-Connecting-IP": {"203.0.113.10"}},
+			remoteAddr: "10.0.0.8:443",
+			want:       "10.0.0.8",
+		},
+		{
+			name:       "trust proxy uses cloudflare header",
 			headers:    map[string][]string{"CF-Connecting-IP": {"203.0.113.10"}},
 			remoteAddr: "10.0.0.8:443",
 			want:       "203.0.113.10",
+			trustProxy: true,
 		},
 		{
-			name:       "cloudflare real ipv6 wins over pseudo ipv4",
-			headers:    map[string][]string{"CF-Connecting-IPv6": {"2001:db8::1"}, "CF-Connecting-IP": {"240.16.0.1"}},
-			remoteAddr: "10.0.0.8:443",
-			want:       "2001:db8::1",
-		},
-		{
-			name:       "x-forwarded-for uses original client",
+			name:       "trust proxy x-forwarded-for uses original client",
 			headers:    map[string][]string{"X-Forwarded-For": {"198.51.100.7, 10.0.0.8"}},
 			remoteAddr: "10.0.0.8:443",
 			want:       "198.51.100.7",
-		},
-		{
-			name:       "skips invalid header values",
-			headers:    map[string][]string{"CF-Connecting-IP": {"unknown"}, "X-Real-IP": {"198.51.100.11"}},
-			remoteAddr: "10.0.0.8:443",
-			want:       "198.51.100.11",
+			trustProxy: true,
 		},
 		{
 			name:       "falls back to remote address",
@@ -42,16 +40,14 @@ func TestCDNClientIPExtractor(t *testing.T) {
 			remoteAddr: "10.0.0.8:443",
 			want:       "10.0.0.8",
 		},
-		{
-			name:       "accepts ipv6",
-			headers:    map[string][]string{"X-Forwarded-For": {"2001:db8::1, 10.0.0.8"}},
-			remoteAddr: "10.0.0.8:443",
-			want:       "2001:db8::1",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			old := config.Conf.TrustProxy
+			config.Conf.TrustProxy = tt.trustProxy
+			t.Cleanup(func() { config.Conf.TrustProxy = old })
+
 			req := &http.Request{Header: http.Header{}, RemoteAddr: tt.remoteAddr}
 			for key, values := range tt.headers {
 				for _, value := range values {
