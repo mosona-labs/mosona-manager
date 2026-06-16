@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"mosona-manager/internal/_type"
-	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/security/passwordhash"
 	"mosona-manager/internal/siteaccess"
 	"mosona-manager/internal/utils"
 	"strings"
@@ -48,9 +48,14 @@ func initialize(c *echo.Context) error {
 	}
 
 	signature := utils.RandomString(32)
+	hashed, hashErr := passwordhash.Hash(password)
+	if hashErr != nil {
+		_ = tx.Rollback()
+		return c.JSON(500, _type.H{Code: "error", Msg: "Registration failed"})
+	}
 	if _, err = tx.ExecContext(ctx,
 		"INSERT INTO users (username, email, password, salt, verified, is_admin) VALUES ($1, $2, $3, $4, $5, $6)",
-		username, email, utils.SHA256(password+signature+config.DynamicConf.Token), signature, true, true,
+		username, email, hashed, signature, true, true,
 	); err != nil {
 		_ = tx.Rollback()
 		return c.JSON(400, _type.H{Code: "error", Msg: "Registration failed"})

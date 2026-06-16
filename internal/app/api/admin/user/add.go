@@ -2,9 +2,9 @@ package muser
 
 import (
 	"mosona-manager/internal/_type"
-	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/security/passwordhash"
 	"mosona-manager/internal/utils"
 
 	"github.com/labstack/echo/v5"
@@ -35,7 +35,10 @@ func add(c *echo.Context) error {
 
 	// Salt
 	signature := utils.RandomString(32)
-	newPassword := utils.SHA256(password + signature + config.DynamicConf.Token)
+	newPassword, err := passwordhash.Hash(password)
+	if err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
+	}
 	if _, err = db.Db.Exec(
 		"INSERT INTO users (username, email, password, salt, verified, is_admin) VALUES ($1, $2, $3, $4, $5, $6)",
 		username, email, newPassword, signature, verified, isAdmin,

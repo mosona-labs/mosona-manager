@@ -2,9 +2,9 @@ package muser
 
 import (
 	"mosona-manager/internal/_type"
-	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/security/passwordhash"
 	"mosona-manager/internal/utils"
 	"strconv"
 
@@ -52,7 +52,10 @@ func edit(c *echo.Context) error {
 	})
 	if password != "" {
 		signature := utils.RandomString(32)
-		newPassword := utils.SHA256(password + signature + config.DynamicConf.Token)
+		newPassword, hashErr := passwordhash.Hash(password)
+		if hashErr != nil {
+			return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
+		}
 		updates = updates.Set("password", newPassword).Set("salt", signature)
 	}
 	sql, args, _ := updates.ToSql()

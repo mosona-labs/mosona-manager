@@ -4,6 +4,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/security/passwordhash"
 	"mosona-manager/internal/utils"
 
 	"github.com/labstack/echo/v5"
@@ -42,9 +43,13 @@ func register(c *echo.Context) error {
 
 	// Register
 	signature := utils.RandomString(32)
+	hashed, err := passwordhash.Hash(password)
+	if err != nil {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Registration failed"})
+	}
 	if _, err := db.Db.Exec(
 		"INSERT INTO users (username, email, password, salt, verified) VALUES ($1, $2, $3, $4, $5)",
-		username, emailAddress, utils.SHA256(password+signature+config.DynamicConf.Token), signature, !config.ReadDynamicConf().RegistrationVerifyEmail,
+		username, emailAddress, hashed, signature, !config.ReadDynamicConf().RegistrationVerifyEmail,
 	); err != nil {
 		return c.JSON(400, _type.H{Code: "error", Msg: "Registration failed"})
 	}

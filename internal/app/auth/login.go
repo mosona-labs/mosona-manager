@@ -4,10 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
-	"mosona-manager/internal/utils"
+	"mosona-manager/internal/security/passwordhash"
 	"strings"
 	"time"
 
@@ -52,12 +53,32 @@ func login(c *echo.Context) error {
 			})
 		}
 	}
-	if utils.SHA256(password+user.Salt+config.DynamicConf.Token) != user.Password {
+	ok, needsRehash, err := passwordhash.Verify(
+		password,
+		user.Password,
+		user.Salt,
+		config.DynamicConf.Token,
+	)
+	if err != nil || !ok {
 		_ = recordLoginFailure(c.Request().Context(), emailKey, ip)
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Email or password is incorrect",
 		})
+	}
+	if needsRehash {
+		newHash, hashErr := passwordhash.Hash(password)
+		if hashErr != nil {
+			log.Printf("password hash migration failed for user id %d: %v", user.ID, hashErr)
+		} else if _, execErr := db.Db.ExecContext(
+			c.Request().Context(),
+			"UPDATE users SET password = $1 WHERE id = $2 AND password = $3",
+			newHash, user.ID, user.Password,
+		); execErr != nil {
+			log.Printf("password hash migration update failed for user id %d: %v", user.ID, execErr)
+		} else {
+			log.Printf("password hash migrated for user id %d", user.ID)
+		}
 	}
 	clearLoginFailures(c.Request().Context(), emailKey, ip)
 
