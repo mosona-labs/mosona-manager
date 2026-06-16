@@ -62,6 +62,8 @@ services:
     app:
         container_name: mosona-manager-app
         image: ghcr.io/mosona-labs/mosona-manager:${APP_VERSION:-latest}
+        labels:
+            - com.centurylinklabs.watchtower.enable=true
         depends_on:
             postgres:
                 condition: service_healthy
@@ -103,6 +105,18 @@ services:
             interval: 10s
             timeout: 3s
             retries: 30
+
+    watchtower:
+        container_name: mosona-manager-watchtower
+        image: containrrr/watchtower:latest
+        command:
+            - --label-enable
+            - --cleanup
+            - --interval
+            - "${WATCHTOWER_INTERVAL:-300}"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        restart: unless-stopped
 
 volumes:
     pg_data:
