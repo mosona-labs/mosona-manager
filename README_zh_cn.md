@@ -16,6 +16,10 @@ English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
 
 设计为面向团队/个人的项目管理服务器监控与终端管理工具，具有全面的项目权限控制和基于 Agent 与 SSH 的远程管理协议功能。
 
+## 快速开始
+
+请参阅 [Quickstart (Docs)](https://manager.mosona.cc/docs/quickstart) 了解安装和配置的详细说明。
+
 ## 功能
 - **项目管理**：轻松创建和管理多个项目。
 - **用户权限**：为每个项目分配并控制用户权限。
@@ -47,12 +51,6 @@ English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
 #### 2. 被动模式
 
 这是被动（反向）连接。Hub 必须暴露出来，以便 Agent 可以连接。在公网环境中，Hub 必须具有公网 IP。
-
-## 快速开始与部署
-
-> 进行中
-
-~~请参考 [快速入门（文档）](https://manager.mosona.cc/quickstart) 获取有关安装和配置的详细说明。~~
 
 ## 截图
 

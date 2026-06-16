@@ -16,6 +16,10 @@ English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
 
 Diseñado como una herramienta de gestión de servidores y terminales centrada en equipos/personas, con control integral de permisos de proyecto y un protocolo de gestión remota basado en Agentes y SSH.
 
+## Comenzar
+
+Consulta la [Quickstart (Docs)](https://manager.mosona.cc/docs/quickstart) para obtener instrucciones detalladas sobre instalación y configuración.
+
 ## Funcionalidades
 - **Gestión de proyectos**: crea y administra múltiples proyectos con facilidad.
 - **Permisos de usuario**: asigna y controla permisos de usuarios por proyecto.
@@ -47,12 +51,6 @@ También es una conexión activa (directa), como se describió anteriormente.
 #### 2. Modo pasivo
 
 Esta es una conexión pasiva (inversa). El Hub debe estar expuesto para que el Agente pueda conectarse. En un entorno de red pública, el Hub debe tener una dirección IP pública.
-
-## Comenzar e implementar
-
-> En progreso
-
-~~Por favor consulta la [Guía rápida (Docs)](https://manager.mosona.cc/quickstart) para obtener instrucciones detalladas sobre instalación y configuración.~~
 
 ## Capturas de pantalla
 

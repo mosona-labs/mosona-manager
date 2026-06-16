@@ -16,6 +16,10 @@ English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
 
 Designed as a team-oriented / personal project management server monitor and terminal management tool, featuring comprehensive project permission control and Agent & SSH-driven remote management protocol.
 
+## Get started
+
+Please refer to the [Quickstart (Docs)](https://manager.mosona.cc/docs/quickstart) for detailed instructions on installation and configuration.
+
 ## Features
 - **Project Management**: Create and manage multiple projects with ease.
 - **User Permissions**: Assign and control user permissions for each project.
@@ -47,12 +51,6 @@ It is also an active (forward) connection, as detailed above.
 #### 2. Passive Mode
 
 This is a passive (reverse) connection. The Hub must be exposed so that it can be connected by the Agent. In a public network environment, the Hub must have a public IP address.
-
-## Get started & Deploy
-
-> In progress
-
-~~Please refer to the [Quickstart (Docs)](https://manager.mosona.cc/quickstart) for detailed instructions on installation and configuration.~~
 
 ## Screenshots
 
