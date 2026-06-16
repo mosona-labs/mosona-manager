@@ -66,6 +66,7 @@ func Start() {
 	store.KeyPrefix("mosona:session:")
 	store.Options(*auth.StoreOptions(43200))
 	e.Use(session.Middleware(store))
+	e.Use(middleware2.RequireUserBaseHost, middleware2.RestrictPublicPageHost)
 	// GZIP
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,

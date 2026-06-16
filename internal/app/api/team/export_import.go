@@ -7,7 +7,9 @@ import (
 	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect/conn"
+	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/siteaccess"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
 	"mosona-manager/internal/utils/encrypt"
@@ -197,6 +199,9 @@ func importTeam(c *echo.Context) error {
 	oldServers, newServers, err := applyTeamImport(tid, req.Data)
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Failed to import team data")
+	}
+	if err = siteaccess.Refresh(); err != nil {
+		return utils.ErrorHandler(c, err, "Failed to refresh site access cache")
 	}
 	for _, serverID := range oldServers {
 		conn.StopServer(serverID)
@@ -589,12 +594,45 @@ func importPublicPage(tx *sqlx.Tx, teamID int64, page *teamExportPublicPage) err
 	if page == nil {
 		return nil
 	}
-	_, err := tx.Exec(
+
+	name, err := normalizePublicPageName(exportStr(page.Name))
+	if err != nil {
+		return fmt.Errorf("invalid public page name: %w", err)
+	}
+	domain, err := normalizePublicPageDomain(exportStr(page.Domain))
+	if err != nil {
+		return fmt.Errorf("invalid public page domain: %w", err)
+	}
+	title, err := normalizePublicPageTitle(exportStr(page.Title))
+	if err != nil {
+		return fmt.Errorf("invalid public page title: %w", err)
+	}
+	description := normalizePublicPageDescription(exportStr(page.Description))
+	customCSS := normalizePublicPageCustomCSS(exportStr(page.CustomCSS))
+
+	if page.Enabled && name == nil && domain == nil {
+		return errors.New("public page enabled requires name or domain")
+	}
+	if domain != nil {
+		baseDomain := normalizeConfiguredBaseDomain(config.ReadDynamicConf().Domain)
+		if baseDomain != "" && *domain == baseDomain {
+			return errors.New("public page domain cannot match application base domain")
+		}
+	}
+
+	_, err = tx.Exec(
 		`INSERT INTO team_public_pages (team_id, enabled, name, domain, title, description, custom_css, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, now())`,
-		teamID, page.Enabled, page.Name, page.Domain, page.Title, page.Description, page.CustomCSS,
+		teamID, page.Enabled, name, domain, title, description, customCSS,
 	)
 	return err
+}
+
+func exportStr(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
 }
 
 func importServers(tx *sqlx.Tx, teamID int64, servers []teamExportServer, categoryMap, keyMap map[int64]int64) ([]importedServerRuntime, error) {

@@ -10,6 +10,7 @@ import (
 	"mosona-manager/internal/oauth"
 	"mosona-manager/internal/redis"
 	"mosona-manager/internal/runtime"
+	"mosona-manager/internal/siteaccess"
 	"mosona-manager/internal/task"
 	"os"
 )
@@ -46,6 +47,9 @@ func initApp() {
 	// Dynamic Config
 	if err := db.SyncConfig(); err != nil {
 		log.Fatalln("Sync config error:", err)
+	}
+	if err := siteaccess.Refresh(); err != nil {
+		log.Fatalln("Site access cache error:", err)
 	}
 
 	// OAuth

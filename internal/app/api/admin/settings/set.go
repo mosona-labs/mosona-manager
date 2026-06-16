@@ -5,6 +5,7 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/oauth"
+	"mosona-manager/internal/siteaccess"
 	"mosona-manager/internal/utils"
 	"strings"
 
@@ -62,12 +63,18 @@ func set(c *echo.Context) error {
 		return utils.ErrorHandler(c, err, "Failed to reload configuration")
 	}
 
-	// Reinitialize OAuth if domain changed
+	domainChanged := false
 	for _, item := range *req {
-		switch item.Key {
-		case "domain":
-			oauth.Init()
+		if item.Key == "domain" {
+			domainChanged = true
+			break
 		}
+	}
+	if domainChanged {
+		if err := siteaccess.Refresh(); err != nil {
+			return utils.ErrorHandler(c, err, "Failed to refresh site access cache")
+		}
+		oauth.Init()
 	}
 
 	// Log action

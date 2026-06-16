@@ -6,6 +6,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/siteaccess"
 	"mosona-manager/internal/utils"
 	"strings"
 
@@ -77,6 +78,12 @@ func initialize(c *echo.Context) error {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error: " + err.Error(),
+		})
+	}
+	if err = siteaccess.Refresh(); err != nil {
+		return c.JSON(500, _type.H{
+			Code: "error",
+			Msg:  "Failed to refresh site access cache",
 		})
 	}
 

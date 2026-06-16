@@ -5,6 +5,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/siteaccess"
 	"mosona-manager/internal/utils"
 	"strings"
 
@@ -107,6 +108,10 @@ func setPublicPage(c *echo.Context) error {
 			}
 		}
 		return utils.ErrorHandler(c, err, "Database error")
+	}
+
+	if err := siteaccess.Refresh(); err != nil {
+		return utils.ErrorHandler(c, err, "Failed to refresh site access cache")
 	}
 
 	page, err := db.GetTeamPublicPage(tid)

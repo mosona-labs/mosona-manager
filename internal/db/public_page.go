@@ -61,6 +61,16 @@ func GetEnabledTeamPublicPageByName(name string) (_type.ResolvedPublicPage, erro
 	return page, err
 }
 
+func ListEnabledPublicPageDomains() ([]string, error) {
+	var domains []string
+	err := Db.Select(
+		&domains,
+		`SELECT lower(domain) FROM team_public_pages
+		 WHERE enabled = TRUE AND domain IS NOT NULL AND btrim(domain) <> ''`,
+	)
+	return domains, err
+}
+
 func GetEnabledTeamPublicPageByDomain(domain string) (_type.ResolvedPublicPage, error) {
 	var page _type.ResolvedPublicPage
 	err := Db.Get(
