@@ -3,18 +3,26 @@ package update
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
+
+	"mosona-manager/agent/config"
 )
 
 const (
-	defaultCheckInterval = 12 * time.Hour
-	initialCheckDelay    = 2 * time.Minute
+	defaultCheckInterval    = 12 * time.Hour
+	passiveHubCheckInterval = 3 * time.Hour
+	initialCheckDelay       = 2 * time.Minute
 )
 
 func StartBackgroundLoop() {
 	go func() {
+		interval := defaultCheckInterval
+		if config.Current.Mode == "passive" && strings.TrimSpace(config.Current.Hub) != "" {
+			interval = passiveHubCheckInterval
+		}
 		time.Sleep(initialCheckDelay)
-		ticker := time.NewTicker(defaultCheckInterval)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			runBackgroundCheck()

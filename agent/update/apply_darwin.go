@@ -20,7 +20,7 @@ func updateHelperPath() string {
 }
 
 func applyBinary(ctx context.Context, target, downloadURL, wantSHA string) error {
-	client := newGitHubClient()
+	client := downloadHTTPClient(downloadURL)
 	newPath := target + ".new"
 	if err := downloadToFile(ctx, client, downloadURL, newPath); err != nil {
 		return err

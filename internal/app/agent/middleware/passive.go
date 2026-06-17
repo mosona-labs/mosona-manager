@@ -6,14 +6,19 @@ import (
 	"encoding/pem"
 	"errors"
 	"mosona-manager/internal/_type"
-	"mosona-manager/internal/db"
 	"mosona-manager/pkg/identity"
 	"time"
 
 	"github.com/labstack/echo/v5"
 )
 
-func PassiveAuth(next echo.HandlerFunc) echo.HandlerFunc {
+func PassiveAuthWithLookup(lookup func(agentUID string) (int64, string, error)) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return passiveAuthWithLookup(next, lookup)
+	}
+}
+
+func passiveAuthWithLookup(next echo.HandlerFunc, lookup func(agentUID string) (int64, string, error)) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		uid := c.Request().Header.Get("X-Agent-Id")
 		ts := c.Request().Header.Get("X-Agent-Timestamp")
@@ -25,7 +30,13 @@ func PassiveAuth(next echo.HandlerFunc) echo.HandlerFunc {
 				Msg:  "Missing authentication headers",
 			})
 		}
-		serverId, publicKey, err := db.GetPassiveAgentPublicKey(uid)
+		if lookup == nil {
+			return c.JSON(500, _type.H{
+				Code: "error",
+				Msg:  "Agent authentication is not configured",
+			})
+		}
+		serverId, publicKey, err := lookup(uid)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return c.JSON(400, _type.H{

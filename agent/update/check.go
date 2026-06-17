@@ -4,11 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 )
+
+func logHubCheckFallback(err error) {
+	log.Printf("auto-update: hub check failed, falling back to GitHub: %v", err)
+}
 
 type CheckResult struct {
 	UpdateAvailable bool
@@ -17,9 +22,21 @@ type CheckResult struct {
 	ReleaseTag      string
 	AssetName       string
 	DownloadURL     string
+	Source          string // "hub" | "github"
 }
 
 func Check(ctx context.Context) (CheckResult, error) {
+	if res, used, err := checkViaHub(ctx); used {
+		if err != nil {
+			logHubCheckFallback(err)
+			return checkViaGitHub(ctx)
+		}
+		return res, nil
+	}
+	return checkViaGitHub(ctx)
+}
+
+func checkViaGitHub(ctx context.Context) (CheckResult, error) {
 	var res CheckResult
 
 	assetName, err := AssetBaseName()
@@ -66,6 +83,7 @@ func Check(ctx context.Context) (CheckResult, error) {
 			return Check(ctx)
 		}
 		res.UpdateAvailable = true
+		res.Source = "github"
 		return res, nil
 	}
 
@@ -104,6 +122,7 @@ func Check(ctx context.Context) (CheckResult, error) {
 
 	res.UpdateAvailable = true
 	res.DownloadURL = binaryAsset.BrowserDownloadURL
+	res.Source = "github"
 	return res, nil
 }
 

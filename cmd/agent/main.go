@@ -225,6 +225,11 @@ func handleInstall() {
 }
 
 func handleUpdate() {
+	if err := config.Load(); err != nil {
+		config.Current = config.Config{}
+	} else if config.Current.Mode == "passive" && strings.TrimSpace(config.Current.UUID) != "" {
+		_ = config.LoadPrivateKey()
+	}
 	checkOnly := false
 	for _, arg := range os.Args[2:] {
 		if arg == "--check" {

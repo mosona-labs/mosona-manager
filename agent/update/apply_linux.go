@@ -12,7 +12,7 @@ import (
 )
 
 func applyBinary(ctx context.Context, target, downloadURL, wantSHA string) error {
-	client := newGitHubClient()
+	client := downloadHTTPClient(downloadURL)
 	tmp := target + ".new"
 	if err := downloadToFile(ctx, client, downloadURL, tmp); err != nil {
 		return err
