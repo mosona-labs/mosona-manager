@@ -27,7 +27,7 @@ GitHub will create a **private security advisory** visible only to you and the p
 
 ### Alternative Reporting Channels
 
-- Email: [arsfy@outlook.com](arsfy@outlook.com)
+- Email: [arsfy@outlook.com](mailto:arsfy@outlook.com)
 
 We kindly ask reporters to follow responsible disclosure principles and give us reasonable time to investigate and patch before public disclosure.
 
