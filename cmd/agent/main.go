@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"flag"
 	"fmt"
@@ -11,9 +12,11 @@ import (
 	"mosona-manager/agent/runhost"
 	"mosona-manager/agent/runtime"
 	"mosona-manager/agent/service"
+	"mosona-manager/agent/update"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const Logo = `┳┳┓           ┳┳┓            
@@ -25,6 +28,14 @@ func main() {
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(0)
+	}
+
+	if os.Args[1] == "apply-update" {
+		if err := update.RunApplyUpdate(); err != nil {
+			fmt.Printf("Apply update failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	command := os.Args[1]
@@ -44,6 +55,8 @@ func main() {
 		handleInstall()
 	case "uninstall":
 		handleUninstall()
+	case "update":
+		handleUpdate()
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
 		printUsage()
@@ -60,6 +73,7 @@ func printUsage() {
 	fmt.Println("  restart                - Service restart (install required)")
 	fmt.Println("  status                 - Show service status (install required)")
 	fmt.Println("  uninstall              - Uninstall the agent service")
+	fmt.Println("  update [--check]       - Check GitHub release and self-update if needed")
 	fmt.Println("  install <mode> <args>  - Install and configure the agent")
 }
 
@@ -71,6 +85,7 @@ func handleRun() {
 
 	fmt.Println(Logo)
 	fmt.Println("⇨ Mosona manager agent v" + runtime.Version + " starting...")
+	update.StartBackgroundLoop()
 
 	if err := runhost.Run("mosona-agent", func() {
 		switch config.Current.Mode {
@@ -207,6 +222,36 @@ func handleInstall() {
 		fmt.Printf("Unknown install mode: %s\n", mode)
 		os.Exit(1)
 	}
+}
+
+func handleUpdate() {
+	checkOnly := false
+	for _, arg := range os.Args[2:] {
+		if arg == "--check" {
+			checkOnly = true
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	res, err := update.Check(ctx)
+	if err != nil {
+		fmt.Printf("Update check failed: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Release: %s\nAsset: %s\nCurrent sha256: %s\nRemote sha256: %s\n", res.ReleaseTag, res.AssetName, res.CurrentSHA256, res.RemoteSHA256)
+	if !res.UpdateAvailable {
+		fmt.Println("Agent is up to date.")
+		return
+	}
+	if checkOnly {
+		fmt.Println("Update available (use update without --check to apply).")
+		return
+	}
+	if err := update.ApplyIfNeeded(ctx, res); err != nil {
+		fmt.Printf("Update failed: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("Update applied.")
 }
 
 func handleUninstall() {

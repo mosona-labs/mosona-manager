@@ -3,6 +3,8 @@ set -euo pipefail
 
 VERSION="${VERSION:-}"
 BUILD_DIR="$(pwd)/build/"
+IS_HUB_ONLY=false
+IS_AGENT_ONLY=false
 
 usage() {
   cat <<EOF
@@ -10,6 +12,8 @@ Usage: $(basename "$0") --version <tag>
 
 Options:
   --version <tag>  Build version injected into hub and agent binaries, for example v0.1.0.
+  --hub            Build hub binary only.
+  --agent          Build agent binary only.
   --help           Show this help.
 
 Environment overrides:
@@ -22,6 +26,14 @@ while [ "$#" -gt 0 ]; do
     --version)
       VERSION="${2:?missing version}"
       shift 2
+      ;;
+    --hub)
+      IS_HUB_ONLY=true
+      shift
+      ;;
+    --agent)
+      IS_AGENT_ONLY=true
+      shift
       ;;
     --help|-h)
       usage
@@ -52,13 +64,25 @@ targets=(
   "linux amd64"
   "linux arm64"
   "windows amd64"
+  "windows arm64"
   "darwin amd64"
   "darwin arm64"
 )
+
 apps=(
   "hub"
   "agent"
 )
+if [ "$IS_HUB_ONLY" = true ]; then
+  apps=(
+    "hub"
+  )
+elif [ "$IS_AGENT_ONLY" = true ]; then
+  apps=(
+    "agent"
+  )
+fi
+
 
 for t in "${targets[@]}"; do
   read -r GOOS GOARCH <<< "$t"
@@ -79,6 +103,17 @@ for t in "${targets[@]}"; do
 
     if command -v upx >/dev/null 2>&1; then
       upx -qqq "$out" && echo "Compressed $(basename "$out")"
+    fi
+
+    if [ "$app" = "agent" ]; then
+      if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$out" | awk '{print $1}' > "${out}.sha256"
+      elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$out" | awk '{print $1}' > "${out}.sha256"
+      fi
+      if [ -f "${out}.sha256" ]; then
+        echo "Wrote $(basename "${out}.sha256")"
+      fi
     fi
   done
 done
