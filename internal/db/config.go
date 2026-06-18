@@ -57,6 +57,8 @@ func SyncConfig() error {
 			config.DynamicConf.RegistrationEnabled = item.Value == "true" // Default false
 		case "registration_verify_email":
 			config.DynamicConf.RegistrationVerifyEmail = item.Value == "true" // Default false
+		case "session_bind_ip":
+			config.DynamicConf.SessionBindIP = item.Value == "true"
 		}
 	}
 

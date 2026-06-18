@@ -38,8 +38,7 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 				Msg:  "Login error",
 			})
 		}
-		userAgent := sess.Values["user_agent"]
-		if userAgent == nil || userAgent != c.Request().Header.Get("User-Agent") {
+		if !sessionBindingOK(c, sess) {
 			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
 		}
 
@@ -89,8 +88,7 @@ func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		if uid == nil || uid == 0 {
 			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
 		}
-		userAgent := sess.Values["user_agent"]
-		if userAgent == nil || userAgent != c.Request().Header.Get("User-Agent") {
+		if !sessionBindingOK(c, sess) {
 			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
 		}
 

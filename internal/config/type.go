@@ -59,4 +59,7 @@ type DynamicConfigType struct {
 	// Registration
 	RegistrationEnabled     bool
 	RegistrationVerifyEmail bool
+
+	// SessionBindIP: when true, authenticated sessions must match client_ip stored at login (requires TRUST_PROXY behind CDN).
+	SessionBindIP bool
 }

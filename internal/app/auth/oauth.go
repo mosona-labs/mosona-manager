@@ -197,22 +197,12 @@ func oauthCallback(c *echo.Context) error {
 		}
 	}
 
-	// Active Team
-	activeTid, err := db.GetUserActiveTeam(user.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
-	}
-
-	sess.Values["uid"] = user.ID
-	sess.Values["tid"] = activeTid
-	sess.Values["user_agent"] = c.Request().Header.Get("User-Agent")
-	sess.Values["time"] = time.Now().Unix()
-
-	if err = sess.Save(c.Request(), c.Response()); err != nil {
+	sessID, err := finalizeAuthenticatedSession(c, user.ID, 86400*3)
+	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
 	}
 
-	loginEvent(user.ID, sess.ID, c.RealIP(), c.Request().Header.Get("User-Agent"), user.IsAdmin)
+	loginEvent(user.ID, sessID, c.RealIP(), c.Request().Header.Get("User-Agent"), user.IsAdmin)
 
 	return c.JSON(200, _type.H{Code: "ok", Msg: "Success"})
 }

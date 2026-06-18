@@ -7,7 +7,7 @@ func TestRefreshExcludesBaseHostFromPublicHosts(t *testing.T) {
 	snap = snapshot{
 		baseHost: "hub.example.com",
 		publicHosts: map[string]struct{}{
-			"hub.example.com": {},
+			"hub.example.com":    {},
 			"status.example.com": {},
 		},
 	}

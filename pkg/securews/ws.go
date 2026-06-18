@@ -38,7 +38,7 @@ type cipherAead interface {
 
 func deriveSessionKeys(
 	role Role,
-	xPeerPub *ecdh.PublicKey,    // Peer Temp X25519 pub
+	xPeerPub *ecdh.PublicKey, // Peer Temp X25519 pub
 	xLocalPriv *ecdh.PrivateKey, // Local Temp X25519 priv
 	hubNonce string,
 	agentNonce string,

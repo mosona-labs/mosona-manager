@@ -30,11 +30,13 @@ func ParseSessionData(id, data string) (*_type.SessionData, error) {
 	if !ok {
 		return nil, fmt.Errorf("session time is missing")
 	}
+	clientIP, _ := session["client_ip"].(string)
 	return &_type.SessionData{
 		ID:        id,
 		UID:       uid,
 		TID:       tid,
 		UserAgent: userAgent,
+		ClientIP:  clientIP,
 		Time:      loginTime,
 	}, nil
 }
@@ -104,6 +106,13 @@ func RemoveUserSessionIDs(ctx context.Context, uid int64, sessionIDs []string) e
 	}
 	if err := RemoveSessionIDs(ctx, sessionIDs); err != nil {
 		return err
+	}
+	return RemoveUserSessionIDRefs(ctx, uid, sessionIDs)
+}
+
+func RemoveUserSessionIDRefs(ctx context.Context, uid int64, sessionIDs []string) error {
+	if len(sessionIDs) == 0 {
+		return nil
 	}
 	key := fmt.Sprintf("user:sessions:%d", uid)
 	values := make([]interface{}, 0, len(sessionIDs))
