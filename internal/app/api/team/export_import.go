@@ -10,6 +10,7 @@ import (
 	"mosona-manager/internal/connect/conn"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/security/exportcrypto"
 	"mosona-manager/internal/siteaccess"
 	"mosona-manager/internal/utils"
 	"mosona-manager/internal/utils/encrypt"
@@ -23,12 +24,14 @@ import (
 const teamExportVersion = 1
 
 type teamExportAuthRequest struct {
-	TOTPCode string `json:"totp_code"`
+	TOTPCode       string `json:"totp_code"`
+	ExportPassword string `json:"export_password"`
 }
 
 type teamImportRequest struct {
-	TOTPCode string           `json:"totp_code"`
-	Data     teamExportBundle `json:"data"`
+	TOTPCode       string                         `json:"totp_code"`
+	ExportPassword string                         `json:"export_password"`
+	Encrypted      *exportcrypto.EncryptedFile      `json:"encrypted"`
 }
 
 type teamExportBundle struct {
@@ -170,12 +173,16 @@ func exportTeam(c *echo.Context) error {
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Failed to export team data")
 	}
-	influx.LogAdd(tid, uid, "team", "Export Team Configuration", c.RealIP(), c.Request().UserAgent(), "high")
+	encrypted, err := exportcrypto.EncryptJSON(req.ExportPassword, data)
+	if err != nil {
+		return c.JSON(400, _type.H{Code: "invalid", Msg: err.Error()})
+	}
+	influx.LogAdd(tid, uid, "team", "Export Team Configuration (encrypted)", c.RealIP(), c.Request().UserAgent(), "high")
 
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Team data exported",
-		Data: data,
+		Data: encrypted,
 	})
 }
 
@@ -192,11 +199,16 @@ func importTeam(c *echo.Context) error {
 	if err := requireTOTPCode(c, req.TOTPCode); err != nil {
 		return err
 	}
-	if req.Data.Version != teamExportVersion {
+
+	var bundle teamExportBundle
+	if err := exportcrypto.DecryptJSON(req.ExportPassword, req.Encrypted, &bundle); err != nil {
+		return c.JSON(400, _type.H{Code: "invalid", Msg: err.Error()})
+	}
+	if bundle.Version != teamExportVersion {
 		return c.JSON(400, _type.H{Code: "invalid", Msg: "Unsupported export version"})
 	}
 
-	oldServers, newServers, err := applyTeamImport(tid, req.Data)
+	oldServers, newServers, err := applyTeamImport(tid, bundle)
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Failed to import team data")
 	}
