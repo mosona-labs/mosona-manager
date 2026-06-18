@@ -8,6 +8,7 @@ import (
 	"mosona-manager/internal/connect/callback"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/pkg/httporigin"
 	"mosona-manager/pkg/wsutil"
 	"net/http"
 	"strconv"
@@ -72,7 +73,7 @@ func passiveWS(c *echo.Context) error {
 
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
-			return true
+			return httporigin.SameOrigin(r)
 		},
 	}
 

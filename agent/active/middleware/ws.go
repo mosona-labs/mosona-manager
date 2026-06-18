@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"mosona-manager/agent/config"
+	"mosona-manager/pkg/httporigin"
 	pbTypes "mosona-manager/pkg/types"
 	"net/http"
 	"time"
@@ -27,7 +28,7 @@ func WsMiddleware(next HandlerWSFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
-				return true
+				return httporigin.SameOrigin(r)
 			},
 		}
 		conn, err := upgrader.Upgrade(w, r, nil)

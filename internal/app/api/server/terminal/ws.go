@@ -4,6 +4,7 @@ import (
 	"mosona-manager/internal/connect/active"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/pkg/httporigin"
 	"net/http"
 	"strconv"
 
@@ -13,7 +14,7 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return sameOrigin(r)
+		return httporigin.SameOrigin(r)
 	},
 }
 

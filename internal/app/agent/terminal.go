@@ -3,6 +3,7 @@ package agent
 import (
 	"log"
 	"mosona-manager/internal/app/agent/connection"
+	"mosona-manager/pkg/httporigin"
 	"mosona-manager/pkg/wsutil"
 	"net/http"
 	"sync"
@@ -16,7 +17,7 @@ func terminal(c *echo.Context) error {
 
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
-			return true
+			return httporigin.SameOrigin(r)
 		},
 	}
 

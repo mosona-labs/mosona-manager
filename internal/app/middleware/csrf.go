@@ -2,9 +2,8 @@ package middleware
 
 import (
 	"mosona-manager/internal/_type"
+	"mosona-manager/pkg/httporigin"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/labstack/echo/v5"
 )
@@ -17,13 +16,13 @@ func SameOriginWrite(next echo.HandlerFunc) echo.HandlerFunc {
 			return next(c)
 		}
 
-		if !sameOriginHeader(req, "Origin") {
+		if !httporigin.SameOriginHeader(req, "Origin") {
 			return c.JSON(http.StatusForbidden, _type.H{
 				Code: "forbidden",
 				Msg:  "Cross-origin request denied",
 			})
 		}
-		if req.Header.Get("Origin") == "" && req.Header.Get("Referer") != "" && !sameOriginHeader(req, "Referer") {
+		if req.Header.Get("Origin") == "" && req.Header.Get("Referer") != "" && !httporigin.SameOriginHeader(req, "Referer") {
 			return c.JSON(http.StatusForbidden, _type.H{
 				Code: "forbidden",
 				Msg:  "Cross-origin request denied",
@@ -32,17 +31,4 @@ func SameOriginWrite(next echo.HandlerFunc) echo.HandlerFunc {
 
 		return next(c)
 	}
-}
-
-func sameOriginHeader(req *http.Request, header string) bool {
-	value := strings.TrimSpace(req.Header.Get(header))
-	if value == "" {
-		return true
-	}
-
-	u, err := url.Parse(value)
-	if err != nil || u.Host == "" {
-		return false
-	}
-	return strings.EqualFold(u.Host, req.Host)
 }
