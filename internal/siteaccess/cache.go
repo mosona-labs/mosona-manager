@@ -90,6 +90,12 @@ func PublicPagePathAllowed(path string) bool {
 	if strings.HasPrefix(path, "/preview-assets/") {
 		return true
 	}
+	if strings.HasPrefix(path, "/flags/") {
+		return true
+	}
+	if strings.HasPrefix(path, "/icons/") {
+		return true
+	}
 	if strings.HasPrefix(path, "/avatars/") {
 		return true
 	}

@@ -27,6 +27,8 @@ func TestPublicPagePathAllowed(t *testing.T) {
 		"/health",
 		"/api/public/preview/bootstrap",
 		"/preview-assets/app.js",
+		"/flags/nl.svg",
+		"/icons/macos.svg",
 		"/avatars/uuid.avif",
 	}
 	for _, p := range allowed {
