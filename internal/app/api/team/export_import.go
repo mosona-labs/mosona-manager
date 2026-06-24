@@ -1,7 +1,9 @@
 package ateam
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -29,9 +31,10 @@ type teamExportAuthRequest struct {
 }
 
 type teamImportRequest struct {
-	TOTPCode       string                         `json:"totp_code"`
-	ExportPassword string                         `json:"export_password"`
-	Encrypted      *exportcrypto.EncryptedFile      `json:"encrypted"`
+	TOTPCode       string                      `json:"totp_code"`
+	ExportPassword string                      `json:"export_password"`
+	Encrypted      *exportcrypto.EncryptedFile `json:"encrypted"`
+	Data           json.RawMessage             `json:"data"`
 }
 
 type teamExportBundle struct {
@@ -200,8 +203,8 @@ func importTeam(c *echo.Context) error {
 		return err
 	}
 
-	var bundle teamExportBundle
-	if err := exportcrypto.DecryptJSON(req.ExportPassword, req.Encrypted, &bundle); err != nil {
+	bundle, err := decodeTeamImportBundle(req)
+	if err != nil {
 		return c.JSON(400, _type.H{Code: "invalid", Msg: err.Error()})
 	}
 	if bundle.Version != teamExportVersion {
@@ -234,6 +237,27 @@ func importTeam(c *echo.Context) error {
 		Code: "ok",
 		Msg:  "Team data imported",
 	})
+}
+
+func decodeTeamImportBundle(req teamImportRequest) (teamExportBundle, error) {
+	if hasJSON(req.Data) {
+		var bundle teamExportBundle
+		if err := json.Unmarshal(req.Data, &bundle); err != nil {
+			return bundle, errors.New("import payload is not valid team data")
+		}
+		return bundle, nil
+	}
+
+	var bundle teamExportBundle
+	if err := exportcrypto.DecryptJSON(req.ExportPassword, req.Encrypted, &bundle); err != nil {
+		return bundle, err
+	}
+	return bundle, nil
+}
+
+func hasJSON(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return len(trimmed) > 0 && !bytes.Equal(trimmed, []byte("null"))
 }
 
 func requireTeamOwnerAndTOTP(c *echo.Context) (int64, int64, error) {
