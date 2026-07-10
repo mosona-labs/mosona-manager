@@ -184,9 +184,28 @@ func GetIPGeoLocation(ip string) (IPGeoResponse, error) {
 		return IPGeoResponse{}, err
 	}
 
-	return IPGeoResponse{
-		Country:     record.Country.Names["en"],
-		CountryCode: record.Country.IsoCode,
+	country := record.Country
+	if country.IsoCode == "" {
+		country = record.RegisteredCountry
+	}
+	if country.IsoCode == "" {
+		res := IPGeoResponse{
+			Country:     "Unknown",
+			CountryCode: "UN",
+			IP:          ip,
+		}
+		return res, nil
+	}
+	countryName := country.Names["en"]
+	if countryName == "" {
+		countryName = "Unknown"
+	}
+
+	res := IPGeoResponse{
+		Country:     countryName,
+		CountryCode: country.IsoCode,
 		IP:          ip,
-	}, nil
+	}
+
+	return res, nil
 }
