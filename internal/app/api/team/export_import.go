@@ -221,7 +221,15 @@ func importTeam(c *echo.Context) error {
 	for _, serverID := range oldServers {
 		conn.StopServer(serverID)
 	}
+	for _, serverID := range oldServers {
+		if err = influx.RemoveServerStatus(serverID); err != nil {
+			return utils.ErrorHandler(c, err, "Failed to clear server status from InfluxDB")
+		}
+	}
 	for _, server := range newServers {
+		if err = influx.RemoveServerStatus(server.id); err != nil {
+			return utils.ErrorHandler(c, err, "Failed to clear server status from InfluxDB")
+		}
 		if !server.allowMonitor {
 			continue
 		}

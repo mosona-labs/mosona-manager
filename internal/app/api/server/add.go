@@ -237,6 +237,10 @@ func add(c *echo.Context) error {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
+	if err = influx.RemoveServerStatus(serverId); err != nil {
+		return utils.ErrorHandler(c, err, "Failed to clear server status from InfluxDB")
+	}
+
 	go func() {
 		if err = conn.StartServer(serverId, int16(mode)); err != nil {
 			log.Println("Failed to start server connection:", err)
