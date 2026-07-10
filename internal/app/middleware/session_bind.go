@@ -7,7 +7,7 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
-func sessionBindingOK(c *echo.Context, sess *sessions.Session) bool {
+func SessionBindingOK(c *echo.Context, sess *sessions.Session) bool {
 	reqUA := c.Request().Header.Get("User-Agent")
 	userAgent := sess.Values["user_agent"]
 	if userAgent == nil || userAgent != reqUA {

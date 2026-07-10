@@ -35,9 +35,15 @@ func Information(
 	}
 	geo, err := utils.GetIPGeoLocation(ip)
 	if err != nil {
-		log.Println("Failed to get IP geo location:", err)
-		geo.CountryCode = "UN"
-		geo.Country = "Unknown"
+		if ip != "" {
+			log.Println("Failed to get IP geo location:", err, ip)
+		} else {
+			log.Println("IP is empty, cannot get geo location")
+		}
+		geo = utils.IPGeoResponse{
+			CountryCode: "UN",
+			Country:     "Unknown",
+		}
 	}
 
 	tx, err := db.Db.Begin()

@@ -42,23 +42,23 @@ func TestSessionBindingOK(t *testing.T) {
 	config.Conf.TrustProxy = true
 	config.DynamicConf.SessionBindIP = true
 	req.Header.Set("CF-Connecting-IP", "203.0.113.10")
-	if !sessionBindingOK(c, sess) {
+	if !SessionBindingOK(c, sess) {
 		t.Fatal("expected client IP match via RealIP")
 	}
 
 	req.Header.Set("CF-Connecting-IP", "198.51.100.2")
 	c = e.NewContext(req, rec)
-	if sessionBindingOK(c, sess) {
+	if SessionBindingOK(c, sess) {
 		t.Fatal("expected IP mismatch")
 	}
 
 	config.DynamicConf.SessionBindIP = false
-	if !sessionBindingOK(c, sess) {
+	if !SessionBindingOK(c, sess) {
 		t.Fatal("expected IP check skipped when disabled")
 	}
 
 	sess.Values["user_agent"] = "other"
-	if sessionBindingOK(c, sess) {
+	if SessionBindingOK(c, sess) {
 		t.Fatal("expected UA mismatch")
 	}
 }

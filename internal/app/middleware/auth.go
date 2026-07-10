@@ -38,7 +38,7 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 				Msg:  "Login error",
 			})
 		}
-		if !sessionBindingOK(c, sess) {
+		if !SessionBindingOK(c, sess) {
 			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
 		}
 
@@ -88,7 +88,7 @@ func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		if uid == nil || uid == 0 {
 			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
 		}
-		if !sessionBindingOK(c, sess) {
+		if !SessionBindingOK(c, sess) {
 			return c.JSON(400, _type.H{Code: "login", Msg: "permission denied"})
 		}
 

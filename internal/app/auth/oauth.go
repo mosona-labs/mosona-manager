@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/app/middleware"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/oauth"
@@ -176,7 +177,7 @@ func oauthCallback(c *echo.Context) error {
 	// Already logged in
 	if sess.Values["uid"] != nil {
 		currentUID, ok := sess.Values["uid"].(int64)
-		if ok && currentUID > 0 {
+		if ok && currentUID > 0 && middleware.SessionBindingOK(c, sess) {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Already logged in"})
 		}
 	}
