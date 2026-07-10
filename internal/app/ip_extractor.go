@@ -26,7 +26,7 @@ func configureClientIPExtractor(e *echo.Echo) {
 }
 
 func cdnClientIPExtractor(req *http.Request) string {
-	if !config.Conf.TrustProxy {
+	if !config.ReadDynamicConf().TrustProxy {
 		return directRemoteIP(req.RemoteAddr)
 	}
 	for _, header := range cdnClientIPHeaders {

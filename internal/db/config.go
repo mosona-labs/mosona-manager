@@ -59,6 +59,8 @@ func SyncConfig() error {
 			config.DynamicConf.RegistrationVerifyEmail = item.Value == "true" // Default false
 		case "session_bind_ip":
 			config.DynamicConf.SessionBindIP = item.Value != "false" // Default true
+		case "trust_proxy":
+			config.DynamicConf.TrustProxy = item.Value != "false" // Default true
 		}
 	}
 

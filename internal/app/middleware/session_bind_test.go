@@ -12,15 +12,15 @@ import (
 
 func TestSessionBindingOK(t *testing.T) {
 	oldBind := config.DynamicConf.SessionBindIP
-	oldTrust := config.Conf.TrustProxy
+	oldTrust := config.DynamicConf.TrustProxy
 	t.Cleanup(func() {
 		config.DynamicConf.SessionBindIP = oldBind
-		config.Conf.TrustProxy = oldTrust
+		config.DynamicConf.TrustProxy = oldTrust
 	})
 
 	e := echo.New()
 	e.IPExtractor = func(req *http.Request) string {
-		if config.Conf.TrustProxy {
+		if config.DynamicConf.TrustProxy {
 			if v := req.Header.Get("CF-Connecting-IP"); v != "" {
 				return v
 			}
@@ -39,7 +39,7 @@ func TestSessionBindingOK(t *testing.T) {
 		"client_ip":  "203.0.113.10",
 	}}
 
-	config.Conf.TrustProxy = true
+	config.DynamicConf.TrustProxy = true
 	config.DynamicConf.SessionBindIP = true
 	req.Header.Set("CF-Connecting-IP", "203.0.113.10")
 	if !SessionBindingOK(c, sess) {

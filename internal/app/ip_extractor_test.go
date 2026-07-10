@@ -44,9 +44,9 @@ func TestCDNClientIPExtractor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			old := config.Conf.TrustProxy
-			config.Conf.TrustProxy = tt.trustProxy
-			t.Cleanup(func() { config.Conf.TrustProxy = old })
+			old := config.DynamicConf.TrustProxy
+			config.DynamicConf.TrustProxy = tt.trustProxy
+			t.Cleanup(func() { config.DynamicConf.TrustProxy = old })
 
 			req := &http.Request{Header: http.Header{}, RemoteAddr: tt.remoteAddr}
 			for key, values := range tt.headers {

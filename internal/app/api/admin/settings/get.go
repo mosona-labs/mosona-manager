@@ -26,6 +26,7 @@ func get(c *echo.Context) error {
 			SMTPTls:                 dc.SMTPTls,
 			EmailVerifyLogin:        dc.EmailVerifyLogin,
 			SessionBindIP:           dc.SessionBindIP,
+			TrustProxy:              dc.TrustProxy,
 			RegistrationEnabled:     dc.RegistrationEnabled,
 			RegistrationVerifyEmail: dc.RegistrationVerifyEmail,
 			CaptchaSiteKey:          dc.CaptchaSiteKey,

@@ -22,6 +22,7 @@ type Response struct {
 	// Login
 	EmailVerifyLogin bool `json:"email_verify_login"`
 	SessionBindIP    bool `json:"session_bind_ip"`
+	TrustProxy       bool `json:"trust_proxy"`
 
 	// Registration
 	RegistrationEnabled     bool `json:"registration_enabled"`

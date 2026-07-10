@@ -23,9 +23,6 @@ type configType struct {
 
 	// Frontend
 	FrontendDir string
-
-	// TrustProxy: when false (default), client IP is RemoteAddr only (prevents X-Forwarded-For spoofing).
-	TrustProxy bool
 }
 
 type DynamicConfigType struct {
@@ -60,6 +57,9 @@ type DynamicConfigType struct {
 	RegistrationEnabled     bool
 	RegistrationVerifyEmail bool
 
-	// SessionBindIP: when true, authenticated sessions must match client_ip stored at login (requires TRUST_PROXY behind CDN).
+	// SessionBindIP: when true, authenticated sessions must match client_ip stored at login (requires TrustProxy enabled behind CDN).
 	SessionBindIP bool
+
+	// TrustProxy: when false, client IP is RemoteAddr only (prevents X-Forwarded-For spoofing).
+	TrustProxy bool
 }
