@@ -51,6 +51,14 @@ func TryServeDomainRequest(c *echo.Context) (bool, error) {
 	}
 
 	setPublicPageHeaders(c)
+
+	relativePath := strings.TrimPrefix(path.Clean("/"+c.Request().URL.Path), "/")
+	if relativePath != "" {
+		if fi, statErr := fs.Stat(frontendFS(), relativePath); statErr == nil && !fi.IsDir() {
+			return true, c.FileFS(relativePath, frontendFS())
+		}
+	}
+
 	return true, servePreviewIndex(c, &page)
 }
 
