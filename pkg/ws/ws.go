@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"math/rand/v2"
 	"mosona-manager/pkg/netutil"
 	"mosona-manager/pkg/wsutil"
 	"net"
@@ -16,6 +17,7 @@ func NewClient() *Client {
 		header:        make(http.Header),
 		maxRetries:    -1,
 		retryInterval: 5 * time.Second,
+		maxRetryDelay: 5 * time.Second,
 	}
 }
 
@@ -26,6 +28,13 @@ func (c *Client) SetHeader(key, value string) {
 func (c *Client) SetReconnectConfig(maxRetries int, interval time.Duration) {
 	c.maxRetries = maxRetries
 	c.retryInterval = interval
+	c.maxRetryDelay = interval
+}
+
+func (c *Client) SetReconnectBackoff(maxRetries int, initial, maximum time.Duration) {
+	c.maxRetries = maxRetries
+	c.retryInterval = initial
+	c.maxRetryDelay = maximum
 }
 
 func (c *Client) OnReconnect(fn func()) {
@@ -93,7 +102,14 @@ func (c *Client) reconnect() error {
 			return websocket.ErrCloseSent
 		}
 
-		time.Sleep(c.retryInterval)
+		delay := c.reconnectDelay(retries)
+		timer := time.NewTimer(delay)
+		select {
+		case <-c.ctx.Done():
+			timer.Stop()
+			return c.ctx.Err()
+		case <-timer.C:
+		}
 
 		if c.onReconnect != nil {
 			c.onReconnect()
@@ -105,6 +121,25 @@ func (c *Client) reconnect() error {
 
 		retries++
 	}
+}
+
+func (c *Client) reconnectDelay(retries int) time.Duration {
+	delay := c.retryInterval
+	for i := 0; i < retries && delay < c.maxRetryDelay; i++ {
+		delay *= 2
+		if delay > c.maxRetryDelay {
+			delay = c.maxRetryDelay
+		}
+	}
+	if delay <= 0 {
+		return 0
+	}
+	// Add +/-20% jitter so many agents do not reconnect simultaneously.
+	window := delay / 5
+	if window == 0 {
+		return delay
+	}
+	return delay - window + time.Duration(rand.Int64N(int64(window*2)+1))
 }
 
 func (c *Client) Close() error {

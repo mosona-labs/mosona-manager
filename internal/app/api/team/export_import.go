@@ -704,10 +704,10 @@ func importServers(tx *sqlx.Tx, teamID int64, servers []teamExportServer, catego
 		).Scan(&newServerID); err != nil {
 			return nil, err
 		}
-		if err := importServerInfo(tx, newServerID, server.Info); err != nil {
+		if err := importServerInfo(tx, newServerID, server.Type, server.Info); err != nil {
 			return nil, err
 		}
-		if err := importServerAdvancedInfo(tx, newServerID, server.AdvancedInfo); err != nil {
+		if err := importServerAdvancedInfo(tx, newServerID, server.Type, server.AdvancedInfo); err != nil {
 			return nil, err
 		}
 		if err := importServerConnection(tx, newServerID, server, keyMap); err != nil {
@@ -730,7 +730,8 @@ func importServers(tx *sqlx.Tx, teamID int64, servers []teamExportServer, catego
 	return imported, nil
 }
 
-func importServerInfo(tx *sqlx.Tx, serverID int64, info teamExportServerInfo) error {
+func importServerInfo(tx *sqlx.Tx, serverID int64, serverType int16, info teamExportServerInfo) error {
+	info = normalizeImportedServerInfo(serverType, info)
 	_, err := tx.Exec(
 		`INSERT INTO server_info (
 			sid, os, county, area, open_time, note, provider, cycle, start_time, end_time, amount,
@@ -743,13 +744,32 @@ func importServerInfo(tx *sqlx.Tx, serverID int64, info teamExportServerInfo) er
 	return err
 }
 
-func importServerAdvancedInfo(tx *sqlx.Tx, serverID int64, info teamExportServerInfoAdv) error {
+func normalizeImportedServerInfo(serverType int16, info teamExportServerInfo) teamExportServerInfo {
+	if serverType == 2 {
+		info.OS = nil
+		info.County = nil
+		info.Area = nil
+		info.OpenTime = nil
+		info.Online = false
+	}
+	return info
+}
+
+func importServerAdvancedInfo(tx *sqlx.Tx, serverID int64, serverType int16, info teamExportServerInfoAdv) error {
+	info = normalizeImportedServerAdvancedInfo(serverType, info)
 	_, err := tx.Exec(
 		`INSERT INTO server_info_adv (sid, hostname, cpu_name, core_c, core_t, kernel, ip, arch)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		serverID, info.Hostname, info.CPUName, info.CoreC, info.CoreT, info.Kernel, info.IP, info.Arch,
 	)
 	return err
+}
+
+func normalizeImportedServerAdvancedInfo(serverType int16, info teamExportServerInfoAdv) teamExportServerInfoAdv {
+	if serverType == 2 {
+		return teamExportServerInfoAdv{}
+	}
+	return info
 }
 
 func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer, keyMap map[int64]int64) error {
@@ -770,11 +790,12 @@ func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer
 		return err
 	case 1, 2:
 		if server.Agent != nil {
+			lastSeenAt, lastIP, lastVersion := normalizeImportedAgentRuntime(server.Type, server.Agent)
 			if _, err := tx.Exec(
 				`INSERT INTO agents (server_id, agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, host, port)
-				 VALUES ($1, $2, $3, COALESCE($4, now()), $5, $6, $7, $8, $9, $10)`,
-				serverID, server.Agent.AgentUID, server.Agent.Status, server.Agent.LastSeenAt, server.Agent.LastIP,
-				server.Agent.LastVersion, server.Agent.PublicKey, server.Agent.PrivateKey, server.Agent.Host, server.Agent.Port,
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+				serverID, server.Agent.AgentUID, server.Agent.Status, lastSeenAt, lastIP,
+				lastVersion, server.Agent.PublicKey, server.Agent.PrivateKey, server.Agent.Host, server.Agent.Port,
 			); err != nil {
 				return err
 			}
@@ -789,4 +810,15 @@ func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer
 		}
 	}
 	return nil
+}
+
+func normalizeImportedAgentRuntime(serverType int16, agent *teamExportAgent) (*time.Time, string, string) {
+	if serverType == 2 {
+		return nil, "", ""
+	}
+	if agent.LastSeenAt == nil {
+		now := time.Now()
+		return &now, agent.LastIP, agent.LastVersion
+	}
+	return agent.LastSeenAt, agent.LastIP, agent.LastVersion
 }

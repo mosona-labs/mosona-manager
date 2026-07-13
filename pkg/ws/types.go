@@ -18,6 +18,7 @@ type Client struct {
 	reconnecting  bool
 	maxRetries    int
 	retryInterval time.Duration
+	maxRetryDelay time.Duration
 	onReconnect   func()
 	ctx           context.Context
 	ipPreference  string

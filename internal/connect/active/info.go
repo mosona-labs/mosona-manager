@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"mosona-manager/internal/connect/callback"
-	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 	"mosona-manager/pkg/identity"
 	"time"
@@ -51,16 +50,10 @@ func (a *auth) getInformation() error {
 		return err
 	}
 
-	callback.Information(
+	if err = callback.AgentInformation(
 		a.serverID, "",
 		info.System, time.Unix(info.StartTime, 0), info.HostName, info.CpuName,
-		info.CoreC, info.CoreT, info.Kernel, a.host, info.Arch,
-	)
-
-	// Update agent info
-	if _, err := db.Db.Exec(
-		"UPDATE agents SET status = 1, last_ip = $1, last_version = $2, last_seen_at = NOW() WHERE server_id = $3",
-		a.host, info.Version, a.serverID,
+		info.CoreC, info.CoreT, info.Kernel, a.host, info.Arch, info.Version,
 	); err != nil {
 		return err
 	}

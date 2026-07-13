@@ -126,7 +126,7 @@ CREATE TABLE "agents" (
   "server_id" int8 NOT NULL,
   "agent_uid" char(36) COLLATE "pg_catalog"."default" NOT NULL,
   "status" int2 NOT NULL DEFAULT 0,
-  "last_seen_at" timestamp(6) NOT NULL DEFAULT now(),
+  "last_seen_at" timestamp(6) DEFAULT now(),
   "last_ip" varchar(64) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "last_version" varchar(64) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "public_key" text COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::text,

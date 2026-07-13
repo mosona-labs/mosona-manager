@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"mosona-manager/agent/config"
 	"mosona-manager/agent/runtime"
 	"mosona-manager/pkg/identity"
@@ -23,9 +24,14 @@ func connectHub(path string) (*ws.Client, error) {
 		return nil, err
 	}
 
-	client.SetReconnectConfig(-1, 10*time.Second)
+	client.SetReconnectBackoff(-1, 5*time.Second, time.Minute)
 	client.OnReconnect(func() {
-		_ = setAuthHeaders(client)
+		if err := reportInfo(); err != nil {
+			log.Println("Failed to report info before reconnect:", err)
+		}
+		if err := setAuthHeaders(client); err != nil {
+			log.Println("Failed to refresh reconnect authentication headers:", err)
+		}
 	})
 
 	url := strings.Replace(

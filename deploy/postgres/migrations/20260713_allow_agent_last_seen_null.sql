@@ -1,0 +1,2 @@
+ALTER TABLE agents
+ALTER COLUMN last_seen_at DROP NOT NULL;

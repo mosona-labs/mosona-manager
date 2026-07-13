@@ -65,7 +65,7 @@ func SSH(
 				if err = information(client, func(data _type.ServerInfoType) {
 					u, _ := strconv.ParseInt(data.Uptime, 10, 64)
 					bootTime := time.Unix(time.Now().Unix()-u, 0)
-					callback.Information(
+					if err := callback.Information(
 						serverId,
 						host,
 						data.SystemVersion,
@@ -77,7 +77,9 @@ func SSH(
 						data.KernelVersion,
 						data.IPAddress,
 						data.Architecture,
-					)
+					); err != nil {
+						log.Println("Failed to update SSH server information:", err)
+					}
 				}); err != nil {
 					return err
 				}

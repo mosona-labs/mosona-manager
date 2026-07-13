@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"mosona-manager/internal/security/exportcrypto"
 )
@@ -23,6 +24,69 @@ func TestDecodeTeamImportBundleEncrypted(t *testing.T) {
 	}
 	if got.Version != teamExportVersion || got.Team.Name != bundle.Team.Name {
 		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestNormalizeImportedPassiveServerRuntime(t *testing.T) {
+	osName := "Linux"
+	county := "HK"
+	area := "Hong Kong"
+	hostname := "server-1"
+	ip := "203.0.113.10"
+	note := "keep this note"
+	openTime := time.Now().Add(-time.Hour)
+
+	info := normalizeImportedServerInfo(2, teamExportServerInfo{
+		OS:       &osName,
+		County:   &county,
+		Area:     &area,
+		OpenTime: &openTime,
+		Note:     &note,
+		Online:   true,
+	})
+	if info.OS != nil || info.County != nil || info.Area != nil || info.OpenTime != nil || info.Online {
+		t.Fatalf("passive runtime info was not cleared: %#v", info)
+	}
+	if info.Note == nil || *info.Note != note {
+		t.Fatalf("static server info was not preserved: %#v", info.Note)
+	}
+
+	advanced := normalizeImportedServerAdvancedInfo(2, teamExportServerInfoAdv{
+		Hostname: &hostname,
+		IP:       &ip,
+	})
+	if advanced.Hostname != nil || advanced.IP != nil {
+		t.Fatalf("passive advanced info was not cleared: %#v", advanced)
+	}
+
+	lastSeen := time.Now().Add(-time.Minute)
+	seen, lastIP, version := normalizeImportedAgentRuntime(2, &teamExportAgent{
+		LastSeenAt:  &lastSeen,
+		LastIP:      ip,
+		LastVersion: "v1.2.3",
+	})
+	if seen != nil || lastIP != "" || version != "" {
+		t.Fatalf("passive agent runtime was not cleared: seen=%v ip=%q version=%q", seen, lastIP, version)
+	}
+}
+
+func TestNormalizeImportedActiveServerPreservesRuntime(t *testing.T) {
+	osName := "Linux"
+	ip := "203.0.113.10"
+	lastSeen := time.Now().Add(-time.Minute)
+
+	info := normalizeImportedServerInfo(1, teamExportServerInfo{OS: &osName, Online: true})
+	advanced := normalizeImportedServerAdvancedInfo(1, teamExportServerInfoAdv{IP: &ip})
+	seen, lastIP, version := normalizeImportedAgentRuntime(1, &teamExportAgent{
+		LastSeenAt:  &lastSeen,
+		LastIP:      ip,
+		LastVersion: "v1.2.3",
+	})
+	if info.OS == nil || *info.OS != osName || !info.Online || advanced.IP == nil || *advanced.IP != ip {
+		t.Fatal("active server runtime should be preserved")
+	}
+	if seen == nil || !seen.Equal(lastSeen) || lastIP != ip || version != "v1.2.3" {
+		t.Fatal("active agent runtime should be preserved")
 	}
 }
 

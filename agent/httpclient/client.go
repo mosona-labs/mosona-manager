@@ -15,23 +15,34 @@ import (
 )
 
 func PostForm(urlStr string, data map[string]interface{}, headers map[string]string, res any, ipPreference string) error {
-	formData := make(url.Values)
-	for k, v := range data {
-		formData.Set(k, fmt.Sprint(v))
+	client, err := newClient(ipPreference)
+	if err != nil {
+		return err
 	}
+	return postForm(client, urlStr, data, headers, res)
+}
 
+func newClient(ipPreference string) (*http.Client, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if ipPreference != "" {
 		network, err := netutil.NetworkForIPPreference(ipPreference)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		netDialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 		transport.DialContext = func(ctx context.Context, networkAddr, addr string) (net.Conn, error) {
 			return netDialer.DialContext(ctx, network, addr)
 		}
 	}
-	client := &http.Client{Timeout: 30 * time.Second, Transport: transport}
+	return &http.Client{Timeout: 30 * time.Second, Transport: transport}, nil
+}
+
+func postForm(client *http.Client, urlStr string, data map[string]interface{}, headers map[string]string, res any) error {
+	formData := make(url.Values)
+	for k, v := range data {
+		formData.Set(k, fmt.Sprint(v))
+	}
+
 	req, err := http.NewRequest("POST", urlStr, strings.NewReader(formData.Encode()))
 	if err != nil {
 		return err
@@ -54,6 +65,9 @@ func PostForm(urlStr string, data map[string]interface{}, headers map[string]str
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("request failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	if res != nil {

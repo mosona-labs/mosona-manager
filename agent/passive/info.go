@@ -10,10 +10,14 @@ import (
 	"mosona-manager/agent/runtime"
 	"mosona-manager/agent/telemetry"
 	"mosona-manager/pkg/identity"
-	"mosona-manager/pkg/netutil"
 	"os"
 	"time"
 )
+
+type infoResponse struct {
+	Code string `json:"code"`
+	Msg  string `json:"msg"`
+}
 
 func reportInfo() error {
 	data := telemetry.CollectHostInfo(context.Background())
@@ -31,7 +35,8 @@ func reportInfo() error {
 		return err
 	}
 
-	return httpclient.PostForm(config.Current.Hub+"/api/agent/info", map[string]interface{}{
+	var response infoResponse
+	if err := httpclient.PostForm(config.Current.Hub+"/api/agent/info", map[string]interface{}{
 		"system":     data.SystemVersion,
 		"start_time": time.Now().Unix() - data.Uptime,
 		"host_name":  hostname,
@@ -47,5 +52,11 @@ func reportInfo() error {
 		"X-Agent-Nonce":     nonce,
 		"X-Agent-Signature": signature,
 		"User-Agent":        "mosona-manager-agent/" + runtime.Version,
-	}, nil, netutil.IPPreferenceAuto)
+	}, &response, config.Current.IPPreference); err != nil {
+		return err
+	}
+	if response.Code != "ok" {
+		return fmt.Errorf("report info failed: %s", response.Msg)
+	}
+	return nil
 }

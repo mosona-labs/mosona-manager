@@ -2,6 +2,7 @@ package passive
 
 import (
 	"log"
+	"math/rand/v2"
 	"mosona-manager/agent/config"
 	"mosona-manager/agent/telemetry"
 	pbTypes "mosona-manager/pkg/types"
@@ -11,6 +12,25 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/vmihailenco/msgpack/v5"
 )
+
+const infoReportInterval = 10 * time.Minute
+
+func nextInfoReportDelay() time.Duration {
+	// Spread reports across a 20% window to avoid a reconnect/reporting herd.
+	jitter := time.Duration(rand.Int64N(int64(infoReportInterval / 5)))
+	return infoReportInterval - infoReportInterval/10 + jitter
+}
+
+func startInfoReporter() {
+	go func() {
+		for {
+			time.Sleep(nextInfoReportDelay())
+			if err := reportInfo(); err != nil {
+				log.Println("Failed to periodically report info:", err)
+			}
+		}
+	}()
+}
 
 func Run() {
 	if err := config.LoadPrivateKey(); err != nil {
@@ -25,6 +45,7 @@ func Run() {
 		}
 		break
 	}
+	startInfoReporter()
 
 	var client *ws.Client
 	for {
