@@ -2,11 +2,37 @@ package alerttasks
 
 import (
 	"fmt"
-	"mosona-manager/internal/_type"
 	"time"
+
+	"mosona-manager/internal/_type"
 )
 
 type metricCalculator func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int)
+
+type statusNotification int
+
+const (
+	statusNotificationNone statusNotification = iota
+	statusNotificationDown
+	statusNotificationUp
+)
+
+func statusNotificationFor(lastStatus *bool, currentStatus bool) statusNotification {
+	if lastStatus == nil {
+		if !currentStatus {
+			return statusNotificationDown
+		}
+		return statusNotificationNone
+	}
+
+	if *lastStatus == currentStatus {
+		return statusNotificationNone
+	}
+	if currentStatus {
+		return statusNotificationUp
+	}
+	return statusNotificationDown
+}
 
 func shouldNotify(currentStatus bool, r *alertRule) bool {
 	if !currentStatus {
@@ -26,32 +52,41 @@ func shouldNotify(currentStatus bool, r *alertRule) bool {
 	return false
 }
 
+func statusPtr(status bool) *bool {
+	return &status
+}
+
 func (a *alertInstance) checkMetricAlert(
 	serverId int64,
 	r *alertRule,
 	calculator metricCalculator,
 	alertTitle string,
 	messageFormatter func(value float64, duration int, threshold int) string,
-) (bool, *time.Time) {
+) (*bool, *time.Time) {
 	value, count := calculator(a.statuses, r.startTime)
 
 	if count == 0 {
-		return false, r.lastNotifyAt
+		return statusPtr(false), r.lastNotifyAt
 	}
 
 	avgValue := value / float64(count)
 	currentStatus := avgValue >= float64(r.threshold)
 
-	now := time.Now()
 	if shouldNotify(currentStatus, r) {
-		a.notifyAll(serverId, alertTitle, messageFormatter(avgValue, r.forDuration, r.threshold))
-		return currentStatus, &now
+		delivery := a.notifyAll(serverId, alertTitle, messageFormatter(avgValue, r.forDuration, r.threshold))
+		if delivery.delivered {
+			now := time.Now()
+			return statusPtr(currentStatus), &now
+		}
+		if delivery.attempted {
+			return r.lastStatus, r.lastNotifyAt
+		}
 	}
 
-	return currentStatus, r.lastNotifyAt
+	return statusPtr(currentStatus), r.lastNotifyAt
 }
 
-func (a *alertInstance) checkStatusAlert(serverId int64, r *alertRule) (bool, *time.Time) {
+func (a *alertInstance) checkStatusAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
 	// Check if server has any status data after startTime
 	currentStatus := false
 	for _, item := range a.statuses {
@@ -61,33 +96,31 @@ func (a *alertInstance) checkStatusAlert(serverId int64, r *alertRule) (bool, *t
 		}
 	}
 
-	now := time.Now()
-
-	// Determine if notification should be sent
-	notify := false
-	if r.lastStatus == nil {
-		// First time checking - notify if down
-		notify = !currentStatus
-	} else {
-		// Status changed or recurring notification needed
-		statusChanged := *r.lastStatus != currentStatus
-		recurringNotification := currentStatus && r.lastNotifyAt != nil && time.Since(*r.lastNotifyAt) > time.Hour
-		notify = statusChanged || recurringNotification
-	}
-
-	if notify {
-		if currentStatus {
-			a.notifyAll(serverId, "Server Up", "The server is now UP.")
+	notification := statusNotificationFor(r.lastStatus, currentStatus)
+	if notification != statusNotificationNone {
+		var delivery notificationDelivery
+		if notification == statusNotificationUp {
+			delivery = a.notifyAll(serverId, "Server Up", "The server is now UP.")
 		} else {
-			a.notifyAll(serverId, "Server Down", "No response for 10-minutes.")
+			delivery = a.notifyAll(
+				serverId,
+				"Server Down",
+				fmt.Sprintf("No response for %d minutes.", r.forDuration),
+			)
 		}
-		return currentStatus, &now
+		if delivery.delivered {
+			now := time.Now()
+			return statusPtr(currentStatus), &now
+		}
+		if delivery.attempted {
+			return r.lastStatus, r.lastNotifyAt
+		}
 	}
 
-	return currentStatus, r.lastNotifyAt
+	return statusPtr(currentStatus), r.lastNotifyAt
 }
 
-func (a *alertInstance) checkCPUUsageAlert(serverId int64, r *alertRule) (bool, *time.Time) {
+func (a *alertInstance) checkCPUUsageAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
 	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
 		var sum float64
 		var count int
@@ -112,7 +145,7 @@ func (a *alertInstance) checkCPUUsageAlert(serverId int64, r *alertRule) (bool, 
 	)
 }
 
-func (a *alertInstance) checkMemoryUsageAlert(serverId int64, r *alertRule) (bool, *time.Time) {
+func (a *alertInstance) checkMemoryUsageAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
 	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
 		var sum float64
 		var count int
@@ -137,7 +170,7 @@ func (a *alertInstance) checkMemoryUsageAlert(serverId int64, r *alertRule) (boo
 	)
 }
 
-func (a *alertInstance) checkDiskUsageAlert(serverId int64, r *alertRule) (bool, *time.Time) {
+func (a *alertInstance) checkDiskUsageAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
 	type diskStat struct {
 		sum   float64
 		count int
@@ -183,12 +216,11 @@ func (a *alertInstance) checkDiskUsageAlert(serverId int64, r *alertRule) (bool,
 	}
 
 	if len(perDisk) == 0 {
-		return false, r.lastNotifyAt
+		return statusPtr(false), r.lastNotifyAt
 	}
 
-	now := time.Now()
 	if shouldNotify(currentStatus, r) {
-		a.notifyAll(
+		delivery := a.notifyAll(
 			serverId,
 			"Disk usage exceeded threshold",
 			fmt.Sprintf(
@@ -199,34 +231,39 @@ func (a *alertInstance) checkDiskUsageAlert(serverId int64, r *alertRule) (bool,
 				r.threshold,
 			),
 		)
-		return currentStatus, &now
+		if delivery.delivered {
+			now := time.Now()
+			return statusPtr(currentStatus), &now
+		}
+		if delivery.attempted {
+			return r.lastStatus, r.lastNotifyAt
+		}
 	}
 
-	return currentStatus, r.lastNotifyAt
+	return statusPtr(currentStatus), r.lastNotifyAt
 }
 
-func (a *alertInstance) checkExpiryReminderAlert(serverId int64, r *alertRule) (bool, *time.Time) {
+func (a *alertInstance) checkExpiryReminderAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
 	serverExpiry, ok := a.expiryMap[serverId]
 	if !ok || serverExpiry.EndTime == nil || serverExpiry.AutoRenew {
-		return false, r.lastNotifyAt
+		return statusPtr(false), r.lastNotifyAt
 	}
 
 	remaining := time.Until(*serverExpiry.EndTime)
 	currentStatus := remaining > 0 && remaining <= time.Duration(r.threshold)*24*time.Hour
 	if !currentStatus {
-		return false, r.lastNotifyAt
+		return statusPtr(false), r.lastNotifyAt
 	}
 
 	if r.lastStatus != nil && *r.lastStatus {
-		return true, r.lastNotifyAt
+		return statusPtr(true), r.lastNotifyAt
 	}
 
 	daysLeft := int((remaining + 24*time.Hour - 1) / (24 * time.Hour))
 	if daysLeft < 1 {
 		daysLeft = 1
 	}
-	now := time.Now()
-	a.notifyAll(
+	delivery := a.notifyAll(
 		serverId,
 		"Server expiry reminder",
 		fmt.Sprintf(
@@ -235,10 +272,17 @@ func (a *alertInstance) checkExpiryReminderAlert(serverId int64, r *alertRule) (
 			serverExpiry.EndTime.Format("2006-01-02 15:04 MST"),
 		),
 	)
-	return true, &now
+	if delivery.delivered {
+		now := time.Now()
+		return statusPtr(true), &now
+	}
+	if delivery.attempted {
+		return r.lastStatus, r.lastNotifyAt
+	}
+	return statusPtr(true), r.lastNotifyAt
 }
 
-func (a *alertInstance) checkReadIOPSAlert(serverId int64, r *alertRule) (bool, *time.Time) {
+func (a *alertInstance) checkReadIOPSAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
 	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
 		var sum float64
 		var count int
@@ -263,7 +307,7 @@ func (a *alertInstance) checkReadIOPSAlert(serverId int64, r *alertRule) (bool, 
 	)
 }
 
-func (a *alertInstance) checkWriteIOPSAlert(serverId int64, r *alertRule) (bool, *time.Time) {
+func (a *alertInstance) checkWriteIOPSAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
 	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
 		var sum float64
 		var count int
@@ -288,7 +332,7 @@ func (a *alertInstance) checkWriteIOPSAlert(serverId int64, r *alertRule) (bool,
 	)
 }
 
-func (a *alertInstance) checkBandwidthAlert(serverId int64, r *alertRule) (bool, *time.Time) {
+func (a *alertInstance) checkBandwidthAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
 	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
 		var sum float64 // Mbps
 		var count int

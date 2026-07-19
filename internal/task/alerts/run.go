@@ -28,10 +28,6 @@ func Run() {
 
 	for _, teamId := range teamIds {
 		notifications := notificationsMap[teamId]
-		if len(notifications) == 0 {
-			continue
-		}
-
 		rules := rulesMap[teamId]
 		if len(rules) == 0 {
 			continue
@@ -71,7 +67,7 @@ func Run() {
 					lastNotifyAt: serverRule.LastNotifyAt,
 				}
 
-				var ls bool
+				var ls *bool
 				var ln *time.Time
 
 				switch rule {
@@ -97,7 +93,7 @@ func Run() {
 
 				updateQueue = append(updateQueue, alertRuleUpdate{
 					id:           r.id,
-					lastStatus:   &ls,
+					lastStatus:   ls,
 					lastNotifyAt: ln,
 				})
 			}
