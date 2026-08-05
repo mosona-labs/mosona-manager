@@ -2,6 +2,12 @@ system_version=$([ -f /etc/os-release ] && . /etc/os-release && distro_name="$NA
 uptime=$(awk '{print int($1)}' /proc/uptime)
 hostname=$(hostname)
 cpu_name=$(cat /proc/cpuinfo | grep 'model name' | head -1 | awk -F': ' '{print $2}')
+if [ -z "$cpu_name" ]; then
+  cpu_name=$(cat /proc/device-tree/model 2>/dev/null || cat /sys/firmware/devicetree/base/model 2>/dev/null | tr -d '\0')
+fi
+if [ -z "$cpu_name" ]; then
+  cpu_name=$(lscpu 2>/dev/null | sed -nr '/Model name/ s/.*:\s*(.*)/\1/p')
+fi
 cpu_cores=$(awk '/^processor/ {nproc++} /^physical id/ {phy=$NF} /^core id/ {pair=phy ":" $NF; if (!seen[pair]++) total++} END { for (p in seen) { split(p,a,":"); sockets[a[1]]=1 } sockets_count=0; for (s in sockets) sockets_count++; if (sockets_count==0) sockets_count=1; cores_per_socket = total ? int(total / sockets_count) : 0; print cores_per_socket, nproc }' /proc/cpuinfo)
 kernel_version=$(uname -r)
 
