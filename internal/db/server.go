@@ -9,6 +9,8 @@ import (
 	"github.com/Masterminds/squirrel"
 )
 
+var ErrSSHHostKeyStateChanged = errors.New("ssh host key trust changed concurrently")
+
 func GetServerInfo(teamId, serverId int64) (_type.ServerFullType, error) {
 	var data _type.ServerFullType
 	err := Db.Get(
@@ -118,7 +120,13 @@ func EditServer(teamId, serverId int64, typ int16, data *_type.ServerFullType) e
 			Set("address", data.Address).
 			Set("port", data.Port).
 			Set("username", data.Username).
+			Set("host_key", data.HostKey).
 			Where(squirrel.Eq{"server_id": serverId})
+		if data.PreviousHostKey == nil {
+			qb = qb.Where("host_key IS NULL")
+		} else {
+			qb = qb.Where(squirrel.Eq{"host_key": *data.PreviousHostKey})
+		}
 
 		if data.KeyID != 0 {
 			qb = qb.Set("key_id", data.KeyID)
@@ -137,10 +145,21 @@ func EditServer(teamId, serverId int64, typ int16, data *_type.ServerFullType) e
 		_ = tx.Rollback()
 		return err
 	}
-	_, err = tx.Exec(query, args...)
+	result, err := tx.Exec(query, args...)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
+	}
+	if typ == 0 {
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if rowsAffected == 0 {
+			_ = tx.Rollback()
+			return ErrSSHHostKeyStateChanged
+		}
 	}
 
 	// Commit

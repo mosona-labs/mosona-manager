@@ -96,6 +96,9 @@ type ServerFullType struct {
 	Username string `json:"username" db:"username"`
 	Password string `json:"password" db:"password"`
 	KeyID    int64  `json:"key_id" db:"key_id"`
+	HostKey  string `json:"host_key,omitempty" db:"host_key"`
+	// PreviousHostKey is internal optimistic-lock state and is never accepted from clients.
+	PreviousHostKey *string `json:"-" db:"-"`
 
 	// Agent
 	AgentStatus     int        `json:"agent_status"` // 0: Not installed, 1: Installed

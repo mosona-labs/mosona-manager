@@ -2,6 +2,7 @@ package conn
 
 import (
 	"context"
+	"database/sql"
 	"mosona-manager/internal/connect/active"
 	"mosona-manager/internal/connect/ssh"
 	"mosona-manager/internal/db"
@@ -13,6 +14,8 @@ func StartServer(serverId int64, mode int16) error {
 	switch mode {
 	case 0:
 		var host, user string
+		var trustedHostKey sql.NullString
+		var teamID int64
 		var port int
 
 		var (
@@ -27,8 +30,8 @@ func StartServer(serverId int64, mode int16) error {
 		)
 
 		if err := db.Db.QueryRow(
-			"SELECT address, port, username, ssh.password, k.password, k.content FROM servers s JOIN ssh ON s.id = ssh.server_id LEFT JOIN keys k ON ssh.key_id = k.id WHERE s.id = $1", serverId,
-		).Scan(&host, &port, &user, &password, &keyPassword, &key); err != nil {
+			"SELECT address, port, username, ssh.password, k.password, k.content, ssh.host_key, s.team_id FROM servers s JOIN ssh ON s.id = ssh.server_id LEFT JOIN keys k ON ssh.key_id = k.id WHERE s.id = $1", serverId,
+		).Scan(&host, &port, &user, &password, &keyPassword, &key, &trustedHostKey, &teamID); err != nil {
 			return err
 		}
 		if len(password) != 0 {
@@ -63,7 +66,7 @@ func StartServer(serverId int64, mode int16) error {
 		}
 		mu.Unlock()
 		go func() {
-			_ = ssh.SSH(ctx, host, port, user, pwdStr, keyStr, keyPwdStr, serverId)
+			_ = ssh.SSH(ctx, host, port, user, pwdStr, keyStr, keyPwdStr, trustedHostKey.String, serverId, teamID)
 		}()
 	case 1:
 		var (

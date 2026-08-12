@@ -1,12 +1,19 @@
 package ateam
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
 	"mosona-manager/internal/security/exportcrypto"
+	"mosona-manager/internal/utils/encrypt"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/jmoiron/sqlx"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 func TestDecodeTeamImportBundleEncrypted(t *testing.T) {
@@ -24,6 +31,123 @@ func TestDecodeTeamImportBundleEncrypted(t *testing.T) {
 	}
 	if got.Version != teamExportVersion || got.Team.Name != bundle.Team.Name {
 		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestImportSSHConnectionPreservesPinnedHostKey(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	mock.ExpectBegin()
+	tx, err := sqlx.NewDb(database, "sqlmock").Beginx()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	passwordMatcher := sqlmock.AnyArg()
+	hostKey := newExportTestHostKey(t)
+	mock.ExpectExec(`INSERT INTO ssh .*host_key.*NULLIF`).
+		WithArgs(int64(91), "server.example", 22, "root", int64(17), passwordMatcher, hostKey).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectRollback()
+
+	oldKey := encrypt.Key
+	encrypt.Key = []byte("0123456789abcdef0123456789abcdef")
+	t.Cleanup(func() { encrypt.Key = oldKey })
+	err = importServerConnection(tx, 91, teamExportServer{
+		Type: 0,
+		Name: "server",
+		SSH: &teamExportSSH{
+			Address:  "server.example",
+			Port:     22,
+			Username: "root",
+			KeyRef:   7,
+			Password: "secret",
+			HostKey:  hostKey + " imported-comment",
+		},
+	}, map[int64]int64{7: 17})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = tx.Rollback()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLegacyImportLeavesSSHHostKeyUntrusted(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	mock.ExpectBegin()
+	tx, err := sqlx.NewDb(database, "sqlmock").Beginx()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectExec(`INSERT INTO ssh .*host_key.*NULLIF`).
+		WithArgs(int64(92), "legacy.example", 22, "root", int64(0), sqlmock.AnyArg(), "").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectRollback()
+
+	oldKey := encrypt.Key
+	encrypt.Key = []byte("0123456789abcdef0123456789abcdef")
+	t.Cleanup(func() { encrypt.Key = oldKey })
+	err = importServerConnection(tx, 92, teamExportServer{
+		Type: 0,
+		Name: "legacy",
+		SSH: &teamExportSSH{
+			Address:  "legacy.example",
+			Port:     22,
+			Username: "root",
+			Password: "secret",
+		},
+	}, map[int64]int64{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = tx.Rollback()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestImportSSHConnectionRejectsMalformedHostKey(t *testing.T) {
+	database, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	mock.ExpectBegin()
+	tx, err := sqlx.NewDb(database, "sqlmock").Beginx()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectRollback()
+
+	oldKey := encrypt.Key
+	encrypt.Key = []byte("0123456789abcdef0123456789abcdef")
+	t.Cleanup(func() { encrypt.Key = oldKey })
+	err = importServerConnection(tx, 93, teamExportServer{
+		Type: 0,
+		Name: "malformed",
+		SSH: &teamExportSSH{
+			Address:  "malformed.example",
+			Port:     22,
+			Username: "root",
+			Password: "secret",
+			HostKey:  "not-an-ssh-public-key",
+		},
+	}, map[int64]int64{})
+	if err == nil || !strings.Contains(err.Error(), "invalid SSH host key") {
+		t.Fatalf("error = %v", err)
+	}
+	_ = tx.Rollback()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -206,4 +330,17 @@ func testTeamExportBundle() teamExportBundle {
 		},
 		Servers: []teamExportServer{},
 	}
+}
+
+func newExportTestHostKey(t *testing.T) string {
+	t.Helper()
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := gossh.NewSignerFromKey(privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(string(gossh.MarshalAuthorizedKey(signer.PublicKey())))
 }

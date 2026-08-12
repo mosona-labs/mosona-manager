@@ -8,6 +8,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/connect/conn"
+	connectSSH "mosona-manager/internal/connect/ssh"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
@@ -91,6 +92,7 @@ func add(c *echo.Context) error {
 	trafficType, _ := strconv.Atoi(c.FormValue("traffic_type"))
 	notePublic := c.FormValue("note_public")
 
+	var validatedHostKey string
 	if mode == 0 {
 		address := c.FormValue("address")
 		port, _ := strconv.Atoi(c.FormValue("port"))
@@ -98,12 +100,23 @@ func add(c *echo.Context) error {
 		password := c.FormValue("password")
 		keyID, _ := strconv.ParseInt(c.FormValue("key_id"), 10, 64)
 
-		if err := validateSSHConnectionForAdd(tid, address, port, username, password, keyID); err != nil {
+		validation, err := validateSSHConnectionForAdd(tid, address, port, username, password, keyID, c.FormValue("host_key"))
+		if err != nil {
+			if errors.Is(err, connectSSH.ErrHostKeyChangedDuringValidation) {
+				influx.LogAdd(
+					tid, uid, "security", "Blocked SSH host key change while validating new Server: "+name,
+					c.RealIP(), c.Request().UserAgent(), "high",
+				)
+			}
+			if connectSSH.IsHostKeyTrustError(err) {
+				return sshHostKeyConfirmationRequired(c, validation)
+			}
 			return c.JSON(400, _type.H{
 				Code: "error",
 				Msg:  "SSH connection failed: " + err.Error(),
 			})
 		}
+		validatedHostKey = validation.HostKey
 	}
 
 	// Insert into database
@@ -162,8 +175,8 @@ func add(c *echo.Context) error {
 			return utils.ErrorHandler(c, err, "Encryption error")
 		}
 		if _, err = tx.Exec(
-			"INSERT INTO ssh (server_id, address, port, username, key_id, password) VALUES ($1, $2, $3, $4, $5, $6)",
-			serverId, address, port, username, keyID, passwordEncrypt,
+			"INSERT INTO ssh (server_id, address, port, username, key_id, password, host_key) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+			serverId, address, port, username, keyID, passwordEncrypt, validatedHostKey,
 		); err != nil {
 			_ = tx.Rollback()
 			return utils.ErrorHandler(c, err, "Database error")

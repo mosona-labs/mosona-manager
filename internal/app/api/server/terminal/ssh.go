@@ -6,15 +6,23 @@ import (
 	"log"
 	"mosona-manager/internal/_type"
 	connectSSH "mosona-manager/internal/connect/ssh"
+	"mosona-manager/internal/influx"
 	pbTypes "mosona-manager/pkg/types"
 	"mosona-manager/pkg/wsutil"
+	"strconv"
 	"sync"
 
 	"github.com/gorilla/websocket"
 	gossh "golang.org/x/crypto/ssh"
 )
 
-func terminalSSH(ctx context.Context, serverAuth _type.TerminalDetail, wsConn *websocket.Conn) error {
+func terminalSSH(
+	ctx context.Context,
+	serverAuth _type.TerminalDetail,
+	wsConn *websocket.Conn,
+	teamID, userID, serverID int64,
+	ip, userAgent string,
+) error {
 	defer func() {
 		_ = wsConn.Close()
 	}()
@@ -36,6 +44,11 @@ func terminalSSH(ctx context.Context, serverAuth _type.TerminalDetail, wsConn *w
 		keyPwd = *serverAuth.KeyPwd
 	}
 
+	trustedHostKey := ""
+	if serverAuth.HostKey != nil {
+		trustedHostKey = *serverAuth.HostKey
+	}
+
 	sshClient, err := connectSSH.Dial(
 		*serverAuth.Address,
 		*serverAuth.Port,
@@ -43,9 +56,17 @@ func terminalSSH(ctx context.Context, serverAuth _type.TerminalDetail, wsConn *w
 		password,
 		key,
 		keyPwd,
+		trustedHostKey,
 		connectSSH.DefaultDialTimeout,
 	)
 	if err != nil {
+		if connectSSH.IsPermanentHostKeyError(err) {
+			influx.LogAdd(
+				teamID, userID, "security",
+				"Blocked SSH terminal connection due to untrusted host key (server ID "+strconv.FormatInt(serverID, 10)+"): "+err.Error(),
+				ip, userAgent, "high",
+			)
+		}
 		return wsConn.WriteMessage(websocket.TextMessage, []byte("Failed to connect to target server: "+err.Error()+"\n"))
 	}
 	defer func() {

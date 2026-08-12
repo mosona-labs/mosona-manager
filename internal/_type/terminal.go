@@ -20,4 +20,5 @@ type TerminalDetail struct {
 	Password *string `db:"password"`
 	Key      *string `db:"key"`
 	KeyPwd   *string `db:"key_pwd"`
+	HostKey  *string `db:"host_key"`
 }

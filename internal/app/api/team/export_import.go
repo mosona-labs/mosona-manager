@@ -10,6 +10,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/connect/conn"
+	connectSSH "mosona-manager/internal/connect/ssh"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/security/exportcrypto"
@@ -137,6 +138,7 @@ type teamExportSSH struct {
 	Username string `json:"username"`
 	KeyRef   int64  `json:"key_ref"`
 	Password string `json:"password"`
+	HostKey  string `json:"host_key,omitempty" db:"host_key"`
 }
 
 type teamExportAgent struct {
@@ -445,9 +447,10 @@ func exportServerConnection(server *teamExportServer) error {
 			Username string `db:"username"`
 			KeyRef   int64  `db:"key_ref"`
 			Password []byte `db:"password"`
+			HostKey  string `db:"host_key"`
 		}
 		var row sshRow
-		if err := db.Db.Get(&row, "SELECT address, port, username, key_id AS key_ref, password FROM ssh WHERE server_id = $1", server.RefID); err != nil {
+		if err := db.Db.Get(&row, "SELECT address, port, username, key_id AS key_ref, password, COALESCE(host_key, '') AS host_key FROM ssh WHERE server_id = $1", server.RefID); err != nil {
 			return err
 		}
 		password, err := encrypt.Decrypt(row.Password, encrypt.Key)
@@ -460,6 +463,7 @@ func exportServerConnection(server *teamExportServer) error {
 			Username: row.Username,
 			KeyRef:   row.KeyRef,
 			Password: string(password),
+			HostKey:  row.HostKey,
 		}
 	case 1, 2:
 		var agent teamExportAgent
@@ -783,9 +787,16 @@ func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer
 		if err != nil {
 			return err
 		}
+		hostKey := ""
+		if server.SSH.HostKey != "" {
+			hostKey, err = connectSSH.NormalizeHostKey(server.SSH.HostKey)
+			if err != nil {
+				return fmt.Errorf("invalid SSH host key for server %q: %w", server.Name, err)
+			}
+		}
 		_, err = tx.Exec(
-			"INSERT INTO ssh (server_id, address, port, username, key_id, password) VALUES ($1, $2, $3, $4, $5, $6)",
-			serverID, server.SSH.Address, server.SSH.Port, server.SSH.Username, keyID, password,
+			"INSERT INTO ssh (server_id, address, port, username, key_id, password, host_key) VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''))",
+			serverID, server.SSH.Address, server.SSH.Port, server.SSH.Username, keyID, password, hostKey,
 		)
 		return err
 	case 1, 2:

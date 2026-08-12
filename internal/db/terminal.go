@@ -70,7 +70,8 @@ func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
 			COALESCE(username, NULL),
 			COALESCE(ssh.password, NULL),
 			COALESCE(keys.content, NULL),
-			COALESCE(keys.password, NULL)
+			COALESCE(keys.password, NULL),
+			COALESCE(ssh.host_key, NULL)
 		FROM servers s 
 		    LEFT JOIN ssh on s.id = ssh.server_id 
 			LEFT JOIN keys on ssh.key_id = keys.id
@@ -79,7 +80,7 @@ func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
 	).Scan(
 		&server.Type,
 		&server.Address, &server.Port, &server.Username, &password,
-		&keyContent, &keyPassword,
+		&keyContent, &keyPassword, &server.HostKey,
 	); err != nil {
 		return server, err
 	}

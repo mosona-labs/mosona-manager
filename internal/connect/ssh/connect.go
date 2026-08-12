@@ -2,17 +2,19 @@ package ssh
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/connect/callback"
+	"mosona-manager/internal/influx"
 	"strconv"
 	"time"
 )
 
 func SSH(
 	ctx context.Context,
-	host string, port int, user, password, key, keyPwd string,
-	serverId int64,
+	host string, port int, user, password, key, keyPwd, trustedHostKey string,
+	serverId, teamID int64,
 ) error {
 	const (
 		initialBackoff = 1 * time.Second
@@ -28,9 +30,18 @@ func SSH(
 		default:
 		}
 
-		client, err := Dial(host, port, user, password, key, keyPwd, DefaultDialTimeout)
+		client, err := Dial(host, port, user, password, key, keyPwd, trustedHostKey, DefaultDialTimeout)
 
 		if err != nil {
+			if IsPermanentHostKeyError(err) {
+				log.Printf("Blocked SSH connection for server %d: %v", serverId, err)
+				influx.LogAdd(
+					teamID, 0, "security",
+					fmt.Sprintf("Blocked SSH connection due to untrusted host key (server ID %d): %v", serverId, err),
+					"", "monitoring service", "high",
+				)
+				return err
+			}
 			select {
 			case <-ctx.Done():
 				return ctx.Err()

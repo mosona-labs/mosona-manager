@@ -396,10 +396,12 @@ CREATE TABLE "ssh" (
   "port" int4 NOT NULL,
   "username" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
   "key_id" int8 NOT NULL,
-  "password" bytea NOT NULL
+  "password" bytea NOT NULL,
+  "host_key" text COLLATE "pg_catalog"."default"
 )
 ;
 ALTER TABLE "ssh" OWNER TO CURRENT_USER;
+ALTER TABLE "ssh" ADD CONSTRAINT "ssh_host_key_not_blank" CHECK ("host_key" IS NULL OR btrim("host_key") <> '');
 
 -- ----------------------------
 -- Table structure for team_alerts

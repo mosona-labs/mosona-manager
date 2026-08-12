@@ -10,40 +10,52 @@ import (
 	"mosona-manager/internal/utils/encrypt"
 )
 
-func validateSSHConnectionForAdd(teamID int64, address string, port int, username, password string, keyID int64) error {
+type sshValidationResult struct {
+	HostKey         string
+	Fingerprint     string
+	Changed         bool
+	PreviousHostKey *string
+}
+
+func validateSSHConnectionForAdd(teamID int64, address string, port int, username, password string, keyID int64, confirmedHostKey string) (sshValidationResult, error) {
 	if address == "" || port == 0 || username == "" {
-		return errors.New("incomplete connection information")
+		return sshValidationResult{}, errors.New("incomplete connection information")
 	}
 
 	key, keyPwd, err := loadSSHKeyMaterial(teamID, keyID)
 	if err != nil {
-		return err
+		return sshValidationResult{}, err
 	}
 
-	return connectSSH.ValidateConnection(address, port, username, password, key, keyPwd)
+	observed, err := connectSSH.ValidateConnection(address, port, username, password, key, keyPwd, "", confirmedHostKey)
+	return sshValidationResult{
+		HostKey:     observed.AuthorizedKey,
+		Fingerprint: observed.Fingerprint,
+	}, err
 }
 
-func validateSSHConnectionForEdit(teamID, serverID int64, data *_type.ServerFullType) error {
+func validateSSHConnectionForEdit(teamID, serverID int64, data *_type.ServerFullType) (sshValidationResult, error) {
 	if data.Address == "" || data.Port == 0 || data.Username == "" {
-		return errors.New("incomplete connection information")
+		return sshValidationResult{}, errors.New("incomplete connection information")
 	}
 
 	var (
 		passwordEncrypted []byte
 		currentKeyID      int64
+		currentHostKey    sql.NullString
 	)
 	if err := db.Db.QueryRow(
-		"SELECT password, key_id FROM ssh WHERE server_id = $1",
+		"SELECT password, key_id, host_key FROM ssh WHERE server_id = $1",
 		serverID,
-	).Scan(&passwordEncrypted, &currentKeyID); err != nil {
-		return err
+	).Scan(&passwordEncrypted, &currentKeyID, &currentHostKey); err != nil {
+		return sshValidationResult{}, err
 	}
 
 	password := data.Password
 	if password == "" && len(passwordEncrypted) != 0 {
 		decryptedPassword, err := encrypt.Decrypt(passwordEncrypted, encrypt.Key)
 		if err != nil {
-			return err
+			return sshValidationResult{}, err
 		}
 		password = string(decryptedPassword)
 	}
@@ -55,10 +67,24 @@ func validateSSHConnectionForEdit(teamID, serverID int64, data *_type.ServerFull
 
 	key, keyPwd, err := loadSSHKeyMaterial(teamID, keyID)
 	if err != nil {
-		return err
+		return sshValidationResult{}, err
 	}
 
-	return connectSSH.ValidateConnection(data.Address, data.Port, data.Username, password, key, keyPwd)
+	observed, err := connectSSH.ValidateConnection(
+		data.Address, data.Port, data.Username, password, key, keyPwd,
+		currentHostKey.String, data.HostKey,
+	)
+	var previousHostKey *string
+	if currentHostKey.Valid {
+		previous := currentHostKey.String
+		previousHostKey = &previous
+	}
+	return sshValidationResult{
+		HostKey:         observed.AuthorizedKey,
+		Fingerprint:     observed.Fingerprint,
+		Changed:         currentHostKey.Valid && currentHostKey.String != "" && !connectSSH.HostKeysEqual(currentHostKey.String, observed.AuthorizedKey),
+		PreviousHostKey: previousHostKey,
+	}, err
 }
 
 func loadSSHKeyMaterial(teamID, keyID int64) (string, string, error) {

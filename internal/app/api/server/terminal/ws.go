@@ -79,7 +79,7 @@ func ws(c *echo.Context) error {
 			_ = wsConn.WriteMessage(websocket.TextMessage, []byte("Target server not found or terminal access not enabled.\n"))
 			return wsConn.Close()
 		}
-		return terminalSSH(ctx, serverAuth, wsConn)
+		return terminalSSH(ctx, serverAuth, wsConn, tid, uid, serverId, c.RealIP(), c.Request().UserAgent())
 	case 1: // Active Agent
 		if err := active.ConnectShell(ctx, serverId, wsConn); err != nil {
 			return err
