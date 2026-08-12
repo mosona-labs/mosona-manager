@@ -13,45 +13,42 @@ import (
 
 func add(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
-	name := c.FormValue("name")
-	icon := c.FormValue("icon")
-	authUrl := c.FormValue("auth_url")
-	tokenUrl := c.FormValue("token_url")
-	userinfoUrl := c.FormValue("userinfo_url")
-	clientID := c.FormValue("client_id")
-	clientSecret := c.FormValue("client_secret")
-	skip2FA := c.FormValue("skip_2fa") == "true"
-	isEnabled := c.FormValue("is_enabled") == "true"
-
-	if name == "" || authUrl == "" || tokenUrl == "" || userinfoUrl == "" || clientID == "" || clientSecret == "" {
+	input, err := (providerInput{
+		Name: c.FormValue("name"), Icon: c.FormValue("icon"), Protocol: c.FormValue("protocol"),
+		IssuerURL: c.FormValue("issuer_url"), AuthURL: c.FormValue("auth_url"), TokenURL: c.FormValue("token_url"),
+		UserinfoURL: c.FormValue("userinfo_url"), Scopes: c.FormValue("scopes"), SubjectField: c.FormValue("subject_field"),
+		ClientID: c.FormValue("client_id"), ClientSecret: c.FormValue("client_secret"),
+		Skip2FA: c.FormValue("skip_2fa") == "true", IsEnabled: c.FormValue("is_enabled") == "true",
+	}).normalize()
+	if err != nil {
 		return c.JSON(400, _type.H{
 			Code: "error",
-			Msg:  "Missing required fields",
+			Msg:  err.Error(),
 		})
 	}
 
-	id, err := db.CreateOAuthProvider(name, icon, authUrl, tokenUrl, userinfoUrl, clientID, clientSecret, skip2FA, isEnabled)
+	var providerConfig *oauth.ProviderConfig
+	if input.IsEnabled {
+		providerConfig, err = oauth.BuildProvider(c.Request().Context(), input.provider(0))
+		if err != nil {
+			return c.JSON(400, _type.H{Code: "invalid", Msg: "OAuth provider validation failed"})
+		}
+	}
+	id, identityNamespaceVersion, configRevision, err := db.CreateOAuthProvider(input.Name, input.Icon, input.Protocol, input.IssuerURL, input.AuthURL, input.TokenURL, input.UserinfoURL, input.Scopes, input.SubjectField, input.ClientID, input.ClientSecret, input.Skip2FA, input.IsEnabled)
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
-
-	// Add to OAuth manager
-	oauth.AddProvider(_type.AuthProvider{
-		ID:           id,
-		Name:         name,
-		Icon:         icon,
-		AuthUrl:      authUrl,
-		TokenUrl:     tokenUrl,
-		UserinfoUrl:  userinfoUrl,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Skip2FA:      skip2FA,
-		IsEnabled:    isEnabled,
-	})
+	if input.IsEnabled {
+		providerConfig.IdentityNamespaceVersion = identityNamespaceVersion
+		providerConfig.ConfigRevision = configRevision
+		oauth.InstallProvider(id, providerConfig)
+	} else {
+		oauth.RemoveProvider(id, configRevision)
+	}
 
 	// Log action
 	influx.LogAdd(
-		0, uid, "oauth", "Add OAuth Provider: "+name+" (ID"+strconv.Itoa(id)+")",
+		0, uid, "oauth", "Add OAuth Provider: "+input.Name+" (ID"+strconv.Itoa(id)+")",
 		c.RealIP(), c.Request().UserAgent(), "medium",
 	)
 

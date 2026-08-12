@@ -74,7 +74,7 @@ func set(c *echo.Context) error {
 		if err := siteaccess.Refresh(); err != nil {
 			return utils.ErrorHandler(c, err, "Failed to refresh site access cache")
 		}
-		oauth.Init()
+		oauth.RefreshRedirectURLs()
 	}
 
 	// Log action

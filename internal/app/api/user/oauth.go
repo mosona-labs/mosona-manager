@@ -2,7 +2,6 @@ package auser
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
@@ -95,7 +94,7 @@ func oauthLink(c *echo.Context) error {
 	// Context
 	ctx := c.Request().Context()
 
-	ok, err = utils.ConsumeOAuthState(c, oauthID, state)
+	authorizationState, ok, err := utils.ConsumeOAuthState(c, oauthID, state)
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Session update failed")
 	}
@@ -107,6 +106,9 @@ func oauthLink(c *echo.Context) error {
 			Code: "invalid",
 			Msg:  "Invalid or expired OAuth state",
 		})
+	}
+	if cfg.IdentityNamespaceVersion != authorizationState.IdentityNamespaceVersion || cfg.ConfigRevision != authorizationState.ConfigRevision {
+		return c.JSON(409, _type.H{Code: "identity_namespace_changed", Msg: "OAuth provider configuration changed; restart authorization"})
 	}
 
 	token, err := cfg.Config.Exchange(ctx, code)
@@ -122,33 +124,16 @@ func oauthLink(c *echo.Context) error {
 			Msg:  "Failed to exchange code for token: " + err.Error(),
 		})
 	}
-	client := cfg.Config.Client(ctx, token)
-
-	// Get Userinfo
-	resp, err := client.Get(cfg.UserinfoUrl)
+	profile, err := cfg.Identity(ctx, token, authorizationState.Nonce)
 	if err != nil {
 		return c.JSON(400, _type.H{
 			Code: "invalid",
-			Msg:  "Failed to get user info",
+			Msg:  "OAuth provider returned an invalid user identity",
 		})
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	// Claims
-	var profile struct {
-		ID    int64  `json:"id"`
-		Login string `json:"login"`
-		Email string `json:"email"`
-		Name  string `json:"name"`
-	}
-	if err = json.NewDecoder(resp.Body).Decode(&profile); err != nil {
-		return utils.ErrorHandler(c, err, "Failed to parse ID Token claims")
 	}
 
 	// Is link
-	_, err = db.GetBindByProviderAndSubject(oauthID, strconv.FormatInt(profile.ID, 10))
+	_, err = db.GetBindByProviderAndSubject(oauthID, profile.Subject)
 	if err == nil {
 		return c.JSON(400, _type.H{
 			Code: "exists",
@@ -159,7 +144,13 @@ func oauthLink(c *echo.Context) error {
 	}
 
 	// Link
-	if _, err = db.AddAuthIdentity(uid, oauthID, strconv.FormatInt(profile.ID, 10), profile.Email, profile.Name); err != nil {
+	if _, err = db.AddAuthIdentity(uid, oauthID, authorizationState.IdentityNamespaceVersion, authorizationState.ConfigRevision, profile.Subject, profile.Email, profile.Name); err != nil {
+		if errors.Is(err, db.ErrOAuthIdentityNamespaceChanged) {
+			return c.JSON(409, _type.H{Code: "identity_namespace_changed", Msg: "OAuth provider configuration changed; restart authorization"})
+		}
+		if errors.Is(err, db.ErrOAuthIdentityAlreadyLinked) {
+			return c.JSON(409, _type.H{Code: "exists", Msg: "This OAuth account or provider is already linked"})
+		}
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 

@@ -155,10 +155,23 @@ CACHE 1
   "provider_id" int4 NOT NULL,
   "subject" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
   "email" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
-  "name" varchar(255) COLLATE "pg_catalog"."default" NOT NULL
+  "name" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
+  "quarantined" bool NOT NULL DEFAULT false,
+  CONSTRAINT "auth_identity_subject_check" CHECK ("quarantined" OR (("subject"::text <> ''::text) AND ("subject"::text <> '0'::text) AND ("subject"::text !~ '^[[:space:]]|[[:space:]]$'::text)))
 )
 ;
 ALTER TABLE "auth_identity" OWNER TO CURRENT_USER;
+
+CREATE TABLE "auth_identity_quarantine_audit" (
+  "identity_id" int8 NOT NULL,
+  "provider_id" int4 NOT NULL,
+  "user_id" int8 NOT NULL,
+  "subject" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
+  "reason" text COLLATE "pg_catalog"."default" NOT NULL,
+  "quarantined_at" timestamptz(6) NOT NULL DEFAULT now()
+)
+;
+ALTER TABLE "auth_identity_quarantine_audit" OWNER TO CURRENT_USER;
 
 -- ----------------------------
 -- Table structure for auth_provider
@@ -174,9 +187,15 @@ CACHE 1
 ),
   "name" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
   "icon" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
+  "protocol" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'oauth2'::character varying,
+  "issuer_url" varchar(512) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "auth_url" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
   "token_url" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
   "userinfo_url" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
+  "scopes" text COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'read:user read:email'::text,
+  "subject_field" varchar(255) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'id'::character varying,
+  "identity_namespace_version" int8 NOT NULL DEFAULT 1,
+  "config_revision" int8 NOT NULL DEFAULT 1,
   "client_id" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
   "client_secret" text COLLATE "pg_catalog"."default" NOT NULL,
   "skip_2fa" bool NOT NULL,
@@ -189,6 +208,9 @@ CACHE 1
 ALTER TABLE "auth_provider" OWNER TO CURRENT_USER;
 COMMENT ON COLUMN "auth_provider"."name" IS 'Google, Github, Company SSO';
 COMMENT ON COLUMN "auth_provider"."icon" IS 'Icon name or url';
+ALTER TABLE "auth_provider" ADD CONSTRAINT "auth_provider_protocol_check" CHECK ("protocol"::text = ANY (ARRAY['oauth2'::character varying, 'oidc'::character varying]::text[]));
+ALTER TABLE "auth_provider" ADD CONSTRAINT "auth_provider_identity_namespace_version_check" CHECK ("identity_namespace_version" > 0);
+ALTER TABLE "auth_provider" ADD CONSTRAINT "auth_provider_config_revision_check" CHECK ("config_revision" > 0);
 
 -- ----------------------------
 -- Table structure for categories
@@ -521,11 +543,17 @@ CREATE INDEX "IDX_AIUP" ON "auth_identity" USING btree (
   "user_id" "pg_catalog"."int8_ops" ASC NULLS LAST,
   "provider_id" "pg_catalog"."int4_ops" ASC NULLS LAST
 );
+CREATE UNIQUE INDEX "auth_identity_active_user_provider_unique" ON "auth_identity" USING btree (
+  "user_id" "pg_catalog"."int8_ops" ASC NULLS LAST,
+  "provider_id" "pg_catalog"."int4_ops" ASC NULLS LAST
+) WHERE "quarantined" = false;
 
 -- ----------------------------
 -- Primary Key structure for table auth_identity
 -- ----------------------------
 ALTER TABLE "auth_identity" ADD CONSTRAINT "auth_identity_pkey" PRIMARY KEY ("id");
+
+ALTER TABLE "auth_identity_quarantine_audit" ADD CONSTRAINT "auth_identity_quarantine_audit_pkey" PRIMARY KEY ("identity_id");
 
 -- ----------------------------
 -- Primary Key structure for table auth_provider
@@ -742,7 +770,6 @@ ALTER TABLE "agents" ADD CONSTRAINT "FK_AS" FOREIGN KEY ("server_id") REFERENCES
 -- ----------------------------
 ALTER TABLE "auth_identity" ADD CONSTRAINT "FK_AIP" FOREIGN KEY ("provider_id") REFERENCES "auth_provider" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 ALTER TABLE "auth_identity" ADD CONSTRAINT "FK_AIU" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
-
 -- ----------------------------
 -- Foreign Keys structure for table categories
 -- ----------------------------

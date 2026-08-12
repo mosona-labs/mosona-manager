@@ -2,9 +2,7 @@ package auth
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/app/middleware"
 	"mosona-manager/internal/config"
@@ -18,7 +16,6 @@ import (
 
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
-	"golang.org/x/oauth2"
 )
 
 func oauthLogin(c *echo.Context) error {
@@ -39,13 +36,20 @@ func oauthLogin(c *echo.Context) error {
 
 	// Generate state parameter
 	state := utils.RandomString(32)
+	nonce := ""
+	if cfg.Protocol == oauth.ProtocolOIDC {
+		nonce = utils.RandomString(32)
+	}
+	if state == "" || (cfg.Protocol == oauth.ProtocolOIDC && nonce == "") {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Failed to generate OAuth state"})
+	}
 	store.SetAuthSessionState(state)
-	if err := utils.SaveOAuthState(c, oauthID, state); err != nil {
+	if err := utils.SaveOAuthState(c, oauthID, state, nonce, cfg.IdentityNamespaceVersion, cfg.ConfigRevision); err != nil {
 		store.DeleteAuthSessionState(state)
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
 	}
 
-	authURL := cfg.Config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	authURL := cfg.AuthCodeURL(state, nonce)
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
@@ -84,7 +88,7 @@ func oauthCallback(c *echo.Context) error {
 	// Context
 	ctx := c.Request().Context()
 
-	ok, err := utils.ConsumeOAuthState(c, oauthID, state)
+	authorizationState, ok, err := utils.ConsumeOAuthState(c, oauthID, state)
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session update failed"})
 	}
@@ -96,6 +100,9 @@ func oauthCallback(c *echo.Context) error {
 			Code: "invalid",
 			Msg:  "Invalid or expired OAuth state",
 		})
+	}
+	if cfg.IdentityNamespaceVersion != authorizationState.IdentityNamespaceVersion || cfg.ConfigRevision != authorizationState.ConfigRevision {
+		return c.JSON(409, _type.H{Code: "identity_namespace_changed", Msg: "OAuth provider configuration changed; restart authorization"})
 	}
 
 	token, err := cfg.Config.Exchange(ctx, code)
@@ -111,36 +118,18 @@ func oauthCallback(c *echo.Context) error {
 			Msg:  "Failed to exchange code for token: " + err.Error(),
 		})
 	}
-	client := cfg.Config.Client(ctx, token)
-
-	// Get Userinfo
-	resp, err := client.Get(cfg.UserinfoUrl)
+	profile, err := cfg.Identity(ctx, token, authorizationState.Nonce)
 	if err != nil {
 		return c.JSON(400, _type.H{
 			Code: "invalid",
-			Msg:  "Failed to get user info",
+			Msg:  "OAuth provider returned an invalid user identity",
 		})
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	// Claims
-	var profile struct {
-		ID    int64  `json:"id"`
-		Login string `json:"login"`
-		Email string `json:"email"`
-		Name  string `json:"name"`
-	}
-	if err = json.NewDecoder(resp.Body).Decode(&profile); err != nil {
-		return c.JSON(400, _type.H{
-			Code: "invalid",
-			Msg:  "Failed to parse ID Token claims: " + err.Error(),
-		})
-	}
-
-	identity, err := db.GetAuthIdentityBySubject(oauthID, fmt.Sprint(profile.ID))
+	identity, err := db.GetAuthIdentityBySubject(oauthID, authorizationState.IdentityNamespaceVersion, authorizationState.ConfigRevision, profile.Subject)
 	if err != nil {
+		if errors.Is(err, db.ErrOAuthIdentityNamespaceChanged) {
+			return c.JSON(409, _type.H{Code: "identity_namespace_changed", Msg: "OAuth provider configuration changed; restart authorization"})
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(404, _type.H{
 				Code: "not_found",
@@ -150,6 +139,12 @@ func oauthCallback(c *echo.Context) error {
 		return c.JSON(500, _type.H{
 			Code: "error",
 			Msg:  "Database error",
+		})
+	}
+	if identity.Quarantined || identity.Subject == "0" {
+		return c.JSON(403, _type.H{
+			Code: "identity_quarantined",
+			Msg:  "OAuth identity requires administrator review",
 		})
 	}
 

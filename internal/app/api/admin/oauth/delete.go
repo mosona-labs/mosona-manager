@@ -28,12 +28,13 @@ func del(c *echo.Context) error {
 		return utils.ErrorHandler(c, err, "Provider not found")
 	}
 
-	if err = db.DeleteOAuthProvider(id); err != nil {
+	configRevision, err := db.DeleteOAuthProvider(id)
+	if err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	// Remove from OAuth manager
-	oauth.RemoveProvider(id)
+	oauth.RemoveProvider(id, configRevision)
 
 	// Log action
 	influx.LogAdd(

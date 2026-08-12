@@ -16,7 +16,7 @@ func list(c *echo.Context) error {
 	var data = make([]_type.AuthProvider, 0)
 	if err := db.Db.Select(
 		&data,
-		`SELECT id, name, icon, auth_url, token_url, userinfo_url, client_id, client_secret, skip_2fa, is_enabled, sort, created_at, updated_at FROM auth_provider ORDER BY sort, id DESC LIMIT $1 OFFSET $2`,
+		`SELECT id, name, icon, protocol, issuer_url, auth_url, token_url, userinfo_url, scopes, subject_field, identity_namespace_version, config_revision, client_id, client_secret, skip_2fa, is_enabled, sort, created_at, updated_at FROM auth_provider ORDER BY sort, id DESC LIMIT $1 OFFSET $2`,
 		size,
 		(page-1)*size,
 	); err != nil {
