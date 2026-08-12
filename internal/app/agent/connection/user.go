@@ -10,6 +10,8 @@ import (
 type sessionInfo struct {
 	conn  *websocket.Conn
 	timer *time.Timer
+	done  chan struct{}
+	once  sync.Once
 }
 
 var (
@@ -19,7 +21,7 @@ var (
 
 const sessionTimeout = 30 * time.Second
 
-func UserSet(sessionID string, conn *websocket.Conn) {
+func UserSet(sessionID string, conn *websocket.Conn) <-chan struct{} {
 	sessionMu.Lock()
 	defer sessionMu.Unlock()
 
@@ -34,7 +36,9 @@ func UserSet(sessionID string, conn *websocket.Conn) {
 	sessionConnections[sessionID] = &sessionInfo{
 		conn:  conn,
 		timer: timer,
+		done:  make(chan struct{}),
 	}
+	return sessionConnections[sessionID].done
 }
 
 func UserGet(sessionID string) (*websocket.Conn, bool) {
@@ -64,6 +68,7 @@ func UserRemove(sessionID string) {
 		if info.conn != nil {
 			_ = info.conn.Close()
 		}
+		info.once.Do(func() { close(info.done) })
 	}
 
 	delete(sessionConnections, sessionID)

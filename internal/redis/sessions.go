@@ -4,9 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"mosona-manager/internal/_type"
+
+	goredis "github.com/redis/go-redis/v9"
 )
+
+type userTeamSessionOps struct {
+	list   func(context.Context, int64) ([]string, error)
+	get    func(context.Context, string) (string, error)
+	remove func(context.Context, int64, []string) error
+}
 
 func ParseSessionData(id, data string) (*_type.SessionData, error) {
 	var session map[interface{}]interface{}
@@ -45,6 +54,98 @@ func AddSessionID(ctx context.Context, uid int64, sessionID string) error {
 	key := fmt.Sprintf("user:sessions:%d", uid)
 	if err := Client.SAdd(ctx, key, sessionID).Err(); err != nil {
 		return fmt.Errorf("failed to add session: %w", err)
+	}
+	return nil
+}
+
+func SessionExists(ctx context.Context, sessionID string) (bool, error) {
+	if sessionID == "" {
+		return false, nil
+	}
+	count, err := Client.Exists(ctx, fmt.Sprintf("mosona:session:%s", sessionID)).Result()
+	return count > 0, err
+}
+
+// RemoveUserTeamSessions revokes indexed sessions whose active team matches
+// teamID. All indexed sessions are read and validated before any are deleted.
+func RemoveUserTeamSessions(ctx context.Context, uid, teamID int64) error {
+	if uid <= 0 || teamID <= 0 {
+		return errors.New("invalid user or team ID")
+	}
+	return removeUserTeamSessions(ctx, uid, teamID, userTeamSessionOps{
+		list:   listUserSessionIDs,
+		get:    getSessionValue,
+		remove: removeUserSessionIDsAtomic,
+	})
+}
+
+func removeUserTeamSessions(ctx context.Context, uid, teamID int64, ops userTeamSessionOps) error {
+	ids, err := ops.list(ctx, uid)
+	if err != nil {
+		return fmt.Errorf("list sessions for user %d: %w", uid, err)
+	}
+
+	matching := make([]string, 0, len(ids))
+	for _, sessionID := range ids {
+		data, getErr := ops.get(ctx, sessionID)
+		if getErr != nil {
+			if errors.Is(getErr, goredis.Nil) {
+				matching = append(matching, sessionID)
+				continue
+			}
+			return fmt.Errorf("read indexed session %s: %w", sessionID, getErr)
+		}
+		sessionData, parseErr := ParseSessionData(sessionID, data)
+		if parseErr != nil {
+			matching = append(matching, sessionID)
+			continue
+		}
+		if sessionData.UID != uid {
+			return fmt.Errorf("indexed session %s belongs to user %d, expected %d", sessionID, sessionData.UID, uid)
+		}
+		if sessionData.TID == teamID {
+			matching = append(matching, sessionID)
+		}
+	}
+
+	if len(matching) == 0 {
+		return nil
+	}
+	if err = ops.remove(ctx, uid, matching); err != nil {
+		return fmt.Errorf("revoke team sessions for user %d: %w", uid, err)
+	}
+	return nil
+}
+
+func listUserSessionIDs(ctx context.Context, uid int64) ([]string, error) {
+	ids, err := Client.SMembers(ctx, fmt.Sprintf("user:sessions:%d", uid)).Result()
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func getSessionValue(ctx context.Context, sessionID string) (string, error) {
+	return Client.Get(ctx, fmt.Sprintf("mosona:session:%s", sessionID)).Result()
+}
+
+func removeUserSessionIDsAtomic(ctx context.Context, uid int64, sessionIDs []string) error {
+	if len(sessionIDs) == 0 {
+		return nil
+	}
+	values := make([]interface{}, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		values = append(values, sessionID)
+	}
+	_, err := Client.TxPipelined(ctx, func(pipe goredis.Pipeliner) error {
+		for _, sessionID := range sessionIDs {
+			pipe.Del(ctx, fmt.Sprintf("mosona:session:%s", sessionID))
+		}
+		pipe.SRem(ctx, fmt.Sprintf("user:sessions:%d", uid), values...)
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("delete sessions and index references: %w", err)
 	}
 	return nil
 }

@@ -2,21 +2,29 @@ package ateam
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/redis"
 	"mosona-manager/internal/utils"
 	"os"
 	"path"
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v5"
 )
 
 func edit(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	uid, _ := c.Get("uid").(int64)
+	requestedTID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	if requestedTID <= 0 || requestedTID != tid {
+		return c.JSON(400, _type.H{Code: "error", Msg: "Invalid team ID"})
+	}
 
 	name := c.FormValue("name")
 	description := c.FormValue("description")
@@ -31,19 +39,15 @@ func edit(c *echo.Context) error {
 	}
 
 	// Update team members
-	tx, err := db.Db.Begin()
+	tx, err := db.Db.Beginx()
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
-	if _, err = tx.Exec("DELETE FROM m_team_user WHERE team_id = $1", tid); err != nil {
-		_ = tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
+
+	removedUserIDs, err := updateTeamMembers(tx, tid, uid, members)
+	if err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
-	}
-	for _, m := range members {
-		if _, err = tx.Exec("INSERT INTO m_team_user (team_id, user_id, role) VALUES ($1, $2, $3)", tid, m.ID, m.Role); err != nil {
-			_ = tx.Rollback()
-			return utils.ErrorHandler(c, err, "Database error")
-		}
 	}
 
 	// Get avatar image
@@ -106,6 +110,11 @@ func edit(c *echo.Context) error {
 	if err = tx.Commit(); err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
+	for _, removedUserID := range removedUserIDs {
+		if err = redis.RemoveUserTeamSessions(c.Request().Context(), removedUserID, tid); err != nil {
+			log.Printf("revoke removed member %d sessions for team %d: %v", removedUserID, tid, err)
+		}
+	}
 
 	// Log action
 	influx.LogAdd(
@@ -117,4 +126,77 @@ func edit(c *echo.Context) error {
 		Code: "ok",
 		Msg:  "Team updated",
 	})
+}
+
+func updateTeamMembers(tx *sqlx.Tx, teamID, actorID int64, members []_type.TeamUsersRole) ([]int64, error) {
+	var lockedTeamID int64
+	if err := tx.QueryRow("SELECT id FROM teams WHERE id = $1 FOR UPDATE", teamID).Scan(&lockedTeamID); err != nil {
+		return nil, err
+	}
+
+	var actorRole int
+	if err := tx.QueryRow(
+		"SELECT role FROM m_team_user WHERE team_id = $1 AND user_id = $2 FOR UPDATE",
+		teamID, actorID,
+	).Scan(&actorRole); err != nil {
+		return nil, err
+	}
+	if actorRole != 0 {
+		return nil, fmt.Errorf("team edit actor is no longer an administrator")
+	}
+
+	rows, err := tx.Query(
+		"SELECT user_id FROM m_team_user WHERE team_id = $1 ORDER BY user_id FOR UPDATE",
+		teamID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	existing := make(map[int64]struct{})
+	for rows.Next() {
+		var userID int64
+		if err = rows.Scan(&userID); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		existing[userID] = struct{}{}
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	requested := make(map[int64]struct{}, len(members))
+	for _, member := range members {
+		requested[member.ID] = struct{}{}
+		if _, err = tx.Exec(`
+			INSERT INTO m_team_user (team_id, user_id, role) VALUES ($1, $2, $3)
+			ON CONFLICT (team_id, user_id) DO UPDATE SET role = EXCLUDED.role
+		`, teamID, member.ID, member.Role); err != nil {
+			return nil, err
+		}
+	}
+
+	removed := make([]int64, 0)
+	for userID := range existing {
+		if _, keep := requested[userID]; keep {
+			continue
+		}
+		if _, err = tx.Exec(
+			"DELETE FROM users_config WHERE uid = $1 AND active_team = $2",
+			userID, teamID,
+		); err != nil {
+			return nil, err
+		}
+		if _, err = tx.Exec(
+			"DELETE FROM m_team_user WHERE team_id = $1 AND user_id = $2",
+			teamID, userID,
+		); err != nil {
+			return nil, err
+		}
+		removed = append(removed, userID)
+	}
+	return removed, nil
 }

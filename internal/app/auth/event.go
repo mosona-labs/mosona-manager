@@ -1,24 +1,19 @@
 package auth
 
 import (
-	"context"
 	"log"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
-	"mosona-manager/internal/redis"
 )
 
 func loginEvent(
-	uid int64, sessionId string,
+	uid int64,
 	ip string, ua string,
 	isAdmin bool,
 ) {
-	// Update login time & Save session ID
+	// Update login time
 	go func() {
 		if _, err := db.Db.Exec("UPDATE users SET login_at=NOW() WHERE id=$1", uid); err != nil {
-			log.Println(err)
-		}
-		if err := redis.AddSessionID(context.Background(), uid, sessionId); err != nil {
 			log.Println(err)
 		}
 	}()

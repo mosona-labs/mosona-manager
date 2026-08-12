@@ -3,8 +3,10 @@ package amonitor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/access"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
@@ -43,7 +45,9 @@ func list(c *echo.Context) error {
 }
 
 func sse(c *echo.Context) error {
+	uid, _ := c.Get("uid").(int64)
 	tid, _ := c.Get("tid").(int64)
+	sid, _ := c.Get("sid").(string)
 
 	c.Response().Header().Set("Content-Type", "text/event-stream")
 	c.Response().Header().Set("Cache-Control", "no-cache")
@@ -53,14 +57,30 @@ func sse(c *echo.Context) error {
 	ctx, cancel := context.WithCancel(c.Request().Context())
 	defer cancel()
 
-	sendData := func() {
+	sendData := func() bool {
+		if err := access.ValidateTeamSession(ctx, uid, tid, sid, 0, 1, 2); err != nil {
+			event := "error"
+			code := "error"
+			message := "Authorization check failed"
+			if errors.Is(err, access.ErrTeamAccessRevoked) {
+				event = "revoked"
+				code = "team_access_revoked"
+				message = "Team access has been revoked"
+			}
+			data, _ := json.Marshal(_type.Map{"code": code, "msg": message})
+			_, _ = fmt.Fprintf(c.Response(), "event: %s\ndata: %s\n\n", event, data)
+			if flusher, ok := c.Response().(http.Flusher); ok {
+				flusher.Flush()
+			}
+			return false
+		}
 		servers, err := db.ListMonitoredServers(tid)
 		if err != nil {
 			_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: {\"msg\":\"Failed to list monitored servers\"}\n\n")
 			if flusher, ok := c.Response().(http.Flusher); ok {
 				flusher.Flush()
 			}
-			return
+			return true
 		}
 
 		var ids []int64
@@ -74,7 +94,7 @@ func sse(c *echo.Context) error {
 			if flusher, ok := c.Response().(http.Flusher); ok {
 				flusher.Flush()
 			}
-			return
+			return true
 		}
 
 		data, _ := json.Marshal(_type.Map{
@@ -87,9 +107,12 @@ func sse(c *echo.Context) error {
 		if flusher, ok := c.Response().(http.Flusher); ok {
 			flusher.Flush()
 		}
+		return true
 	}
 
-	sendData()
+	if !sendData() {
+		return nil
+	}
 
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
@@ -99,7 +122,9 @@ func sse(c *echo.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			sendData()
+			if !sendData() {
+				return nil
+			}
 		}
 	}
 }

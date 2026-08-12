@@ -110,11 +110,11 @@ func login(c *echo.Context) error {
 		// 2FA Required
 		return c.JSON(200, _type.H{Code: "2fa_required", Msg: "Two-factor authentication required"})
 	} else {
-		sessID, err := finalizeAuthenticatedSession(c, user.ID, maxAge)
+		_, err := finalizeAuthenticatedSession(c, user.ID, maxAge)
 		if err != nil {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
 		}
-		loginEvent(user.ID, sessID, c.RealIP(), c.Request().Header.Get("User-Agent"), user.IsAdmin)
+		loginEvent(user.ID, c.RealIP(), c.Request().Header.Get("User-Agent"), user.IsAdmin)
 		return c.JSON(200, _type.H{Code: "ok", Msg: "Login success"})
 	}
 }

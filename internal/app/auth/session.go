@@ -7,12 +7,12 @@ import (
 )
 
 func loginSession(c *echo.Context, uid int64, isAdmin bool) *_type.H {
-	sessID, err := finalizeAuthenticatedSession(c, uid, 86400*3)
+	_, err := finalizeAuthenticatedSession(c, uid, 86400*3)
 	if err != nil {
 		return &_type.H{Code: "error", Msg: "Session save failed"}
 	}
 
-	loginEvent(uid, sessID, c.RealIP(), c.Request().Header.Get("User-Agent"), isAdmin)
+	loginEvent(uid, c.RealIP(), c.Request().Header.Get("User-Agent"), isAdmin)
 
 	return nil
 }

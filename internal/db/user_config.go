@@ -11,22 +11,26 @@ func SetUserActiveTeam(uid, tid int64) error {
 		return err
 	}
 
-	var exists int
-	err := Db.Get(&exists, "SELECT 1 FROM m_team_user WHERE team_id = $1 AND user_id = $2", tid, uid)
-	if err != nil {
-		return err
-	}
-
-	_, err = Db.Exec(`
-		INSERT INTO users_config (uid, active_team) VALUES ($1, $2)
+	var activeTeam int64
+	return Db.QueryRow(`
+		INSERT INTO users_config (uid, active_team)
+		SELECT $1, $2
+		FROM m_team_user
+		WHERE user_id = $1 AND team_id = $2
 		ON CONFLICT (uid) DO UPDATE SET active_team = EXCLUDED.active_team
-	`, uid, tid)
-	return err
+		RETURNING active_team
+	`, uid, tid).Scan(&activeTeam)
 }
 
 func GetUserActiveTeam(uid int64) (int64, error) {
 	var tid int64
-	err := Db.Get(&tid, "SELECT active_team FROM users_config WHERE uid = $1", uid)
+	err := Db.Get(&tid, `
+		SELECT uc.active_team
+		FROM users_config AS uc
+		JOIN m_team_user AS mtu
+		  ON mtu.team_id = uc.active_team AND mtu.user_id = uc.uid
+		WHERE uc.uid = $1
+	`, uid)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, nil
@@ -35,4 +39,12 @@ func GetUserActiveTeam(uid int64) (int64, error) {
 	}
 
 	return tid, nil
+}
+
+func ClearUserActiveTeam(uid, staleTid int64) error {
+	_, err := Db.Exec(
+		"DELETE FROM users_config WHERE uid = $1 AND active_team = $2",
+		uid, staleTid,
+	)
+	return err
 }

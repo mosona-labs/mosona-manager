@@ -1,6 +1,7 @@
 package aterminal
 
 import (
+	"context"
 	"mosona-manager/internal/app/agent/connection"
 	pbTypes "mosona-manager/pkg/types"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-func terminalPassive(serverId int64, wsConn *websocket.Conn) error {
+func terminalPassive(ctx context.Context, serverId int64, wsConn *websocket.Conn) error {
 	id, _ := uuid.NewUUID()
 
 	ma, ok := connection.MainGet(serverId)
@@ -18,7 +19,8 @@ func terminalPassive(serverId int64, wsConn *websocket.Conn) error {
 		return wsConn.Close()
 	}
 
-	connection.UserSet(id.String(), wsConn)
+	done := connection.UserSet(id.String(), wsConn)
+	defer connection.UserRemove(id.String())
 
 	d, _ := msgpack.Marshal(pbTypes.Msg{
 		Code: "terminal",
@@ -28,6 +30,10 @@ func terminalPassive(serverId int64, wsConn *websocket.Conn) error {
 		_ = wsConn.WriteMessage(websocket.TextMessage, []byte("Failed to request terminal session: "+err.Error()+"\n"))
 		return wsConn.Close()
 	}
-
+	select {
+	case <-ctx.Done():
+		connection.UserRemove(id.String())
+	case <-done:
+	}
 	return nil
 }

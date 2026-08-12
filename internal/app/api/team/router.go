@@ -8,14 +8,15 @@ import (
 )
 
 func Router(e *echo.Group) {
-	e.GET("", info)
+	team := e.Group("", middleware.TeamAccess)
+	team.GET("", info)
 	e.POST("", create)
-	e.PUT("/:id", edit, middleware.WriteAuth)
+	team.PUT("/:id", edit, middleware.WriteAuth)
 	e.DELETE("/leave/:id", leave)
-	e.GET("/public-page", getPublicPage)
-	e.PUT("/public-page", setPublicPage, middleware.WriteAuth)
-	e.POST("/export", exportTeam, middleware.WriteAuth)
-	e.POST("/import", importTeam, middleware.WriteAuth)
+	team.GET("/public-page", getPublicPage)
+	team.PUT("/public-page", setPublicPage, middleware.WriteAuth)
+	team.POST("/export", exportTeam, middleware.WriteAuth)
+	team.POST("/import", importTeam, middleware.WriteAuth)
 
-	anotification.Router(e.Group("/notification"))
+	anotification.Router(team.Group("/notification"))
 }

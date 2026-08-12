@@ -68,6 +68,10 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 		})
 	}
 	wsutil.StartPing(ctx, wsConn, &wsWriteMu, "active terminal browser websocket ping")
+	go func() {
+		<-ctx.Done()
+		cleanup()
+	}()
 
 	// Agent WS -> Client WS
 	go func() {

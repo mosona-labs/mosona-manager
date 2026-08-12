@@ -193,12 +193,12 @@ func oauthCallback(c *echo.Context) error {
 		}
 	}
 
-	sessID, err := finalizeAuthenticatedSession(c, user.ID, 86400*3)
+	_, err = finalizeAuthenticatedSession(c, user.ID, 86400*3)
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
 	}
 
-	loginEvent(user.ID, sessID, c.RealIP(), c.Request().Header.Get("User-Agent"), user.IsAdmin)
+	loginEvent(user.ID, c.RealIP(), c.Request().Header.Get("User-Agent"), user.IsAdmin)
 
 	return c.JSON(200, _type.H{Code: "ok", Msg: "Success"})
 }

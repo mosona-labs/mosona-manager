@@ -840,4 +840,4 @@ ALTER TABLE "teams_notifications" ADD CONSTRAINT "FK_TNT" FOREIGN KEY ("team_id"
 -- ----------------------------
 -- Foreign Keys structure for table users_config
 -- ----------------------------
-ALTER TABLE "users_config" ADD CONSTRAINT "FK_UCT" FOREIGN KEY ("active_team") REFERENCES "teams" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "users_config" ADD CONSTRAINT "FK_UCT" FOREIGN KEY ("active_team", "uid") REFERENCES "m_team_user" ("team_id", "user_id") ON DELETE CASCADE ON UPDATE NO ACTION;

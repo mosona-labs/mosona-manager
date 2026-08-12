@@ -29,6 +29,26 @@ func me(c *echo.Context) error {
 			c.Set("tid", tid)
 		}
 	}
+	if tid != 0 {
+		if _, roleErr := db.GetTeamRole(c.Request().Context(), uid, tid); roleErr != nil {
+			if !errors.Is(roleErr, sql.ErrNoRows) {
+				return utils.ErrorHandler(c, roleErr, "Database error")
+			}
+			if err = db.ClearUserActiveTeam(uid, tid); err != nil {
+				return utils.ErrorHandler(c, err, "Database error")
+			}
+			sess, sessionErr := session.Get("session", c)
+			if sessionErr != nil {
+				return utils.ErrorHandler(c, sessionErr, "Session error")
+			}
+			sess.Values["tid"] = int64(0)
+			if sessionErr = sess.Save(c.Request(), c.Response()); sessionErr != nil {
+				return utils.ErrorHandler(c, sessionErr, "Session update failed")
+			}
+			tid = 0
+			c.Set("tid", tid)
+		}
+	}
 
 	teams, err := db.GetTeamsByUserId(uid)
 	if err != nil {

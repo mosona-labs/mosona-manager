@@ -89,15 +89,15 @@ func Start() {
 			return c.String(200, "pong!")
 		})
 	}
-	v1 := api.Group("/v1", middleware2.SameOriginWrite, middleware2.UserAuth, middleware2.UserRole)
+	v1 := api.Group("/v1", middleware2.SameOriginWrite, middleware2.UserAuth)
 	{
 		auser.Router(v1.Group("/user"))         // User
-		ateam.Router(v1.Group("/team"))         // Team
-		akeys.Router(v1.Group("/key"))          // Keys
-		acategory.Router(v1.Group("/category")) // Category
-		aserver.Router(v1.Group("/server"))     // Server
-		aalert.Router(v1.Group("/alert"))       // Alert
-		alogs.Router(v1.Group("/logs"))         // Logs
+		ateam.Router(v1.Group("/team"))         // Team (mixed user/team routes)
+		akeys.Router(v1.Group("/key", middleware2.TeamAccess))
+		acategory.Router(v1.Group("/category", middleware2.TeamAccess))
+		aserver.Router(v1.Group("/server", middleware2.TeamAccess))
+		aalert.Router(v1.Group("/alert", middleware2.TeamAccess))
+		alogs.Router(v1.Group("/logs", middleware2.TeamAccess))
 
 		// Version
 		v1.GET("/version", func(c *echo.Context) error {

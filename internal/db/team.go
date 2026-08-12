@@ -1,8 +1,100 @@
 package db
 
 import (
+	"context"
+	"database/sql"
 	"mosona-manager/internal/_type"
 )
+
+func GetTeamRole(ctx context.Context, userID, teamID int64) (int, error) {
+	var role int
+	err := Db.QueryRowContext(ctx,
+		"SELECT role FROM m_team_user WHERE user_id = $1 AND team_id = $2",
+		userID, teamID,
+	).Scan(&role)
+	return role, err
+}
+
+func LeaveTeam(ctx context.Context, userID, teamID int64) error {
+	tx, err := Db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var ownerID int64
+	if err = tx.QueryRowContext(ctx,
+		"SELECT owner_id FROM teams WHERE id = $1 FOR UPDATE",
+		teamID,
+	).Scan(&ownerID); err != nil {
+		return err
+	}
+
+	rows, err := tx.QueryContext(ctx,
+		"SELECT user_id FROM m_team_user WHERE team_id = $1 ORDER BY user_id FOR UPDATE",
+		teamID,
+	)
+	if err != nil {
+		return err
+	}
+	members := make([]int64, 0)
+	isMember := false
+	for rows.Next() {
+		var memberID int64
+		if err = rows.Scan(&memberID); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		members = append(members, memberID)
+		isMember = isMember || memberID == userID
+	}
+	if err = rows.Close(); err != nil {
+		return err
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	if !isMember {
+		return sql.ErrNoRows
+	}
+
+	if ownerID == userID && len(members) == 1 {
+		if _, err = tx.ExecContext(ctx, "DELETE FROM teams WHERE id = $1", teamID); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
+
+	if ownerID == userID {
+		var newOwnerID int64
+		for _, memberID := range members {
+			if memberID != userID {
+				newOwnerID = memberID
+				break
+			}
+		}
+		if _, err = tx.ExecContext(ctx,
+			"UPDATE teams SET owner_id = $1 WHERE id = $2",
+			newOwnerID, teamID,
+		); err != nil {
+			return err
+		}
+	}
+
+	if _, err = tx.ExecContext(ctx,
+		"DELETE FROM users_config WHERE uid = $1 AND active_team = $2",
+		userID, teamID,
+	); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx,
+		"DELETE FROM m_team_user WHERE user_id = $1 AND team_id = $2",
+		userID, teamID,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
 func GetTeamById(id int64) (_type.Team, error) {
 	var team _type.Team
