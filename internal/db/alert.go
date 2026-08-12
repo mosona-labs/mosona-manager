@@ -75,6 +75,7 @@ var alertItemRules = map[string]alertItemRule{
 
 var ErrAlertNotFound = errors.New("alert not found")
 var ErrAlertInvalidConfig = errors.New("alert invalid config")
+var ErrAlertServerNotFound = errors.New("alert server not found")
 
 func normalizeAlertConfig(item string, threshold, forDuration int) (int, int, error) {
 	rule, ok := alertItemRules[item]
@@ -120,18 +121,24 @@ func UpsertServerAlert(teamId, serverId int64, item string, threshold, forDurati
 		return err
 	}
 
-	_, err = Db.Exec(`
+	result, err := Db.Exec(`
 		INSERT INTO server_alerts (server_id, item, threshold, for_duration)
-		VALUES ($1, $2, $3, $4)
+		SELECT s.id, $2, $3, $4
+		FROM servers AS s
+		WHERE s.id = $1 AND s.team_id = $5
 		ON CONFLICT (server_id, item) DO UPDATE
 		SET threshold = EXCLUDED.threshold,
 		    for_duration = EXCLUDED.for_duration
-		WHERE EXISTS (
-			SELECT 1 FROM servers WHERE id = $1 AND team_id = $5
-		)
 	`, serverId, item, threshold, forDuration, teamId)
 	if err != nil {
 		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		return ErrAlertServerNotFound
 	}
 	return nil
 }

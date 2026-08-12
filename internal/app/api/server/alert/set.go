@@ -35,6 +35,12 @@ func set(c *echo.Context) error {
 		affected, err = db.UpsertTeamAlert(tid, item, threshold, forDuration, override)
 	}
 	if err != nil {
+		if errors.Is(err, db.ErrAlertServerNotFound) {
+			return c.JSON(404, _type.H{
+				Code: "server_not_found",
+				Msg:  "Server not found",
+			})
+		}
 		if errors.Is(err, db.ErrAlertNotFound) {
 			return c.JSON(400, _type.H{
 				Code: "invalid",
