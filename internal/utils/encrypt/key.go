@@ -7,21 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"io"
-	"mosona-manager/internal/utils"
-	"path"
 )
-
-func initKey() ([]byte, error) {
-	key, err := GenerateKey(32)
-	if err != nil {
-		return nil, err
-	}
-	if err = utils.WriteFile(path.Join(configPath, "key"), string(key)); err != nil {
-		return nil, err
-	}
-
-	return key, nil
-}
 
 func GenerateKey(length int) ([]byte, error) {
 	if length != 16 && length != 24 && length != 32 {

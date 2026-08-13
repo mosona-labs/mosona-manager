@@ -31,6 +31,12 @@ GitHub will create a **private security advisory** visible only to you and the p
 
 We kindly ask reporters to follow responsible disclosure principles and give us reasonable time to investigate and patch before public disclosure.
 
+## Encryption Key Backup
+
+Mosona Manager encrypts stored SSH credentials with a local master key. Docker Compose stores it at `cfg/key` inside the persistent `app_data` volume. Manual deployments should set `MOSONA_ENCRYPTION_KEY_PATH` to an absolute path on persistent storage; existing `./cfg/key` installations are detected automatically.
+
+Back up the key together with PostgreSQL and keep the backup access-restricted. Restore the same key before starting against a restored database, with its directory and file set to `0700` and `0600`. If encrypted credentials exist but the key is missing, unreadable, or invalid, startup intentionally fails instead of generating a replacement. There is currently no automatic key rotation; a rotation must re-encrypt all stored credentials as one coordinated operation.
+
 ## Disclosure Policy
 
 - We aim to fix confirmed vulnerabilities as quickly as possible.

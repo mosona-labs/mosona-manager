@@ -12,6 +12,7 @@ import (
 	"mosona-manager/internal/runtime"
 	"mosona-manager/internal/siteaccess"
 	"mosona-manager/internal/task"
+	"mosona-manager/internal/utils/encrypt"
 	"os"
 )
 
@@ -41,7 +42,16 @@ func initApp() {
 	fmt.Println("⇨ Mosona manager v" + runtime.Version + " starting...")
 
 	// Database
-	db.Init()     // Postgres
+	db.Init() // Postgres
+	encryptedCredentialsExist, err := db.HasEncryptedCredentials()
+	if err != nil {
+		log.Fatalln("Check encrypted credentials error:", err)
+	}
+	keyPath, err := encrypt.Initialize(encryptedCredentialsExist)
+	if err != nil {
+		log.Fatalln("Initialize encryption key error:", err)
+	}
+	log.Printf("Encryption key loaded from %s", keyPath)
 	influx.Init() // InfluxDB
 	redis.Init()  // Redis
 	// Dynamic Config

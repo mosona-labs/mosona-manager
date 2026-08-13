@@ -93,6 +93,8 @@ services:
 
             IS_CONTAINER: "1"
 
+            MOSONA_ENCRYPTION_KEY_PATH: /var/lib/mosona-manager/cfg/key
+
             FRONTEND_DIR: /srv/frontend
         volumes:
             - app_data:/var/lib/mosona-manager

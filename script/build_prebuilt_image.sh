@@ -244,6 +244,7 @@ RUN chmod +x /srv/bin/mosona-manager
 ENV HOST=0.0.0.0
 ENV PORT=8080
 ENV FRONTEND_DIR=/srv/frontend
+ENV MOSONA_ENCRYPTION_KEY_PATH=/var/lib/mosona-manager/cfg/key
 
 EXPOSE 8080
 
