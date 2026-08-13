@@ -3,17 +3,13 @@ package apublic
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io/fs"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
-	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
 	"net"
-	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -24,7 +20,12 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
-const publicPageContextKey = "public_page"
+const (
+	publicPageContextKey     = "public_page"
+	publicPageResolveTimeout = 3 * time.Second
+)
+
+var publicPageResolveSlots = make(chan struct{}, 8)
 
 var (
 	styleCloseTagPattern = regexp.MustCompile(`(?i)</style`)
@@ -32,7 +33,7 @@ var (
 )
 
 func PageByName(c *echo.Context) error {
-	page, err := resolvePageByName(c.Param("name"))
+	page, err := resolvePageByName(c.Request().Context(), c.Param("name"))
 	if err != nil {
 		return publicResolveError(c, err)
 	}
@@ -42,7 +43,7 @@ func PageByName(c *echo.Context) error {
 }
 
 func TryServeDomainRequest(c *echo.Context) (bool, error) {
-	page, err := resolvePageByDomainHost(c.Request().Host)
+	page, err := resolvePageByDomainHost(c.Request().Context(), c.Request().Host)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
@@ -68,7 +69,7 @@ func bootstrap(c *echo.Context) error {
 		return publicResolveError(c, sql.ErrNoRows)
 	}
 
-	servers, categories, statusMap, now, err := loadPublicSnapshot(page.TeamID)
+	snapshot, err := publicSnapshots.get(c.Request().Context(), page.TeamID)
 	if err != nil {
 		setPublicPageHeaders(c)
 		return utils.ErrorHandler(c, err, "Failed to load public preview data")
@@ -80,77 +81,17 @@ func bootstrap(c *echo.Context) error {
 		Msg:  "Success",
 		Data: _type.Map{
 			"page":       buildPublicPageSummary(page),
-			"servers":    servers,
-			"categories": categories,
-			"status":     statusMap,
-			"now":        now,
+			"servers":    snapshot.Servers,
+			"categories": snapshot.Categories,
+			"status":     snapshot.Status,
+			"now":        snapshot.Now,
 		},
 	})
 }
 
-func sse(c *echo.Context) error {
-	page, ok := c.Get(publicPageContextKey).(*_type.ResolvedPublicPage)
-	if !ok || page == nil {
-		return publicResolveError(c, sql.ErrNoRows)
-	}
-
-	setPublicPageHeaders(c)
-	c.Response().Header().Set("Content-Type", "text/event-stream")
-	c.Response().Header().Set("Cache-Control", "no-cache")
-	c.Response().Header().Set("Connection", "keep-alive")
-	c.Response().WriteHeader(200)
-
-	ctx, cancel := context.WithCancel(c.Request().Context())
-	defer cancel()
-
-	sendData := func() {
-		servers, categories, statusMap, now, err := loadPublicSnapshot(page.TeamID)
-		if err != nil {
-			_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: {\"msg\":\"Failed to load public preview data\"}\n\n")
-			if flusher, ok := c.Response().(http.Flusher); ok {
-				flusher.Flush()
-			}
-			return
-		}
-
-		data, err := json.Marshal(_type.Map{
-			"servers":    servers,
-			"categories": categories,
-			"status":     statusMap,
-			"now":        now,
-		})
-		if err != nil {
-			_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: {\"msg\":\"Failed to encode public preview data\"}\n\n")
-			if flusher, ok := c.Response().(http.Flusher); ok {
-				flusher.Flush()
-			}
-			return
-		}
-
-		_, _ = fmt.Fprintf(c.Response(), "event: update\ndata: %s\n\n", string(data))
-		if flusher, ok := c.Response().(http.Flusher); ok {
-			flusher.Flush()
-		}
-	}
-
-	sendData()
-
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			sendData()
-		}
-	}
-}
-
 func resolvePublicPageByName(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
-		page, err := resolvePageByName(c.Param("name"))
+		page, err := resolvePageByName(c.Request().Context(), c.Param("name"))
 		if err != nil {
 			return publicResolveError(c, err)
 		}
@@ -161,7 +102,7 @@ func resolvePublicPageByName(next echo.HandlerFunc) echo.HandlerFunc {
 
 func resolvePublicPageByDomain(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
-		page, err := resolvePageByDomainHost(c.Request().Host)
+		page, err := resolvePageByDomainHost(c.Request().Context(), c.Request().Host)
 		if err != nil {
 			return publicResolveError(c, err)
 		}
@@ -170,44 +111,41 @@ func resolvePublicPageByDomain(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
-func resolvePageByName(name string) (_type.ResolvedPublicPage, error) {
+func resolvePageByName(ctx context.Context, name string) (_type.ResolvedPublicPage, error) {
 	name = strings.TrimSpace(strings.ToLower(name))
 	if name == "" {
 		return _type.ResolvedPublicPage{}, sql.ErrNoRows
 	}
-	return db.GetEnabledTeamPublicPageByName(name)
+	return resolvePublicPage(ctx, func(queryCtx context.Context) (_type.ResolvedPublicPage, error) {
+		return db.GetEnabledTeamPublicPageByNameContext(queryCtx, name)
+	})
 }
 
-func resolvePageByDomainHost(host string) (_type.ResolvedPublicPage, error) {
+func resolvePageByDomainHost(ctx context.Context, host string) (_type.ResolvedPublicPage, error) {
 	host = normalizeHost(host)
 	if host == "" {
 		return _type.ResolvedPublicPage{}, sql.ErrNoRows
 	}
-	return db.GetEnabledTeamPublicPageByDomain(host)
+	return resolvePublicPage(ctx, func(queryCtx context.Context) (_type.ResolvedPublicPage, error) {
+		return db.GetEnabledTeamPublicPageByDomainContext(queryCtx, host)
+	})
 }
 
-func loadPublicSnapshot(teamID int64) ([]_type.PublicMonitor, []_type.Category, map[int64]*_type.ServerStatusType, int64, error) {
-	servers, err := db.ListPublicMonitoredServers(teamID)
-	if err != nil {
-		return nil, nil, nil, 0, err
+func resolvePublicPage(
+	ctx context.Context,
+	load func(context.Context) (_type.ResolvedPublicPage, error),
+) (_type.ResolvedPublicPage, error) {
+	select {
+	case publicPageResolveSlots <- struct{}{}:
+		defer func() { <-publicPageResolveSlots }()
+	case <-ctx.Done():
+		return _type.ResolvedPublicPage{}, ctx.Err()
+	default:
+		return _type.ResolvedPublicPage{}, errors.New("public page resolver is busy")
 	}
-
-	categories, err := db.GetCategoriesByTeam(teamID)
-	if err != nil {
-		return nil, nil, nil, 0, err
-	}
-
-	ids := make([]int64, 0, len(servers))
-	for _, server := range servers {
-		ids = append(ids, server.ID)
-	}
-
-	statusMap, err := influx.GetLatestServerStatusBatch(ids)
-	if err != nil {
-		return nil, nil, nil, 0, err
-	}
-
-	return servers, categories, statusMap, time.Now().Unix(), nil
+	queryCtx, cancel := context.WithTimeout(ctx, publicPageResolveTimeout)
+	defer cancel()
+	return load(queryCtx)
 }
 
 func publicResolveError(c *echo.Context, err error) error {

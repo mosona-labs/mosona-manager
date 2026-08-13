@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"mosona-manager/internal/_type"
@@ -48,8 +49,13 @@ func UpsertTeamPublicPage(teamID int64, enabled bool, name, domain, title, descr
 }
 
 func GetEnabledTeamPublicPageByName(name string) (_type.ResolvedPublicPage, error) {
+	return GetEnabledTeamPublicPageByNameContext(context.Background(), name)
+}
+
+func GetEnabledTeamPublicPageByNameContext(ctx context.Context, name string) (_type.ResolvedPublicPage, error) {
 	var page _type.ResolvedPublicPage
-	err := Db.Get(
+	err := Db.GetContext(
+		ctx,
 		&page,
 		`SELECT p.team_id, p.enabled, p.name, p.domain, p.title, p.description, p.custom_css, p.created_at, p.updated_at,
 		        t.name AS team_name, t.color AS team_color, t.image AS team_image
@@ -72,8 +78,13 @@ func ListEnabledPublicPageDomains() ([]string, error) {
 }
 
 func GetEnabledTeamPublicPageByDomain(domain string) (_type.ResolvedPublicPage, error) {
+	return GetEnabledTeamPublicPageByDomainContext(context.Background(), domain)
+}
+
+func GetEnabledTeamPublicPageByDomainContext(ctx context.Context, domain string) (_type.ResolvedPublicPage, error) {
 	var page _type.ResolvedPublicPage
-	err := Db.Get(
+	err := Db.GetContext(
+		ctx,
 		&page,
 		`SELECT p.team_id, p.enabled, p.name, p.domain, p.title, p.description, p.custom_css, p.created_at, p.updated_at,
 		        t.name AS team_name, t.color AS team_color, t.image AS team_image

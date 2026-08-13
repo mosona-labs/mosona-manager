@@ -162,6 +162,10 @@ func GetLatestServerStatus(serverID int64) (*_type.ServerStatusType, error) {
 }
 
 func GetLatestServerStatusBatch(serverIDs []int64) (map[int64]*_type.ServerStatusType, error) {
+	return GetLatestServerStatusBatchContext(context.Background(), serverIDs)
+}
+
+func GetLatestServerStatusBatchContext(ctx context.Context, serverIDs []int64) (map[int64]*_type.ServerStatusType, error) {
 	if len(serverIDs) == 0 {
 		return make(map[int64]*_type.ServerStatusType), nil
 	}
@@ -180,7 +184,7 @@ func GetLatestServerStatusBatch(serverIDs []int64) (map[int64]*_type.ServerStatu
   |> last()`, "server_status_raw", idFilter)
 
 	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
-	result, err := queryAPI.Query(context.Background(), query)
+	result, err := queryAPI.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}

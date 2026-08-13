@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"mosona-manager/internal/_type"
 )
@@ -102,8 +103,12 @@ func SortCategories(teamId int64, categoryIds []int64) error {
 }
 
 func GetCategoriesByTeam(teamId int64) ([]_type.Category, error) {
+	return GetCategoriesByTeamContext(context.Background(), teamId)
+}
+
+func GetCategoriesByTeamContext(ctx context.Context, teamId int64) ([]_type.Category, error) {
 	var categories = make([]_type.Category, 0)
-	err := Db.Select(&categories, "SELECT id, name, sort FROM categories WHERE team = $1 ORDER BY sort, id", teamId)
+	err := Db.SelectContext(ctx, &categories, "SELECT id, name, sort FROM categories WHERE team = $1 ORDER BY sort, id", teamId)
 	if err != nil {
 		return nil, err
 	}
