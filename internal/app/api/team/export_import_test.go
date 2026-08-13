@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -17,8 +19,32 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
+	"github.com/labstack/echo/v5"
 	gossh "golang.org/x/crypto/ssh"
 )
+
+func TestLegacySSHHostKeyConfirmationRequiredResponse(t *testing.T) {
+	e := echo.New()
+	e.GET("/confirm", func(c *echo.Context) error {
+		return legacySSHHostKeyConfirmationRequired(c, []string{"legacy-a", "legacy-b"})
+	})
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/confirm", nil))
+
+	body := recorder.Body.String()
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, body = %s", recorder.Code, body)
+	}
+	for _, fragment := range []string{
+		`"code":"legacy_ssh_host_key_confirmation_required"`,
+		`"count":2`,
+		`"servers":["legacy-a","legacy-b"]`,
+	} {
+		if !strings.Contains(body, fragment) {
+			t.Fatalf("response does not contain %q: %s", fragment, body)
+		}
+	}
+}
 
 func TestImportNotificationsRejectsUnsafeTargetBeforeDatabaseWrite(t *testing.T) {
 	database, mock, err := sqlmock.New()
@@ -59,7 +85,7 @@ func TestApplyTeamImportRejectsUnsafeNotificationBeforeTransaction(t *testing.T)
 		Notifications: []_type.TeamNotification{{
 			Module: "shoutrrr", Target: "unknown://example.com/hook",
 		}},
-	})
+	}, false)
 	if !errors.Is(err, notification.ErrInvalidConfiguration) {
 		t.Fatalf("error = %v", err)
 	}
@@ -82,8 +108,8 @@ func TestApplyTeamImportRejectsUnpinnedSSHBeforeTransaction(t *testing.T) {
 		Type: 0,
 		Name: "legacy",
 		SSH:  &teamExportSSH{Address: "legacy.example", Port: 22, Username: "root"},
-	}}})
-	if !errors.Is(err, errInvalidTeamImport) || !strings.Contains(err.Error(), "missing a host key") {
+	}}}, false)
+	if !errors.Is(err, errInvalidTeamImport) || !strings.Contains(err.Error(), "requires explicit confirmation") {
 		t.Fatalf("expected invalid import host key error, got %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -123,8 +149,8 @@ func TestImportSSHConnectionPreservesPinnedHostKey(t *testing.T) {
 
 	passwordMatcher := sqlmock.AnyArg()
 	hostKey := newExportTestHostKey(t)
-	mock.ExpectExec(`INSERT INTO ssh .*host_key`).
-		WithArgs(int64(91), "server.example", 22, "root", int64(17), passwordMatcher, hostKey).
+	mock.ExpectExec(`INSERT INTO ssh .*host_key, trust_legacy_host_key`).
+		WithArgs(int64(91), "server.example", 22, "root", int64(17), passwordMatcher, hostKey, false).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectRollback()
 
@@ -142,7 +168,7 @@ func TestImportSSHConnectionPreservesPinnedHostKey(t *testing.T) {
 			Password: "secret",
 			HostKey:  hostKey + " imported-comment",
 		},
-	}, map[int64]int64{7: 17})
+	}, map[int64]int64{7: 17}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +178,7 @@ func TestImportSSHConnectionPreservesPinnedHostKey(t *testing.T) {
 	}
 }
 
-func TestLegacyImportWithoutSSHHostKeyIsRejected(t *testing.T) {
+func TestLegacyImportWithoutSSHHostKeyRequiresConfirmation(t *testing.T) {
 	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	if err != nil {
 		t.Fatal(err)
@@ -177,13 +203,67 @@ func TestLegacyImportWithoutSSHHostKeyIsRejected(t *testing.T) {
 			Username: "root",
 			Password: "secret",
 		},
-	}, map[int64]int64{})
-	if err == nil || !strings.Contains(err.Error(), "missing a host key") {
+	}, map[int64]int64{}, false)
+	if err == nil || !strings.Contains(err.Error(), "requires explicit confirmation") {
 		t.Fatalf("expected missing host key error, got %v", err)
 	}
 	_ = tx.Rollback()
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestConfirmedLegacyImportTrustsSSHHostKey(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	mock.ExpectBegin()
+	tx, err := sqlx.NewDb(database, "sqlmock").Beginx()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectExec(`INSERT INTO ssh .*host_key, trust_legacy_host_key`).
+		WithArgs(int64(92), "legacy.example", 22, "root", int64(0), sqlmock.AnyArg(), nil, true).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectRollback()
+
+	oldKey := encrypt.Key
+	encrypt.Key = []byte("0123456789abcdef0123456789abcdef")
+	t.Cleanup(func() { encrypt.Key = oldKey })
+	err = importServerConnection(tx, 92, teamExportServer{
+		Type: 0,
+		Name: "legacy",
+		SSH: &teamExportSSH{
+			Address:  "legacy.example",
+			Port:     22,
+			Username: "root",
+			Password: "secret",
+		},
+	}, map[int64]int64{}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = tx.Rollback()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInspectImportedSSHHostKeysReturnsLegacyServers(t *testing.T) {
+	hostKey := newExportTestHostKey(t)
+	servers, err := inspectImportedSSHHostKeys([]teamExportServer{
+		{Type: 0, Name: "legacy-a", SSH: &teamExportSSH{}},
+		{Type: 0, Name: "pinned", SSH: &teamExportSSH{HostKey: hostKey}},
+		{Type: 1, Name: "agent"},
+		{Type: 0, Name: "legacy-b", SSH: &teamExportSSH{}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(servers) != 2 || servers[0] != "legacy-a" || servers[1] != "legacy-b" {
+		t.Fatalf("legacy servers = %#v", servers)
 	}
 }
 
@@ -213,7 +293,7 @@ func TestImportSSHConnectionRejectsMalformedHostKey(t *testing.T) {
 			Password: "secret",
 			HostKey:  "not-an-ssh-public-key",
 		},
-	}, map[int64]int64{})
+	}, map[int64]int64{}, false)
 	if err == nil || !strings.Contains(err.Error(), "invalid SSH host key") {
 		t.Fatalf("error = %v", err)
 	}

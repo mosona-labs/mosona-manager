@@ -36,10 +36,11 @@ type teamExportAuthRequest struct {
 }
 
 type teamImportRequest struct {
-	TOTPCode       string                      `json:"totp_code"`
-	ExportPassword string                      `json:"export_password"`
-	Encrypted      *exportcrypto.EncryptedFile `json:"encrypted"`
-	Data           json.RawMessage             `json:"data"`
+	TOTPCode               string                      `json:"totp_code"`
+	ExportPassword         string                      `json:"export_password"`
+	Encrypted              *exportcrypto.EncryptedFile `json:"encrypted"`
+	Data                   json.RawMessage             `json:"data"`
+	TrustLegacySSHHostKeys bool                        `json:"trust_legacy_ssh_host_keys"`
 }
 
 type teamExportBundle struct {
@@ -216,11 +217,15 @@ func importTeam(c *echo.Context) error {
 	if bundle.Version != teamExportVersion {
 		return c.JSON(400, _type.H{Code: "invalid", Msg: "Unsupported export version"})
 	}
-	if err = validateImportedSSHHostKeys(bundle.Servers); err != nil {
+	legacySSHServers, err := inspectImportedSSHHostKeys(bundle.Servers)
+	if err != nil {
 		return c.JSON(400, _type.H{Code: "invalid", Msg: err.Error()})
 	}
+	if len(legacySSHServers) > 0 && !req.TrustLegacySSHHostKeys {
+		return legacySSHHostKeyConfirmationRequired(c, legacySSHServers)
+	}
 
-	oldServers, newServers, err := applyTeamImport(tid, bundle)
+	oldServers, newServers, err := applyTeamImport(tid, bundle, req.TrustLegacySSHHostKeys)
 	if err != nil {
 		if errors.Is(err, notification.ErrInvalidConfiguration) || errors.Is(err, errInvalidTeamImport) {
 			return c.JSON(400, _type.H{Code: "invalid", Msg: err.Error()})
@@ -255,6 +260,17 @@ func importTeam(c *echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Team data imported",
+	})
+}
+
+func legacySSHHostKeyConfirmationRequired(c *echo.Context, servers []string) error {
+	return c.JSON(409, _type.H{
+		Code: "legacy_ssh_host_key_confirmation_required",
+		Msg:  "This export contains SSH servers without pinned host keys; confirm that they may be trusted on import",
+		Data: _type.Map{
+			"count":   len(servers),
+			"servers": servers,
+		},
 	})
 }
 
@@ -502,9 +518,13 @@ type importedServerRuntime struct {
 	id int64
 }
 
-func applyTeamImport(teamID int64, data teamExportBundle) ([]int64, []importedServerRuntime, error) {
-	if err := validateImportedSSHHostKeys(data.Servers); err != nil {
+func applyTeamImport(teamID int64, data teamExportBundle, trustLegacySSHHostKeys bool) ([]int64, []importedServerRuntime, error) {
+	legacySSHServers, err := inspectImportedSSHHostKeys(data.Servers)
+	if err != nil {
 		return nil, nil, err
+	}
+	if len(legacySSHServers) > 0 && !trustLegacySSHHostKeys {
+		return nil, nil, fmt.Errorf("%w: importing SSH servers without host keys requires explicit confirmation", errInvalidTeamImport)
 	}
 	notifications, err := notification.NormalizeEntries(context.Background(), data.Notifications)
 	if err != nil {
@@ -553,7 +573,7 @@ func applyTeamImport(teamID int64, data teamExportBundle) ([]int64, []importedSe
 	if err = importPublicPage(tx, teamID, data.PublicPage); err != nil {
 		return nil, nil, err
 	}
-	newServers, err := importServers(tx, teamID, data.Servers, categoryMap, keyMap)
+	newServers, err := importServers(tx, teamID, data.Servers, categoryMap, keyMap, trustLegacySSHHostKeys)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -565,22 +585,24 @@ func applyTeamImport(teamID int64, data teamExportBundle) ([]int64, []importedSe
 	return oldServerIDs, newServers, nil
 }
 
-func validateImportedSSHHostKeys(servers []teamExportServer) error {
+func inspectImportedSSHHostKeys(servers []teamExportServer) ([]string, error) {
+	var legacyServers []string
 	for _, server := range servers {
 		if server.Type != 0 {
 			continue
 		}
 		if server.SSH == nil {
-			return fmt.Errorf("%w: SSH server %q is missing SSH configuration", errInvalidTeamImport, server.Name)
+			return nil, fmt.Errorf("%w: SSH server %q is missing SSH configuration", errInvalidTeamImport, server.Name)
 		}
 		if server.SSH.HostKey == "" {
-			return fmt.Errorf("%w: SSH server %q is missing a host key; confirm its host key before exporting and importing it", errInvalidTeamImport, server.Name)
+			legacyServers = append(legacyServers, server.Name)
+			continue
 		}
 		if _, err := connectSSH.NormalizeHostKey(server.SSH.HostKey); err != nil {
-			return fmt.Errorf("%w: invalid SSH host key for server %q: %v", errInvalidTeamImport, server.Name, err)
+			return nil, fmt.Errorf("%w: invalid SSH host key for server %q: %v", errInvalidTeamImport, server.Name, err)
 		}
 	}
-	return nil
+	return legacyServers, nil
 }
 
 func clearTeamConfig(tx *sqlx.Tx, teamID int64) error {
@@ -729,7 +751,7 @@ func exportStr(v *string) string {
 	return *v
 }
 
-func importServers(tx *sqlx.Tx, teamID int64, servers []teamExportServer, categoryMap, keyMap map[int64]int64) ([]importedServerRuntime, error) {
+func importServers(tx *sqlx.Tx, teamID int64, servers []teamExportServer, categoryMap, keyMap map[int64]int64, trustLegacySSHHostKeys bool) ([]importedServerRuntime, error) {
 	var defaultCategoryID int64
 	for _, id := range categoryMap {
 		defaultCategoryID = id
@@ -760,7 +782,7 @@ func importServers(tx *sqlx.Tx, teamID int64, servers []teamExportServer, catego
 		if err := importServerAdvancedInfo(tx, newServerID, server.Type, server.AdvancedInfo); err != nil {
 			return nil, err
 		}
-		if err := importServerConnection(tx, newServerID, server, keyMap); err != nil {
+		if err := importServerConnection(tx, newServerID, server, keyMap, trustLegacySSHHostKeys); err != nil {
 			return nil, err
 		}
 		for _, alert := range server.Alerts {
@@ -820,27 +842,31 @@ func normalizeImportedServerAdvancedInfo(serverType int16, info teamExportServer
 	return info
 }
 
-func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer, keyMap map[int64]int64) error {
+func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer, keyMap map[int64]int64, trustLegacySSHHostKeys bool) error {
 	switch server.Type {
 	case 0:
 		if server.SSH == nil {
 			return fmt.Errorf("%w: SSH server %q is missing SSH configuration", errInvalidTeamImport, server.Name)
 		}
-		if server.SSH.HostKey == "" {
-			return fmt.Errorf("%w: SSH server %q is missing a host key; confirm its host key before exporting and importing it", errInvalidTeamImport, server.Name)
+		if server.SSH.HostKey == "" && !trustLegacySSHHostKeys {
+			return fmt.Errorf("%w: importing SSH server %q without a host key requires explicit confirmation", errInvalidTeamImport, server.Name)
 		}
 		keyID := keyMap[server.SSH.KeyRef]
 		password, err := encrypt.Encrypt([]byte(server.SSH.Password), encrypt.Key, encrypt.SSHPasswordContext(serverID))
 		if err != nil {
 			return err
 		}
-		hostKey, err := connectSSH.NormalizeHostKey(server.SSH.HostKey)
-		if err != nil {
-			return fmt.Errorf("%w: invalid SSH host key for server %q: %v", errInvalidTeamImport, server.Name, err)
+		var hostKey any
+		trustLegacyHostKey := server.SSH.HostKey == ""
+		if !trustLegacyHostKey {
+			hostKey, err = connectSSH.NormalizeHostKey(server.SSH.HostKey)
+			if err != nil {
+				return fmt.Errorf("%w: invalid SSH host key for server %q: %v", errInvalidTeamImport, server.Name, err)
+			}
 		}
 		_, err = tx.Exec(
-			"INSERT INTO ssh (server_id, address, port, username, key_id, password, host_key) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-			serverID, server.SSH.Address, server.SSH.Port, server.SSH.Username, keyID, password, hostKey,
+			"INSERT INTO ssh (server_id, address, port, username, key_id, password, host_key, trust_legacy_host_key) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+			serverID, server.SSH.Address, server.SSH.Port, server.SSH.Username, keyID, password, hostKey, trustLegacyHostKey,
 		)
 		return err
 	case 1, 2:
