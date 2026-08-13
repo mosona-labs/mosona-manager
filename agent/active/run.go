@@ -6,6 +6,14 @@ import (
 	"mosona-manager/agent/active/middleware"
 	"mosona-manager/agent/config"
 	"net/http"
+	"time"
+)
+
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 30 * time.Second
+	idleTimeout       = 60 * time.Second
 )
 
 func Run() {
@@ -22,8 +30,19 @@ func Run() {
 
 	handler := middleware.AuthMiddleware(mux)
 
-	addr := fmt.Sprintf("%s:%d", config.Current.Host, config.Current.Port)
-	if err := http.ListenAndServe(addr, handler); err != nil {
+	server := newHTTPServer(fmt.Sprintf("%s:%d", config.Current.Host, config.Current.Port), handler)
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatalln("Failed to start HTTP server:", err)
+	}
+}
+
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
 }

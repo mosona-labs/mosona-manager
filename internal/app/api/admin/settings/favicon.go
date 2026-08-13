@@ -1,6 +1,7 @@
 package msettings
 
 import (
+	"errors"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
@@ -15,6 +16,13 @@ import (
 )
 
 func uploadFavicon(c *echo.Context) error {
+	if _, err := c.MultipartForm(); err != nil {
+		if errors.Is(err, echo.ErrStatusRequestEntityTooLarge) {
+			return echo.ErrStatusRequestEntityTooLarge
+		}
+		return c.JSON(400, _type.H{Code: "invalid", Msg: "Invalid favicon upload"})
+	}
+
 	image, err := c.FormFile("image")
 	if err != nil || image == nil {
 		image, err = c.FormFile("favicon")

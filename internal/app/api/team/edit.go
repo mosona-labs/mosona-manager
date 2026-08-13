@@ -33,12 +33,19 @@ func edit(c *echo.Context) error {
 		return c.JSON(400, _type.H{Code: "error", Msg: "Invalid team ID"})
 	}
 
-	name := c.FormValue("name")
-	description := c.FormValue("description")
-	avatarColor := c.FormValue("avatar_color")
+	form, err := c.FormValues()
+	if err != nil {
+		if errors.Is(err, echo.ErrStatusRequestEntityTooLarge) {
+			return echo.ErrStatusRequestEntityTooLarge
+		}
+		return c.JSON(400, _type.H{Code: "error", Msg: "Invalid form data"})
+	}
+	name := form.Get("name")
+	description := form.Get("description")
+	avatarColor := form.Get("avatar_color")
 
 	var members = make([]_type.TeamUsersRole, 0)
-	if err := json.Unmarshal([]byte(c.FormValue("members")), &members); err != nil {
+	if err = json.Unmarshal([]byte(form.Get("members")), &members); err != nil {
 		return c.JSON(400, _type.H{
 			Code: "error",
 			Msg:  "Invalid member data",

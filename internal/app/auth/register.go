@@ -28,7 +28,7 @@ func register(c *echo.Context) error {
 	// Captcha
 	if dc.CaptchaSecret != "" && dc.CaptchaSiteKey != "" {
 		remoteIp := c.RealIP()
-		if ok, err := utils.VerifyCaptcha(dc.CaptchaSecret, token, remoteIp); err != nil || !ok {
+		if ok, err := utils.VerifyCaptcha(c.Request().Context(), dc.CaptchaSecret, token, remoteIp); err != nil || !ok {
 			return c.JSON(400, _type.H{Code: "warning", Msg: "Captcha verification failed"})
 		}
 	}

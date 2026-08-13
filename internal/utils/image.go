@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	MaxAvatarBytes  = 5 << 20
-	MaxAvatarWidth  = 4096
-	MaxAvatarHeight = 4096
-	MaxAvatarPixels = 12_000_000
+	MaxAvatarBytes        = 5 << 20
+	MaxAvatarRequestBytes = MaxAvatarBytes + 1<<20
+	MaxAvatarWidth        = 4096
+	MaxAvatarHeight       = 4096
+	MaxAvatarPixels       = 12_000_000
 )
 
 var allowedAvatarFormats = map[string]struct{}{

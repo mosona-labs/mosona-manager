@@ -10,8 +10,8 @@ import (
 func Router(e *echo.Group) {
 	team := e.Group("", middleware.TeamAccess)
 	team.GET("", info)
-	e.POST("", create)
-	team.PUT("/:id", edit, middleware.WriteAuth)
+	e.POST("", create, middleware.AvatarUploadLimit)
+	team.PUT("/:id", edit, middleware.WriteAuth, middleware.AvatarUploadLimit)
 	e.DELETE("/leave/:id", leave)
 	team.GET("/public-page", getPublicPage)
 	team.PUT("/public-page", setPublicPage, middleware.WriteAuth)
