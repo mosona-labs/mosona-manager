@@ -17,6 +17,8 @@ type setRequest struct {
 	Value string `json:"value" validate:"required"`
 }
 
+var addSettingsAuditLog = influx.LogAdd
+
 func set(c *echo.Context) error {
 	req := new([]setRequest)
 	if err := c.Bind(req); err != nil {
@@ -33,9 +35,15 @@ func set(c *echo.Context) error {
 	defer func() { _ = tx.Rollback() }()
 
 	stmt := `INSERT INTO config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2`
+	applied := make([]setRequest, 0, len(*req))
 	for _, item := range *req {
 		// Skip protected keys
 		if item.Key == "init" || item.Key == "token" || item.Key == "favicon" {
+			continue
+		}
+		// The API returns this mask for configured secrets. Treating it as a
+		// value would overwrite the existing credential during an unrelated save.
+		if isSensitiveSetting(item.Key) && item.Value == secretMask {
 			continue
 		}
 		if item.Key == "title" {
@@ -53,6 +61,7 @@ func set(c *echo.Context) error {
 			_ = tx.Rollback()
 			return utils.ErrorHandler(c, err, "Database error")
 		}
+		applied = append(applied, item)
 	}
 
 	if err = tx.Commit(); err != nil {
@@ -65,7 +74,7 @@ func set(c *echo.Context) error {
 	}
 
 	domainChanged := false
-	for _, item := range *req {
+	for _, item := range applied {
 		if item.Key == "domain" {
 			domainChanged = true
 			break
@@ -79,14 +88,20 @@ func set(c *echo.Context) error {
 	}
 
 	// Log action
-	var settings []string
-	for _, item := range *req {
+	settings := make([]string, 0, len(applied))
+	for _, item := range applied {
+		if isSensitiveSetting(item.Key) {
+			settings = append(settings, item.Key+" updated")
+			continue
+		}
 		settings = append(settings, item.Key+"="+item.Value)
 	}
-	influx.LogAdd(
-		0, c.Get("uid").(int64), "settings", "updated: "+strings.Join(settings, ", "),
-		c.RealIP(), c.Request().UserAgent(), "medium",
-	)
+	if len(settings) > 0 {
+		addSettingsAuditLog(
+			0, c.Get("uid").(int64), "settings", "updated: "+strings.Join(settings, ", "),
+			c.RealIP(), c.Request().UserAgent(), "medium",
+		)
+	}
 
 	return c.JSON(200, _type.H{
 		Code: "ok",

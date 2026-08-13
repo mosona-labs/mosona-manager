@@ -22,7 +22,7 @@ func get(c *echo.Context) error {
 			SMTPHost:                dc.SMTPHost,
 			SMTPPort:                dc.SMTPPort,
 			SMTPUsername:            dc.SMTPUsername,
-			SMTPPassword:            dc.SMTPPassword,
+			SMTPPassword:            maskSecret(dc.SMTPPassword),
 			SMTPTls:                 dc.SMTPTls,
 			EmailVerifyLogin:        dc.EmailVerifyLogin,
 			SessionBindIP:           dc.SessionBindIP,
@@ -30,7 +30,7 @@ func get(c *echo.Context) error {
 			RegistrationEnabled:     dc.RegistrationEnabled,
 			RegistrationVerifyEmail: dc.RegistrationVerifyEmail,
 			CaptchaSiteKey:          dc.CaptchaSiteKey,
-			CaptchaSecretKey:        dc.CaptchaSecret,
+			CaptchaSecretKey:        maskSecret(dc.CaptchaSecret),
 		},
 	})
 }
