@@ -196,8 +196,33 @@ func IsTeamOwner(teamId int64, userId int64) (bool, error) {
 }
 
 func TransferTeamOwnership(teamId int64, newOwnerId int64) error {
-	_, err := Db.Exec(`UPDATE teams SET owner_id = $1 WHERE id = $2`, newOwnerId, teamId)
-	return err
+	tx, err := Db.Beginx()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var teamExists int
+	if err = tx.QueryRow(
+		"SELECT 1 FROM teams WHERE id = $1 FOR UPDATE",
+		teamId,
+	).Scan(&teamExists); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(`
+		INSERT INTO m_team_user (team_id, user_id, role) VALUES ($1, $2, 0)
+		ON CONFLICT (team_id, user_id) DO UPDATE SET role = 0
+		WHERE m_team_user.role <> 0
+	`, teamId, newOwnerId); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(
+		"UPDATE teams SET owner_id = $1 WHERE id = $2",
+		newOwnerId, teamId,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func RemoveUserFromTeam(userId int64, teamId int64) error {
