@@ -14,11 +14,12 @@ type TerminalDetail struct {
 	Type int16 `json:"type"`
 
 	// SSH
-	Address  *string `db:"address"`
-	Port     *int    `db:"port"`
-	Username *string `db:"username"`
-	Password *string `db:"password"`
-	Key      *string `db:"key"`
-	KeyPwd   *string `db:"key_pwd"`
-	HostKey  *string `db:"host_key"`
+	Address            *string `db:"address"`
+	Port               *int    `db:"port"`
+	Username           *string `db:"username"`
+	Password           *string `db:"password"`
+	Key                *string `db:"key"`
+	KeyPwd             *string `db:"key_pwd"`
+	HostKey            *string `db:"host_key"`
+	TrustLegacyHostKey bool    `db:"trust_legacy_host_key" json:"-"`
 }

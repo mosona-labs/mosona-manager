@@ -13,7 +13,7 @@ import (
 
 func SSH(
 	ctx context.Context,
-	host string, port int, user, password, key, keyPwd, trustedHostKey string,
+	host string, port int, user, password, key, keyPwd, trustedHostKey string, trustLegacyHostKey bool,
 	serverId, teamID int64,
 ) error {
 	const (
@@ -30,7 +30,7 @@ func SSH(
 		default:
 		}
 
-		client, err := Dial(host, port, user, password, key, keyPwd, trustedHostKey, DefaultDialTimeout)
+		client, err := Dial(host, port, user, password, key, keyPwd, trustedHostKey, trustLegacyHostKey, DefaultDialTimeout)
 
 		if err != nil {
 			if IsPermanentHostKeyError(err) {

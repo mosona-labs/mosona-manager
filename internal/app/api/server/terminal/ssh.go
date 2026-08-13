@@ -57,6 +57,7 @@ func terminalSSH(
 		key,
 		keyPwd,
 		trustedHostKey,
+		serverAuth.TrustLegacyHostKey,
 		connectSSH.DefaultDialTimeout,
 	)
 	if err != nil {

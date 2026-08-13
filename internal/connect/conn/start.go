@@ -121,6 +121,7 @@ func startServer(serverId int64, mode int16) error {
 	case 0:
 		var host, user string
 		var trustedHostKey sql.NullString
+		var trustLegacyHostKey bool
 		var teamID int64
 		var port int
 
@@ -137,8 +138,8 @@ func startServer(serverId int64, mode int16) error {
 		)
 
 		if err := db.Db.QueryRow(
-			"SELECT address, port, username, ssh.password, COALESCE(ssh.key_id, 0), k.password, k.content, ssh.host_key, s.team_id FROM servers s JOIN ssh ON s.id = ssh.server_id LEFT JOIN keys k ON ssh.key_id = k.id WHERE s.id = $1", serverId,
-		).Scan(&host, &port, &user, &password, &keyID, &keyPassword, &key, &trustedHostKey, &teamID); err != nil {
+			"SELECT address, port, username, ssh.password, COALESCE(ssh.key_id, 0), k.password, k.content, ssh.host_key, ssh.trust_legacy_host_key, s.team_id FROM servers s JOIN ssh ON s.id = ssh.server_id LEFT JOIN keys k ON ssh.key_id = k.id WHERE s.id = $1", serverId,
+		).Scan(&host, &port, &user, &password, &keyID, &keyPassword, &key, &trustedHostKey, &trustLegacyHostKey, &teamID); err != nil {
 			return err
 		}
 		if len(password) != 0 {
@@ -174,7 +175,7 @@ func startServer(serverId int64, mode int16) error {
 		mu.Unlock()
 		go func() {
 			defer close(entry.done)
-			_ = ssh.SSH(ctx, host, port, user, pwdStr, keyStr, keyPwdStr, trustedHostKey.String, serverId, teamID)
+			_ = ssh.SSH(ctx, host, port, user, pwdStr, keyStr, keyPwdStr, trustedHostKey.String, trustLegacyHostKey, serverId, teamID)
 		}()
 	case 1:
 		var (

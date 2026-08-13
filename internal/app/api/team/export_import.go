@@ -28,6 +28,8 @@ import (
 
 const teamExportVersion = 1
 
+var errInvalidTeamImport = errors.New("invalid team import")
+
 type teamExportAuthRequest struct {
 	TOTPCode       string `json:"totp_code"`
 	ExportPassword string `json:"export_password"`
@@ -214,10 +216,13 @@ func importTeam(c *echo.Context) error {
 	if bundle.Version != teamExportVersion {
 		return c.JSON(400, _type.H{Code: "invalid", Msg: "Unsupported export version"})
 	}
+	if err = validateImportedSSHHostKeys(bundle.Servers); err != nil {
+		return c.JSON(400, _type.H{Code: "invalid", Msg: err.Error()})
+	}
 
 	oldServers, newServers, err := applyTeamImport(tid, bundle)
 	if err != nil {
-		if errors.Is(err, notification.ErrInvalidConfiguration) {
+		if errors.Is(err, notification.ErrInvalidConfiguration) || errors.Is(err, errInvalidTeamImport) {
 			return c.JSON(400, _type.H{Code: "invalid", Msg: err.Error()})
 		}
 		return utils.ErrorHandler(c, err, "Failed to import team data")
@@ -498,6 +503,9 @@ type importedServerRuntime struct {
 }
 
 func applyTeamImport(teamID int64, data teamExportBundle) ([]int64, []importedServerRuntime, error) {
+	if err := validateImportedSSHHostKeys(data.Servers); err != nil {
+		return nil, nil, err
+	}
 	notifications, err := notification.NormalizeEntries(context.Background(), data.Notifications)
 	if err != nil {
 		return nil, nil, err
@@ -555,6 +563,24 @@ func applyTeamImport(teamID int64, data teamExportBundle) ([]int64, []importedSe
 	}
 
 	return oldServerIDs, newServers, nil
+}
+
+func validateImportedSSHHostKeys(servers []teamExportServer) error {
+	for _, server := range servers {
+		if server.Type != 0 {
+			continue
+		}
+		if server.SSH == nil {
+			return fmt.Errorf("%w: SSH server %q is missing SSH configuration", errInvalidTeamImport, server.Name)
+		}
+		if server.SSH.HostKey == "" {
+			return fmt.Errorf("%w: SSH server %q is missing a host key; confirm its host key before exporting and importing it", errInvalidTeamImport, server.Name)
+		}
+		if _, err := connectSSH.NormalizeHostKey(server.SSH.HostKey); err != nil {
+			return fmt.Errorf("%w: invalid SSH host key for server %q: %v", errInvalidTeamImport, server.Name, err)
+		}
+	}
+	return nil
 }
 
 func clearTeamConfig(tx *sqlx.Tx, teamID int64) error {
@@ -798,22 +824,22 @@ func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer
 	switch server.Type {
 	case 0:
 		if server.SSH == nil {
-			return fmt.Errorf("ssh server %q is missing ssh configuration", server.Name)
+			return fmt.Errorf("%w: SSH server %q is missing SSH configuration", errInvalidTeamImport, server.Name)
+		}
+		if server.SSH.HostKey == "" {
+			return fmt.Errorf("%w: SSH server %q is missing a host key; confirm its host key before exporting and importing it", errInvalidTeamImport, server.Name)
 		}
 		keyID := keyMap[server.SSH.KeyRef]
 		password, err := encrypt.Encrypt([]byte(server.SSH.Password), encrypt.Key, encrypt.SSHPasswordContext(serverID))
 		if err != nil {
 			return err
 		}
-		hostKey := ""
-		if server.SSH.HostKey != "" {
-			hostKey, err = connectSSH.NormalizeHostKey(server.SSH.HostKey)
-			if err != nil {
-				return fmt.Errorf("invalid SSH host key for server %q: %w", server.Name, err)
-			}
+		hostKey, err := connectSSH.NormalizeHostKey(server.SSH.HostKey)
+		if err != nil {
+			return fmt.Errorf("%w: invalid SSH host key for server %q: %v", errInvalidTeamImport, server.Name, err)
 		}
 		_, err = tx.Exec(
-			"INSERT INTO ssh (server_id, address, port, username, key_id, password, host_key) VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''))",
+			"INSERT INTO ssh (server_id, address, port, username, key_id, password, host_key) VALUES ($1, $2, $3, $4, $5, $6, $7)",
 			serverID, server.SSH.Address, server.SSH.Port, server.SSH.Username, keyID, password, hostKey,
 		)
 		return err

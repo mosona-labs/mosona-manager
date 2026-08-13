@@ -68,6 +68,29 @@ func TestApplyTeamImportRejectsUnsafeNotificationBeforeTransaction(t *testing.T)
 	}
 }
 
+func TestApplyTeamImportRejectsUnpinnedSSHBeforeTransaction(t *testing.T) {
+	database, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	t.Cleanup(func() { db.Db = oldDB })
+
+	_, _, err = applyTeamImport(5, teamExportBundle{Servers: []teamExportServer{{
+		Type: 0,
+		Name: "legacy",
+		SSH:  &teamExportSSH{Address: "legacy.example", Port: 22, Username: "root"},
+	}}})
+	if !errors.Is(err, errInvalidTeamImport) || !strings.Contains(err.Error(), "missing a host key") {
+		t.Fatalf("expected invalid import host key error, got %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDecodeTeamImportBundleEncrypted(t *testing.T) {
 	bundle := testTeamExportBundle()
 	encrypted, err := exportcrypto.EncryptJSON("export-pass-123", bundle)
@@ -100,7 +123,7 @@ func TestImportSSHConnectionPreservesPinnedHostKey(t *testing.T) {
 
 	passwordMatcher := sqlmock.AnyArg()
 	hostKey := newExportTestHostKey(t)
-	mock.ExpectExec(`INSERT INTO ssh .*host_key.*NULLIF`).
+	mock.ExpectExec(`INSERT INTO ssh .*host_key`).
 		WithArgs(int64(91), "server.example", 22, "root", int64(17), passwordMatcher, hostKey).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectRollback()
@@ -129,7 +152,7 @@ func TestImportSSHConnectionPreservesPinnedHostKey(t *testing.T) {
 	}
 }
 
-func TestLegacyImportLeavesSSHHostKeyUntrusted(t *testing.T) {
+func TestLegacyImportWithoutSSHHostKeyIsRejected(t *testing.T) {
 	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	if err != nil {
 		t.Fatal(err)
@@ -140,9 +163,6 @@ func TestLegacyImportLeavesSSHHostKeyUntrusted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mock.ExpectExec(`INSERT INTO ssh .*host_key.*NULLIF`).
-		WithArgs(int64(92), "legacy.example", 22, "root", int64(0), sqlmock.AnyArg(), "").
-		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectRollback()
 
 	oldKey := encrypt.Key
@@ -158,8 +178,8 @@ func TestLegacyImportLeavesSSHHostKeyUntrusted(t *testing.T) {
 			Password: "secret",
 		},
 	}, map[int64]int64{})
-	if err != nil {
-		t.Fatal(err)
+	if err == nil || !strings.Contains(err.Error(), "missing a host key") {
+		t.Fatalf("expected missing host key error, got %v", err)
 	}
 	_ = tx.Rollback()
 	if err := mock.ExpectationsWereMet(); err != nil {

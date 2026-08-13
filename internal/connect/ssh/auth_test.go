@@ -140,6 +140,32 @@ func TestStrictHostKeyCallback(t *testing.T) {
 	}
 }
 
+func TestHostKeyCallbackAllowsOnlyExplicitLegacyRowsWithoutPins(t *testing.T) {
+	actual := newTestHostKey(t)
+
+	callback, err := hostKeyCallback("", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = callback("legacy", nil, actual); err != nil {
+		t.Fatalf("legacy host key rejected: %v", err)
+	}
+
+	if _, err = hostKeyCallback("", false); !errors.Is(err, ErrHostKeyMissing) {
+		t.Fatalf("new unpinned host error = %v", err)
+	}
+
+	pinned := newTestHostKey(t)
+	pinnedText := strings.TrimSpace(string(gossh.MarshalAuthorizedKey(pinned)))
+	callback, err = hostKeyCallback(pinnedText, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = callback("pinned", nil, actual); !errors.Is(err, ErrHostKeyMismatch) {
+		t.Fatalf("legacy flag bypassed stored pin: %v", err)
+	}
+}
+
 func TestProbeHostKeyStopsBeforeAuthentication(t *testing.T) {
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {

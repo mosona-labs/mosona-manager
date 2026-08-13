@@ -69,8 +69,8 @@ func BuildAuthMethods(password, key, keyPwd string) ([]gossh.AuthMethod, error) 
 	return authMethods, nil
 }
 
-func Dial(host string, port int, user, password, key, keyPwd, trustedHostKey string, timeout time.Duration) (*gossh.Client, error) {
-	hostKeyCallback, err := strictHostKeyCallback(trustedHostKey)
+func Dial(host string, port int, user, password, key, keyPwd, trustedHostKey string, trustLegacyHostKey bool, timeout time.Duration) (*gossh.Client, error) {
+	hostKeyCallback, err := hostKeyCallback(trustedHostKey, trustLegacyHostKey)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func ValidateConnection(host string, port int, user, password, key, keyPwd, trus
 		host, port, user, password, key, keyPwd, trustedHostKey, confirmedHostKey,
 		ProbeHostKey,
 		func(acceptedHostKey string) error {
-			client, err := Dial(host, port, user, password, key, keyPwd, acceptedHostKey, DefaultDialTimeout)
+			client, err := Dial(host, port, user, password, key, keyPwd, acceptedHostKey, false, DefaultDialTimeout)
 			if err != nil {
 				return err
 			}
@@ -168,6 +168,13 @@ func probeHostKeyConnection(conn net.Conn, address string, timeout time.Duration
 		return ObservedHostKey{}, errors.New("ssh handshake completed without a host key")
 	}
 	return ObservedHostKey{}, err
+}
+
+func hostKeyCallback(trustedHostKey string, trustLegacyHostKey bool) (gossh.HostKeyCallback, error) {
+	if strings.TrimSpace(trustedHostKey) == "" && trustLegacyHostKey {
+		return gossh.InsecureIgnoreHostKey(), nil
+	}
+	return strictHostKeyCallback(trustedHostKey)
 }
 
 func strictHostKeyCallback(trustedHostKey string) (gossh.HostKeyCallback, error) {

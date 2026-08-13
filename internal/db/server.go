@@ -136,6 +136,7 @@ func EditServer(teamId, serverId int64, typ int16, data *_type.ServerFullType) e
 			Set("port", data.Port).
 			Set("username", data.Username).
 			Set("host_key", data.HostKey).
+			Set("trust_legacy_host_key", false).
 			Where(squirrel.Eq{"server_id": serverId})
 		if data.PreviousHostKey == nil {
 			qb = qb.Where("host_key IS NULL")
