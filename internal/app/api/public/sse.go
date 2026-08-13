@@ -165,7 +165,7 @@ func sse(c *echo.Context) error {
 		if result.err != nil {
 			return write(publicSSEErrorEvent)
 		}
-		return write([]byte(fmt.Sprintf("event: update\ndata: %s\n\n", result.data)))
+		return write(fmt.Appendf(nil, "event: update\ndata: %s\n\n", result.data))
 	}
 	if err := writeResult(initial); err != nil {
 		return nil

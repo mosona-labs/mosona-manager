@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.1.11 - 2026-08-14
+## v0.1.12 - 2026-08-14
 
 This release is a comprehensive security and logic audit of the hub, the agent,
 and the web UI. It contains no schema-incompatible API removals for the web

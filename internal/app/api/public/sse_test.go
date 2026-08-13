@@ -49,8 +49,11 @@ func TestPublicSSELimiterHasNoGlobalOrTeamLimit(t *testing.T) {
 func TestPublicRequestLimiterEnforcesGlobalAndIPWindows(t *testing.T) {
 	limiter := newPublicRequestLimiter(3, 2, time.Second)
 	now := time.Unix(100, 0)
-	if !limiter.allow(now, "192.0.2.1") || !limiter.allow(now, "192.0.2.1") {
-		t.Fatal("requests within limits were rejected")
+	if !limiter.allow(now, "192.0.2.1") {
+		t.Fatal("first request within limits was rejected")
+	}
+	if !limiter.allow(now, "192.0.2.1") {
+		t.Fatal("second request within limits was rejected")
 	}
 	if limiter.allow(now, "192.0.2.1") {
 		t.Fatal("per-IP request limit was not enforced")
