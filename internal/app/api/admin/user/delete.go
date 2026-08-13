@@ -7,7 +7,6 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
-	"mosona-manager/internal/utils"
 	"net/http"
 	"strconv"
 
@@ -22,8 +21,20 @@ func del(c *echo.Context) error {
 			Msg:  "Invalid user ID",
 		})
 	}
+	actorID := c.Get("uid").(int64)
+	if actorID == id {
+		return adminMutationError(c, db.ErrCannotModifySelf)
+	}
+	currentPassword, err := deleteReauthenticationPassword(c.Request())
+	if err != nil {
+		return adminMutationError(c, err)
+	}
+	reauthenticatedHash, err := reauthenticate(c, actorID, currentPassword)
+	if err != nil {
+		return adminMutationError(c, err)
+	}
 
-	deletedUsername, err := db.DeleteUser(c.Request().Context(), id, c.QueryParam("confirm"))
+	deletedUsername, err := db.DeleteUser(c.Request().Context(), actorID, id, c.QueryParam("confirm"), reauthenticatedHash)
 	if err != nil {
 		var ownsTeams *db.UserOwnsTeamsError
 		if errors.As(err, &ownsTeams) {
@@ -45,12 +56,12 @@ func del(c *echo.Context) error {
 				Msg:  "Confirmation username does not match",
 			})
 		}
-		return utils.ErrorHandler(c, err, "Database error")
+		return adminMutationError(c, err)
 	}
 
 	// Log action
 	influx.LogAdd(
-		0, c.Get("uid").(int64), "user",
+		0, actorID, "user",
 		fmt.Sprintf("delete user %q (ID: %d)", deletedUsername, id),
 		c.RealIP(), c.Request().UserAgent(), "high",
 	)

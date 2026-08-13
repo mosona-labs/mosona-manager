@@ -8,7 +8,6 @@ import (
 	"mosona-manager/internal/utils"
 	"strconv"
 
-	"github.com/Masterminds/squirrel"
 	"github.com/labstack/echo/v5"
 )
 
@@ -20,11 +19,16 @@ func edit(c *echo.Context) error {
 			Msg:  "Invalid user ID",
 		})
 	}
-	username := c.FormValue("username")
-	email := c.FormValue("email")
-	password := c.FormValue("password")
-	verified := c.FormValue("verified") == "true"
-	isAdmin := c.FormValue("is_admin") == "true"
+	form, err := adminMutationForm(c.Request())
+	if err != nil {
+		return adminMutationError(c, err)
+	}
+	username := form.Get("username")
+	email := form.Get("email")
+	password := form.Get("password")
+	verified := form.Get("verified") == "true"
+	isAdmin := form.Get("is_admin") == "true"
+	actorID := c.Get("uid").(int64)
 
 	if username == "" || email == "" {
 		return c.JSON(400, _type.H{
@@ -33,39 +37,39 @@ func edit(c *echo.Context) error {
 		})
 	}
 
-	// Check Exist
-	isExist, err := db.CheckEmailExistsExcludeID(email, id)
-	if err != nil {
-		return utils.ErrorHandler(c, err, "Database error")
-	}
-	if isExist {
-		return c.JSON(400, _type.H{Code: "warning", Msg: "Email already registered"})
+	if actorID == id && !isAdmin {
+		return adminMutationError(c, db.ErrCannotModifySelf)
 	}
 
-	// Update User
-	psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
-	updates := psql.Update("users").Where(squirrel.Eq{"id": id}).SetMap(map[string]interface{}{
-		"username": username,
-		"email":    email,
-		"verified": verified,
-		"is_admin": isAdmin,
-	})
+	reauthenticatedHash := ""
+	if currentPassword := form.Get("current_password"); currentPassword != "" {
+		reauthenticatedHash, err = reauthenticate(c, actorID, currentPassword)
+		if err != nil {
+			return adminMutationError(c, err)
+		}
+	}
+
+	update := db.AdminUserUpdate{
+		Username: username,
+		Email:    email,
+		Verified: verified,
+		IsAdmin:  isAdmin,
+	}
 	if password != "" {
-		signature := utils.RandomString(32)
 		newPassword, hashErr := passwordhash.Hash(password)
 		if hashErr != nil {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 		}
-		updates = updates.Set("password", newPassword).Set("salt", signature)
+		update.PasswordHash = newPassword
+		update.PasswordSalt = utils.RandomString(32)
 	}
-	sql, args, _ := updates.ToSql()
-	if _, err = db.Db.Exec(sql, args...); err != nil {
-		return utils.ErrorHandler(c, err, "Database error")
+	if err := db.UpdateAdminUser(c.Request().Context(), actorID, id, update, reauthenticatedHash); err != nil {
+		return adminMutationError(c, err)
 	}
 
 	// Log action
 	influx.LogAdd(
-		0, c.Get("uid").(int64), "user", "edit user ID "+strconv.FormatInt(id, 10),
+		0, actorID, "user", "edit user ID "+strconv.FormatInt(id, 10),
 		c.RealIP(), c.Request().UserAgent(), "medium",
 	)
 

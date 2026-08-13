@@ -9,9 +9,26 @@ import (
 	"mosona-manager/internal/utils"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
-var ErrDeleteUserConfirmationMismatch = errors.New("delete user confirmation does not match")
+var (
+	ErrDeleteUserConfirmationMismatch = errors.New("delete user confirmation does not match")
+	ErrCannotModifySelf               = errors.New("administrator cannot delete or demote self")
+	ErrLastAdmin                      = errors.New("operation would remove the last administrator")
+	ErrAdminReauthenticationRequired  = errors.New("administrator reauthentication required")
+	ErrActorNotAdmin                  = errors.New("acting user is no longer an administrator")
+	ErrUserEmailExists                = errors.New("user email already exists")
+)
+
+type AdminUserUpdate struct {
+	Username     string
+	Email        string
+	Verified     bool
+	IsAdmin      bool
+	PasswordHash string
+	PasswordSalt string
+}
 
 type OwnedTeam struct {
 	ID   int64  `json:"id"`
@@ -26,22 +43,45 @@ func (err *UserOwnsTeamsError) Error() string {
 	return fmt.Sprintf("user owns %d team(s)", len(err.Teams))
 }
 
-func DeleteUser(ctx context.Context, userID int64, confirmation string) (string, error) {
+func DeleteUser(ctx context.Context, actorID, userID int64, confirmation, reauthenticatedHash string) (string, error) {
+	if actorID == userID {
+		return "", ErrCannotModifySelf
+	}
+	if reauthenticatedHash == "" {
+		return "", ErrAdminReauthenticationRequired
+	}
+
 	tx, err := Db.BeginTxx(ctx, nil)
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	admins, err := lockAdministrators(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+	actorHash, actorIsAdmin := administratorPassword(admins, actorID)
+	if !actorIsAdmin {
+		return "", ErrActorNotAdmin
+	}
+	if actorHash != reauthenticatedHash {
+		return "", ErrAdminReauthenticationRequired
+	}
+
 	var username string
+	var isAdmin bool
 	if err = tx.QueryRowContext(ctx,
-		"SELECT username FROM users WHERE id = $1 FOR UPDATE",
+		"SELECT username, is_admin FROM users WHERE id = $1 FOR UPDATE",
 		userID,
-	).Scan(&username); err != nil {
+	).Scan(&username, &isAdmin); err != nil {
 		return "", err
 	}
 	if confirmation == "" || confirmation != username {
 		return "", ErrDeleteUserConfirmationMismatch
+	}
+	if isAdmin && len(admins) == 1 {
+		return "", ErrLastAdmin
 	}
 
 	ownedTeams := make([]OwnedTeam, 0)
@@ -71,6 +111,104 @@ func DeleteUser(ctx context.Context, userID int64, confirmation string) (string,
 		return "", err
 	}
 	return username, nil
+}
+
+func UpdateAdminUser(ctx context.Context, actorID, userID int64, update AdminUserUpdate, reauthenticatedHash string) error {
+	if actorID == userID && !update.IsAdmin {
+		return ErrCannotModifySelf
+	}
+
+	tx, err := Db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	admins, err := lockAdministrators(ctx, tx)
+	if err != nil {
+		return err
+	}
+	actorHash, actorIsAdmin := administratorPassword(admins, actorID)
+	if !actorIsAdmin {
+		return ErrActorNotAdmin
+	}
+
+	var targetIsAdmin bool
+	if err = tx.QueryRowContext(ctx,
+		"SELECT is_admin FROM users WHERE id = $1 FOR UPDATE",
+		userID,
+	).Scan(&targetIsAdmin); err != nil {
+		return err
+	}
+	if targetIsAdmin && !update.IsAdmin {
+		if actorID == userID {
+			return ErrCannotModifySelf
+		}
+		if len(admins) == 1 {
+			return ErrLastAdmin
+		}
+	}
+	if targetIsAdmin != update.IsAdmin || update.PasswordHash != "" {
+		if reauthenticatedHash == "" || actorHash != reauthenticatedHash {
+			return ErrAdminReauthenticationRequired
+		}
+	}
+
+	var result sql.Result
+	if update.PasswordHash == "" {
+		result, err = tx.ExecContext(ctx, `
+			UPDATE users
+			SET username = $1, email = $2, verified = $3, is_admin = $4
+			WHERE id = $5
+		`, update.Username, update.Email, update.Verified, update.IsAdmin, userID)
+	} else {
+		result, err = tx.ExecContext(ctx, `
+			UPDATE users
+			SET username = $1, email = $2, verified = $3, is_admin = $4,
+				password = $5, salt = $6, pwd_at = now()
+			WHERE id = $7
+		`, update.Username, update.Email, update.Verified, update.IsAdmin,
+			update.PasswordHash, update.PasswordSalt, userID)
+	}
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == "users_email_unique" {
+			return ErrUserEmailExists
+		}
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		return sql.ErrNoRows
+	}
+	return tx.Commit()
+}
+
+type administratorCredential struct {
+	ID       int64
+	Password string
+}
+
+func lockAdministrators(ctx context.Context, tx *sqlx.Tx) ([]administratorCredential, error) {
+	admins := make([]administratorCredential, 0)
+	if err := tx.SelectContext(ctx, &admins,
+		"SELECT id, password FROM users WHERE is_admin = true ORDER BY id FOR UPDATE",
+	); err != nil {
+		return nil, err
+	}
+	return admins, nil
+}
+
+func administratorPassword(admins []administratorCredential, userID int64) (string, bool) {
+	for _, admin := range admins {
+		if admin.ID == userID {
+			return admin.Password, true
+		}
+	}
+	return "", false
 }
 
 func GetUserById(id int64) (_type.User, error) {
@@ -169,15 +307,6 @@ func UpdateUsername(userID int64, newUsername string) error {
 func CheckEmailExists(email string) (bool, error) {
 	var count int
 	err := Db.Get(&count, "SELECT COUNT(1) FROM users WHERE email = $1", email)
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
-func CheckEmailExistsExcludeID(email string, excludeID int64) (bool, error) {
-	var count int
-	err := Db.Get(&count, "SELECT COUNT(1) FROM users WHERE email = $1 AND id != $2", email, excludeID)
 	if err != nil {
 		return false, err
 	}
