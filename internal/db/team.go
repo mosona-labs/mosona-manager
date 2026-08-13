@@ -74,6 +74,12 @@ func LeaveTeam(ctx context.Context, userID, teamID int64) error {
 			}
 		}
 		if _, err = tx.ExecContext(ctx,
+			"UPDATE m_team_user SET role = 0 WHERE team_id = $1 AND user_id = $2",
+			teamID, newOwnerID,
+		); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx,
 			"UPDATE teams SET owner_id = $1 WHERE id = $2",
 			newOwnerID, teamID,
 		); err != nil {

@@ -34,6 +34,9 @@ func TestLeaveTeamTransfersOwnerAndRemovesMembershipAtomically(t *testing.T) {
 	mock.ExpectQuery(`SELECT user_id FROM m_team_user WHERE team_id = \$1 ORDER BY user_id FOR UPDATE`).
 		WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(42).AddRow(50))
+	mock.ExpectExec(`UPDATE m_team_user SET role = 0 WHERE team_id = \$1 AND user_id = \$2`).
+		WithArgs(int64(7), int64(50)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`UPDATE teams SET owner_id = \$1 WHERE id = \$2`).
 		WithArgs(int64(50), int64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
