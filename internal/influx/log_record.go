@@ -2,59 +2,88 @@ package influx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
+	"strings"
+	"time"
 )
 
-func GetLogsByPage(teamID int64, page, pageSize int, category, level string, userIDs []int64, message string) ([]_type.Log, int64, error) {
+const (
+	maxLogMessageFilterLength = 256
+	maxLogPage                = 100_000
+	maxLogPageSize            = 1_000
+	logQueryTimeout           = 15 * time.Second
+)
+
+var ErrInvalidLogFilter = errors.New("invalid log filter")
+
+var validLogCategories = map[string]struct{}{
+	"category": {},
+	"login":    {},
+	"oauth":    {},
+	"security": {},
+	"server":   {},
+	"settings": {},
+	"team":     {},
+	"terminal": {},
+	"user":     {},
+}
+
+var validLogLevels = map[string]struct{}{
+	"low":    {},
+	"medium": {},
+	"high":   {},
+}
+
+func ValidateLogFilters(category, level, message string) error {
+	if category != "" && category != "all" {
+		if _, ok := validLogCategories[category]; !ok {
+			return fmt.Errorf("%w: category", ErrInvalidLogFilter)
+		}
+	}
+	if level != "" && level != "all" {
+		if _, ok := validLogLevels[level]; !ok {
+			return fmt.Errorf("%w: level", ErrInvalidLogFilter)
+		}
+	}
+	if len([]rune(message)) > maxLogMessageFilterLength {
+		return fmt.Errorf("%w: message is longer than %d characters", ErrInvalidLogFilter, maxLogMessageFilterLength)
+	}
+	return nil
+}
+
+func ValidateLogPagination(page, pageSize int) error {
+	if page > maxLogPage {
+		return fmt.Errorf("%w: page exceeds %d", ErrInvalidLogFilter, maxLogPage)
+	}
+	if pageSize > maxLogPageSize {
+		return fmt.Errorf("%w: page size exceeds %d", ErrInvalidLogFilter, maxLogPageSize)
+	}
+	return nil
+}
+
+func GetLogsByPage(ctx context.Context, teamID int64, page, pageSize int, category, level string, userIDs []int64, message string) ([]_type.Log, int64, error) {
+	if err := ValidateLogFilters(category, level, message); err != nil {
+		return nil, 0, err
+	}
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 {
 		pageSize = 10
 	}
+	if err := ValidateLogPagination(page, pageSize); err != nil {
+		return nil, 0, err
+	}
 
-	offset := (page - 1) * pageSize
+	ctx, cancel := context.WithTimeout(ctx, logQueryTimeout)
+	defer cancel()
+
+	countQuery, dataQuery, params := buildLogQueries(teamID, page, pageSize, category, level, userIDs, message)
 	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
-
-	categoryFilter := ""
-	if category != "" && category != "all" {
-		categoryFilter = fmt.Sprintf(`
-			|> filter(fn: (r) => r["category"] == "%s")`, category)
-	}
-	levelFilter := ""
-	if level != "" && level != "all" {
-		levelFilter = fmt.Sprintf(`
-			|> filter(fn: (r) => r["level"] == "%s")`, level)
-	}
-	userFilter := ""
-	if len(userIDs) > 0 {
-		userFilter = "\n|> filter(fn: (r) => ("
-		for i, uid := range userIDs {
-			if i > 0 {
-				userFilter += " or "
-			}
-			userFilter += fmt.Sprintf(`r["user_id"] == %d`, uid)
-		}
-		userFilter += "))"
-	}
-	var messageFilter string
-	if message != "" {
-		messageFilter = fmt.Sprintf(`
-			|> filter(fn: (r) => strings.contains(v: r["message"], substr: ["%s"]))`, message)
-	}
-
-	countQuery := fmt.Sprintf(`
-		from(bucket: "logs")
-			|> range(start: 0)
-			|> filter(fn: (r) => r._measurement == "logs")
-			|> filter(fn: (r) => r["team_id"] == "%d")
-			|> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")%s%s%s%s
-			|> group()
-			|> count(column: "_measurement")
-	`, teamID, categoryFilter, levelFilter, userFilter, messageFilter)
-	countResult, err := queryAPI.Query(context.Background(), countQuery)
+	countResult, err := queryAPI.QueryWithParams(ctx, countQuery, params)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -68,19 +97,13 @@ func GetLogsByPage(teamID int64, page, pageSize int, category, level string, use
 			}
 		}
 	}
+	if err = countResult.Err(); err != nil {
+		_ = countResult.Close()
+		return nil, 0, err
+	}
 	_ = countResult.Close()
 
-	dataQuery := fmt.Sprintf(`
-		from(bucket: "logs")
-			|> range(start: 0)
-			|> filter(fn: (r) => r._measurement == "logs")
-			|> filter(fn: (r) => r["team_id"] == "%d")
-			|> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")%s%s%s%s
-			|> sort(columns: ["_time"], desc: true)
-			|> limit(n: %d, offset: %d)
-	`, teamID, categoryFilter, levelFilter, userFilter, messageFilter, pageSize, offset)
-
-	result, err := queryAPI.Query(context.Background(), dataQuery)
+	result, err := queryAPI.QueryWithParams(ctx, dataQuery, params)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -128,4 +151,58 @@ func GetLogsByPage(teamID int64, page, pageSize int, category, level string, use
 	}
 
 	return logs, total, nil
+}
+
+func buildLogQueries(teamID int64, page, pageSize int, category, level string, userIDs []int64, message string) (string, string, map[string]interface{}) {
+	params := map[string]interface{}{
+		"teamID":   fmt.Sprintf("%d", teamID),
+		"pageSize": pageSize,
+		"offset":   (page - 1) * pageSize,
+	}
+
+	var imports string
+	var filters strings.Builder
+	if category != "" && category != "all" {
+		params["category"] = category
+		filters.WriteString(`
+		|> filter(fn: (r) => r["category"] == params.category)`)
+	}
+	if level != "" && level != "all" {
+		params["level"] = level
+		filters.WriteString(`
+		|> filter(fn: (r) => r["level"] == params.level)`)
+	}
+	if len(userIDs) > 0 {
+		filters.WriteString(`
+		|> filter(fn: (r) => (`)
+		for i, uid := range userIDs {
+			if i > 0 {
+				filters.WriteString(" or ")
+			}
+			paramName := fmt.Sprintf("userID%d", i)
+			params[paramName] = uid
+			fmt.Fprintf(&filters, `r["user_id"] == params.%s`, paramName)
+		}
+		filters.WriteString("))")
+	}
+	if message != "" {
+		imports = "import \"strings\"\n"
+		params["message"] = message
+		filters.WriteString(`
+		|> filter(fn: (r) => strings.contains(v: r["message"], substr: params.message))`)
+	}
+
+	baseQuery := fmt.Sprintf(`%sfrom(bucket: "logs")
+	|> range(start: -365d)
+	|> filter(fn: (r) => r._measurement == "logs")
+	|> filter(fn: (r) => r["team_id"] == params.teamID)
+	|> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")%s`, imports, filters.String())
+
+	countQuery := baseQuery + `
+	|> group()
+	|> count(column: "_measurement")`
+	dataQuery := baseQuery + `
+	|> sort(columns: ["_time"], desc: true)
+	|> limit(n: params.pageSize, offset: params.offset)`
+	return countQuery, dataQuery, params
 }

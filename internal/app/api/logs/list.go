@@ -21,11 +21,17 @@ func list(c *echo.Context) error {
 	if pageSize <= 0 || pageSize > 1000 {
 		pageSize = 20
 	}
+	if err := influx.ValidateLogPagination(page, pageSize); err != nil {
+		return c.JSON(400, _type.H{Code: "invalid", Msg: "Invalid pagination"})
+	}
 
 	category := c.QueryParam("category")
 	level := c.QueryParam("level")
 	email := c.QueryParam("email")
 	message := c.QueryParam("message")
+	if err := influx.ValidateLogFilters(category, level, message); err != nil {
+		return c.JSON(400, _type.H{Code: "invalid", Msg: "Invalid log filter"})
+	}
 
 	ctx := c.Request().Context()
 
@@ -49,7 +55,7 @@ func list(c *echo.Context) error {
 		}
 	}
 
-	data, total, err := influx.GetLogsByPage(tid, page, pageSize, category, level, uids, message)
+	data, total, err := influx.GetLogsByPage(ctx, tid, page, pageSize, category, level, uids, message)
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
