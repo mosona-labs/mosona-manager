@@ -16,9 +16,7 @@ const (
 	publicRequestGlobalLimit = 32
 	publicRequestIPLimit     = 8
 	publicRequestWindow      = time.Second
-	publicSSEGlobalLimit     = 256
-	publicSSETeamLimit       = 32
-	publicSSEIPLimit         = 8
+	publicSSEIPLimit         = 64
 	publicSSEHeartbeat       = 15 * time.Second
 	publicSSEWriteTimeout    = 5 * time.Second
 	publicSSEMaxLifetime     = 15 * time.Minute
@@ -26,7 +24,7 @@ const (
 
 var (
 	publicRequests       = newPublicRequestLimiter(publicRequestGlobalLimit, publicRequestIPLimit, publicRequestWindow)
-	publicSSEConnections = newPublicSSELimiter(publicSSEGlobalLimit, publicSSETeamLimit, publicSSEIPLimit)
+	publicSSEConnections = newPublicSSELimiter(publicSSEIPLimit)
 	publicSSEErrorEvent  = []byte("event: error\ndata: {\"msg\":\"Failed to load public preview data\"}\n\n")
 )
 
@@ -89,49 +87,35 @@ func limitPublicDataRequests(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 type publicSSELimiter struct {
-	mu          sync.Mutex
-	globalLimit int
-	teamLimit   int
-	ipLimit     int
-	total       int
-	byTeam      map[int64]int
-	byIP        map[string]int
+	mu      sync.Mutex
+	ipLimit int
+	byIP    map[string]int
 }
 
-func newPublicSSELimiter(globalLimit, teamLimit, ipLimit int) *publicSSELimiter {
+func newPublicSSELimiter(ipLimit int) *publicSSELimiter {
 	return &publicSSELimiter{
-		globalLimit: globalLimit,
-		teamLimit:   teamLimit,
-		ipLimit:     ipLimit,
-		byTeam:      make(map[int64]int),
-		byIP:        make(map[string]int),
+		ipLimit: ipLimit,
+		byIP:    make(map[string]int),
 	}
 }
 
-func (l *publicSSELimiter) acquire(teamID int64, ip string) (func(), bool) {
+func (l *publicSSELimiter) acquire(ip string) (func(), bool) {
 	ip = strings.TrimSpace(ip)
 	if ip == "" {
 		ip = "unknown"
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.total >= l.globalLimit || l.byTeam[teamID] >= l.teamLimit || l.byIP[ip] >= l.ipLimit {
+	if l.byIP[ip] >= l.ipLimit {
 		return nil, false
 	}
-	l.total++
-	l.byTeam[teamID]++
 	l.byIP[ip]++
 	var once sync.Once
 	return func() {
 		once.Do(func() {
 			l.mu.Lock()
 			defer l.mu.Unlock()
-			l.total--
-			l.byTeam[teamID]--
 			l.byIP[ip]--
-			if l.byTeam[teamID] == 0 {
-				delete(l.byTeam, teamID)
-			}
 			if l.byIP[ip] == 0 {
 				delete(l.byIP, ip)
 			}
@@ -145,7 +129,7 @@ func sse(c *echo.Context) error {
 		return publicResolveError(c, sql.ErrNoRows)
 	}
 	setPublicPageHeaders(c)
-	release, ok := publicSSEConnections.acquire(page.TeamID, c.RealIP())
+	release, ok := publicSSEConnections.acquire(c.RealIP())
 	if !ok {
 		c.Response().Header().Set("Retry-After", "10")
 		return c.JSON(http.StatusTooManyRequests, _type.H{Code: "rate_limited", Msg: "Too many public preview streams"})

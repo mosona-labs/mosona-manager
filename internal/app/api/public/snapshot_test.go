@@ -130,3 +130,47 @@ func TestPublicSnapshotSourceSharesPeriodicLoadAcrossSubscribers(t *testing.T) {
 		t.Fatalf("loader calls for two subscribers = %d, want 1", got)
 	}
 }
+
+func TestPublicSnapshotSourceSharesOneLoadAcrossManySubscribers(t *testing.T) {
+	var calls atomic.Int32
+	source := &publicSnapshotSource{
+		teamID:   7,
+		ttl:      0,
+		timeout:  time.Second,
+		interval: time.Hour,
+		loader: func(context.Context, int64) (publicSnapshot, error) {
+			calls.Add(1)
+			return publicSnapshot{Now: 42}, nil
+		},
+		subscribers: make(map[chan publicSnapshotResult]struct{}),
+	}
+
+	const subscribers = 10_000
+	updates := make([]<-chan publicSnapshotResult, 0, subscribers)
+	unsubscribes := make([]func(), 0, subscribers)
+	for range subscribers {
+		update, unsubscribe := source.subscribe()
+		updates = append(updates, update)
+		unsubscribes = append(unsubscribes, unsubscribe)
+	}
+	defer func() {
+		for _, unsubscribe := range unsubscribes {
+			unsubscribe()
+		}
+	}()
+
+	source.broadcast(source.get(context.Background()))
+	for i, update := range updates {
+		select {
+		case result := <-update:
+			if result.err != nil || result.snapshot.Now != 42 {
+				t.Fatalf("subscriber %d result = %#v, error = %v", i, result.snapshot, result.err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("subscriber %d did not receive shared snapshot", i)
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("loader calls for %d subscribers = %d, want 1", subscribers, got)
+	}
+}
