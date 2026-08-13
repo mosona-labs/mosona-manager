@@ -1,8 +1,10 @@
 package anotification
 
 import (
+	"errors"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/notification"
 	"mosona-manager/internal/utils"
 
 	"github.com/labstack/echo/v5"
@@ -19,7 +21,10 @@ func update(c *echo.Context) error {
 
 	tid, _ := c.Get("tid").(int64)
 
-	if err := db.UpdateNotificationsByTeamId(tid, req); err != nil {
+	if err := db.UpdateNotificationsByTeamId(c.Request().Context(), tid, req); err != nil {
+		if errors.Is(err, notification.ErrInvalidConfiguration) {
+			return c.JSON(400, _type.H{Code: "invalid_notification", Msg: err.Error()})
+		}
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 

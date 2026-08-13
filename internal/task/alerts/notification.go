@@ -1,19 +1,21 @@
 package alerttasks
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
 
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/email"
-
-	"github.com/nicholas-fedor/shoutrrr"
+	"mosona-manager/internal/notification"
 )
 
 var (
 	sendAlertEmail    = email.Send
-	sendAlertShoutrrr = shoutrrr.Send
+	sendAlertShoutrrr = func(target, message string) error {
+		return notification.Send(context.Background(), target, message)
+	}
 )
 
 type notificationDelivery struct {

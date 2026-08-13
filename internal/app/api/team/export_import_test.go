@@ -4,10 +4,14 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/db"
+	"mosona-manager/internal/notification"
 	"mosona-manager/internal/security/exportcrypto"
 	"mosona-manager/internal/utils/encrypt"
 
@@ -15,6 +19,54 @@ import (
 	"github.com/jmoiron/sqlx"
 	gossh "golang.org/x/crypto/ssh"
 )
+
+func TestImportNotificationsRejectsUnsafeTargetBeforeDatabaseWrite(t *testing.T) {
+	database, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	mock.ExpectBegin()
+	tx, err := sqlx.NewDb(database, "sqlmock").Beginx()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectRollback()
+
+	err = importNotifications(tx, 5, []_type.TeamNotification{{
+		Module: "shoutrrr", Target: "generic://169.254.169.254/latest/meta-data",
+	}})
+	if !errors.Is(err, notification.ErrInvalidConfiguration) {
+		t.Fatalf("error = %v", err)
+	}
+	_ = tx.Rollback()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestApplyTeamImportRejectsUnsafeNotificationBeforeTransaction(t *testing.T) {
+	database, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	t.Cleanup(func() { db.Db = oldDB })
+
+	_, _, err = applyTeamImport(5, teamExportBundle{
+		Notifications: []_type.TeamNotification{{
+			Module: "shoutrrr", Target: "generic://127.0.0.1/hook",
+		}},
+	})
+	if !errors.Is(err, notification.ErrInvalidConfiguration) {
+		t.Fatalf("error = %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestDecodeTeamImportBundleEncrypted(t *testing.T) {
 	bundle := testTeamExportBundle()

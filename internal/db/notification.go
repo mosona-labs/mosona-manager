@@ -1,6 +1,10 @@
 package db
 
-import "mosona-manager/internal/_type"
+import (
+	"context"
+	"mosona-manager/internal/_type"
+	"mosona-manager/internal/notification"
+)
 
 func GetNotificationsByTeamId(teamID int64) ([]_type.TeamNotification, error) {
 	var notifications = make([]_type.TeamNotification, 0)
@@ -14,7 +18,13 @@ func GetNotificationsByTeamId(teamID int64) ([]_type.TeamNotification, error) {
 	return notifications, nil
 }
 
-func UpdateNotificationsByTeamId(teamID int64, notifications []_type.TeamNotification) error {
+func UpdateNotificationsByTeamId(ctx context.Context, teamID int64, notifications []_type.TeamNotification) error {
+	normalized, err := notification.NormalizeEntries(ctx, notifications)
+	if err != nil {
+		return err
+	}
+	notifications = normalized
+
 	tx, err := Db.Begin()
 	if err != nil {
 		return err

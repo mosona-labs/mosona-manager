@@ -2,6 +2,7 @@ package ateam
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	connectSSH "mosona-manager/internal/connect/ssh"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
+	"mosona-manager/internal/notification"
 	"mosona-manager/internal/security/exportcrypto"
 	"mosona-manager/internal/siteaccess"
 	"mosona-manager/internal/utils"
@@ -215,6 +217,9 @@ func importTeam(c *echo.Context) error {
 
 	oldServers, newServers, err := applyTeamImport(tid, bundle)
 	if err != nil {
+		if errors.Is(err, notification.ErrInvalidConfiguration) {
+			return c.JSON(400, _type.H{Code: "invalid", Msg: err.Error()})
+		}
 		return utils.ErrorHandler(c, err, "Failed to import team data")
 	}
 	if err = siteaccess.Refresh(); err != nil {
@@ -496,6 +501,12 @@ type importedServerRuntime struct {
 }
 
 func applyTeamImport(teamID int64, data teamExportBundle) ([]int64, []importedServerRuntime, error) {
+	notifications, err := notification.NormalizeEntries(context.Background(), data.Notifications)
+	if err != nil {
+		return nil, nil, err
+	}
+	data.Notifications = notifications
+
 	tx, err := db.Db.Beginx()
 	if err != nil {
 		return nil, nil, err
@@ -531,7 +542,7 @@ func applyTeamImport(teamID int64, data teamExportBundle) ([]int64, []importedSe
 	if err = importTeamAlerts(tx, teamID, data.TeamAlerts); err != nil {
 		return nil, nil, err
 	}
-	if err = importNotifications(tx, teamID, data.Notifications); err != nil {
+	if err = insertNotifications(tx, teamID, data.Notifications); err != nil {
 		return nil, nil, err
 	}
 	if err = importPublicPage(tx, teamID, data.PublicPage); err != nil {
@@ -624,13 +635,18 @@ func importTeamAlerts(tx *sqlx.Tx, teamID int64, alerts []teamExportAlert) error
 }
 
 func importNotifications(tx *sqlx.Tx, teamID int64, notifications []_type.TeamNotification) error {
-	for _, notification := range notifications {
-		if notification.Module == "" || notification.Target == "" {
-			continue
-		}
+	normalized, err := notification.NormalizeEntries(context.Background(), notifications)
+	if err != nil {
+		return err
+	}
+	return insertNotifications(tx, teamID, normalized)
+}
+
+func insertNotifications(tx *sqlx.Tx, teamID int64, notifications []_type.TeamNotification) error {
+	for _, item := range notifications {
 		if _, err := tx.Exec(
 			"INSERT INTO teams_notifications (team_id, module, target) VALUES ($1, $2, $3)",
-			teamID, notification.Module, notification.Target,
+			teamID, item.Module, item.Target,
 		); err != nil {
 			return err
 		}
