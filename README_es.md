@@ -95,7 +95,23 @@ Este proyecto es posible gracias al apoyo de los siguientes patrocinadores.
 
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/Asahina1096"><img src="https://avatars.githubusercontent.com/u/52925955?s=52&v=4" width="50px;" alt="Asahina1096"/><br />Asahina1096</a></td>
+    <td align="center">
+      <a href="https://github.com/Asahina1096">
+        <img src="https://avatars.githubusercontent.com/u/52925955?s=52&v=4" width="50px;" alt="Asahina1096"/><br />
+        Asahina1096
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/DyAxy">
+        <img src="https://avatars.githubusercontent.com/u/111729065?s=52&v=4" width="50px" alt="DyAxy"/>
+      </a>
+      <br />
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+      <a href="https://github.com/DyAxy">
+        DyAxy
+      </a>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    </td>
   </tr>
 </table>
 
