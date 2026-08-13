@@ -81,7 +81,7 @@ func HostAllowed(requestHost, configuredBaseURL string) bool {
 }
 
 func PublicPagePathAllowed(path string) bool {
-	if path == "/" || path == "/health" {
+	if path == "/" || path == "/health" || path == "/health/live" || path == "/health/ready" {
 		return true
 	}
 	if strings.HasPrefix(path, "/api/public/") {

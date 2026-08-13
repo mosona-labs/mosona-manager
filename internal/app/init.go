@@ -26,6 +26,7 @@ import (
 	"mosona-manager/internal/redis"
 	"mosona-manager/internal/runtime"
 	"mosona-manager/internal/utils"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -33,6 +34,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -91,8 +93,8 @@ func Start() {
 	}
 	v1 := api.Group("/v1", middleware2.SameOriginWrite, middleware2.UserAuth)
 	{
-		auser.Router(v1.Group("/user"))         // User
-		ateam.Router(v1.Group("/team"))         // Team (mixed user/team routes)
+		auser.Router(v1.Group("/user")) // User
+		ateam.Router(v1.Group("/team")) // Team (mixed user/team routes)
 		akeys.Router(v1.Group("/key", middleware2.TeamAccess))
 		acategory.Router(v1.Group("/category", middleware2.TeamAccess))
 		aserver.Router(v1.Group("/server", middleware2.TeamAccess))
@@ -114,13 +116,7 @@ func Start() {
 	// Init
 	init2.Router(api.Group("/init", middleware2.SameOriginWrite))
 
-	// Health
-	e.GET("/health", func(c *echo.Context) error {
-		return c.JSON(200, _type.H{
-			Code: "ok",
-			Msg:  "Service is healthy",
-		})
-	})
+	registerHealthRoutes(e)
 
 	// Public preview
 	e.Static("/preview-assets", filepath.Join(config.Conf.FrontendDir, "public-preview"))
@@ -159,6 +155,8 @@ func Start() {
 
 	// Start
 	fmt.Println("⇨ Listening on http://" + address)
+	initializationComplete.Store(true)
+	defer initializationComplete.Store(false)
 	sc := echo.StartConfig{
 		Address:         address,
 		HideBanner:      true,
@@ -231,11 +229,12 @@ func siteFaviconURL(favicon string) string {
 }
 
 func HealthCheck() error {
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(fmt.Sprintf(
-		"http://%s:%d/health",
-		config.Conf.Host, config.Conf.Port,
-	))
+	client := &http.Client{Timeout: healthCheckClientTimeout}
+	return runHealthCheck(client, healthCheckURL(config.Conf.Host, config.Conf.Port))
+}
+
+func runHealthCheck(client *http.Client, healthURL string) error {
+	resp, err := client.Get(healthURL)
 	if err != nil {
 		return err
 	}
@@ -247,4 +246,18 @@ func HealthCheck() error {
 		return fmt.Errorf("health check failed with status code: %d", resp.StatusCode)
 	}
 	return nil
+}
+
+func healthCheckURL(host string, port int) string {
+	address := net.JoinHostPort(healthCheckHost(host), strconv.Itoa(port))
+	return "http://" + address + "/health/ready"
+}
+
+func healthCheckHost(host string) string {
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
+		return "127.0.0.1"
+	default:
+		return strings.Trim(host, "[]")
+	}
 }

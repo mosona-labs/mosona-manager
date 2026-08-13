@@ -106,6 +106,7 @@ services:
               protocol: tcp
         restart: unless-stopped
         healthcheck:
+            # Readiness includes PostgreSQL, Redis, InfluxDB, and app initialization.
             test: ["CMD-SHELL", "/srv/bin/mosona-manager health | grep -q ok"]
             interval: 10s
             timeout: 3s

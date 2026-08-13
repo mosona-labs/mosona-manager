@@ -12,7 +12,7 @@ import (
 
 func RequireUserBaseHost(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
-		if c.Request().URL.Path == "/health" {
+		if isHealthPath(c.Request().URL.Path) {
 			return next(c)
 		}
 
@@ -29,6 +29,15 @@ func RequireUserBaseHost(next echo.HandlerFunc) echo.HandlerFunc {
 			Code: "forbidden",
 			Msg:  "Request host does not match configured site URL",
 		})
+	}
+}
+
+func isHealthPath(path string) bool {
+	switch path {
+	case "/health", "/health/live", "/health/ready":
+		return true
+	default:
+		return false
 	}
 }
 

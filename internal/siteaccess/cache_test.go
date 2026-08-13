@@ -25,6 +25,8 @@ func TestPublicPagePathAllowed(t *testing.T) {
 	allowed := []string{
 		"/",
 		"/health",
+		"/health/live",
+		"/health/ready",
 		"/api/public/preview/bootstrap",
 		"/preview-assets/app.js",
 		"/flags/nl.svg",
