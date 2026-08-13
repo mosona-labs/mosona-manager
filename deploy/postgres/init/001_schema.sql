@@ -566,6 +566,7 @@ ALTER TABLE "auth_provider" ADD CONSTRAINT "auth_provider_pkey" PRIMARY KEY ("id
 -- Primary Key structure for table categories
 -- ----------------------------
 ALTER TABLE "categories" ADD CONSTRAINT "categories_pkey" PRIMARY KEY ("id");
+ALTER TABLE "categories" ADD CONSTRAINT "categories_team_id_key" UNIQUE ("team", "id");
 
 -- ----------------------------
 -- Indexes structure for table categories
@@ -811,7 +812,7 @@ ALTER TABLE "server_info_adv" ADD CONSTRAINT "FK_SIDS" FOREIGN KEY ("sid") REFER
 -- ----------------------------
 -- Foreign Keys structure for table servers
 -- ----------------------------
-ALTER TABLE "servers" ADD CONSTRAINT "FK_SC" FOREIGN KEY ("category") REFERENCES "categories" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "servers" ADD CONSTRAINT "FK_SC" FOREIGN KEY ("team_id", "category") REFERENCES "categories" ("team", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "servers" ADD CONSTRAINT "FK_ST" FOREIGN KEY ("team_id") REFERENCES "teams" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- ----------------------------

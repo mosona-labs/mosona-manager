@@ -66,6 +66,12 @@ func edit(c *echo.Context) error {
 	}
 
 	if err := db.EditServer(tid, serverId, typ, &data); err != nil {
+		if errors.Is(err, db.ErrServerCategoryNotFound) {
+			return c.JSON(400, _type.H{
+				Code: "invalid_category",
+				Msg:  "Category does not belong to this team",
+			})
+		}
 		if errors.Is(err, db.ErrSSHHostKeyStateChanged) {
 			return c.JSON(409, _type.H{
 				Code: "ssh_host_key_state_changed",

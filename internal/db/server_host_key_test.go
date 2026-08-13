@@ -26,13 +26,17 @@ func TestEditServerRejectsStaleSSHHostKeyState(t *testing.T) {
 
 	previousHostKey := "ssh-ed25519 AAAAOLD"
 	data := _type.ServerFullType{
+		Category:        5,
 		HostKey:         "ssh-ed25519 AAAANEW",
 		PreviousHostKey: &previousHostKey,
 	}
 
 	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT id FROM categories WHERE team = $1 AND id = $2 FOR KEY SHARE").
+		WithArgs(int64(7), int64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(5))
 	mock.ExpectExec("UPDATE servers SET name = $1, allow_monitor = $2, allow_terminal = $3, weight = $4, category = $5 WHERE id = $6 AND team_id = $7").
-		WithArgs("", false, false, 0, int64(0), int64(91), int64(7)).
+		WithArgs("", false, false, 0, int64(5), int64(91), int64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("UPDATE server_info SET note = $1, provider = $2, cycle = $3, start_time = $4, end_time = $5, amount = $6, auto_renew = $7, bandwidth = $8, traffic = $9, traffic_type = $10, note_public = $11 WHERE sid = $12").
 		WithArgs(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, int64(91)).

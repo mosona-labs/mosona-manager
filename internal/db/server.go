@@ -9,7 +9,10 @@ import (
 	"github.com/Masterminds/squirrel"
 )
 
-var ErrSSHHostKeyStateChanged = errors.New("ssh host key trust changed concurrently")
+var (
+	ErrSSHHostKeyStateChanged = errors.New("ssh host key trust changed concurrently")
+	ErrServerCategoryNotFound = errors.New("server category does not belong to team")
+)
 
 func GetServerInfo(teamId, serverId int64) (_type.ServerFullType, error) {
 	var data _type.ServerFullType
@@ -66,6 +69,17 @@ func EditServer(teamId, serverId int64, typ int16, data *_type.ServerFullType) e
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	var categoryID int64
+	if err = tx.QueryRow(
+		"SELECT id FROM categories WHERE team = $1 AND id = $2 FOR KEY SHARE",
+		teamId, data.Category,
+	).Scan(&categoryID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrServerCategoryNotFound
+		}
+		return err
+	}
 
 	// Main
 	psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
