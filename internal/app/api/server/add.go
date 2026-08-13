@@ -171,7 +171,7 @@ func add(c *echo.Context) error {
 		}
 
 		// Encrypt password
-		passwordEncrypt, err := encrypt.Encrypt([]byte(password), encrypt.Key)
+		passwordEncrypt, err := encrypt.Encrypt([]byte(password), encrypt.Key, encrypt.SSHPasswordContext(serverId))
 		if err != nil {
 			return utils.ErrorHandler(c, err, "Encryption error")
 		}

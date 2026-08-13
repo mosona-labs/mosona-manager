@@ -53,7 +53,7 @@ func validateSSHConnectionForEdit(teamID, serverID int64, data *_type.ServerFull
 
 	password := data.Password
 	if password == "" && len(passwordEncrypted) != 0 {
-		decryptedPassword, err := encrypt.Decrypt(passwordEncrypted, encrypt.Key)
+		decryptedPassword, err := encrypt.Decrypt(passwordEncrypted, encrypt.Key, encrypt.SSHPasswordContext(serverID))
 		if err != nil {
 			return sshValidationResult{}, err
 		}
@@ -108,7 +108,7 @@ func loadSSHKeyMaterial(teamID, keyID int64) (string, string, error) {
 
 	key := ""
 	if len(contentEncrypted) != 0 {
-		decryptedKey, err := encrypt.Decrypt(contentEncrypted, encrypt.Key)
+		decryptedKey, err := encrypt.Decrypt(contentEncrypted, encrypt.Key, encrypt.KeyContentContext(keyID))
 		if err != nil {
 			return "", "", err
 		}
@@ -117,7 +117,7 @@ func loadSSHKeyMaterial(teamID, keyID int64) (string, string, error) {
 
 	keyPwd := ""
 	if len(passwordEncrypted) != 0 {
-		decryptedPassword, err := encrypt.Decrypt(passwordEncrypted, encrypt.Key)
+		decryptedPassword, err := encrypt.Decrypt(passwordEncrypted, encrypt.Key, encrypt.KeyPasswordContext(keyID))
 		if err != nil {
 			return "", "", err
 		}

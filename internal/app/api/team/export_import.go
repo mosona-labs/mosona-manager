@@ -363,7 +363,7 @@ func exportKeys(teamID int64, data *teamExportBundle) error {
 	}
 
 	for _, row := range rows {
-		content, err := encrypt.Decrypt(row.Content, encrypt.Key)
+		content, err := encrypt.Decrypt(row.Content, encrypt.Key, encrypt.KeyContentContext(row.RefID))
 		if err != nil {
 			return err
 		}
@@ -375,7 +375,7 @@ func exportKeys(teamID int64, data *teamExportBundle) error {
 			UpdatedAt: row.UpdatedAt,
 		}
 		if len(row.Password) > 0 {
-			password, err := encrypt.Decrypt(row.Password, encrypt.Key)
+			password, err := encrypt.Decrypt(row.Password, encrypt.Key, encrypt.KeyPasswordContext(row.RefID))
 			if err != nil {
 				return err
 			}
@@ -457,7 +457,7 @@ func exportServerConnection(server *teamExportServer) error {
 		if err := db.Db.Get(&row, "SELECT address, port, username, key_id AS key_ref, password, COALESCE(host_key, '') AS host_key FROM ssh WHERE server_id = $1", server.RefID); err != nil {
 			return err
 		}
-		password, err := encrypt.Decrypt(row.Password, encrypt.Key)
+		password, err := encrypt.Decrypt(row.Password, encrypt.Key, encrypt.SSHPasswordContext(server.RefID))
 		if err != nil {
 			return err
 		}
@@ -578,22 +578,29 @@ func clearTeamConfig(tx *sqlx.Tx, teamID int64) error {
 func importKeys(tx *sqlx.Tx, teamID int64, keys []teamExportKey) (map[int64]int64, error) {
 	keyMap := make(map[int64]int64, len(keys))
 	for _, key := range keys {
-		content, err := encrypt.Encrypt([]byte(key.Content), encrypt.Key)
+		var newID int64
+		if err := tx.QueryRow(
+			"INSERT INTO keys (team_id, name, content, password) VALUES ($1, $2, $3, NULL) RETURNING id",
+			teamID, key.Name, []byte{},
+		).Scan(&newID); err != nil {
+			return nil, err
+		}
+		content, err := encrypt.Encrypt([]byte(key.Content), encrypt.Key, encrypt.KeyContentContext(newID))
 		if err != nil {
 			return nil, err
 		}
 		var password []byte
 		if key.Password != nil {
-			password, err = encrypt.Encrypt([]byte(*key.Password), encrypt.Key)
+			password, err = encrypt.Encrypt([]byte(*key.Password), encrypt.Key, encrypt.KeyPasswordContext(newID))
 			if err != nil {
 				return nil, err
 			}
 		}
-		var newID int64
-		if err = tx.QueryRow(
-			"INSERT INTO keys (team_id, name, content, password) VALUES ($1, $2, $3, $4) RETURNING id",
-			teamID, key.Name, content, password,
-		).Scan(&newID); err != nil {
+		var storedPassword any
+		if len(password) > 0 {
+			storedPassword = password
+		}
+		if _, err = tx.Exec("UPDATE keys SET content = $1, password = $2 WHERE id = $3", content, storedPassword, newID); err != nil {
 			return nil, err
 		}
 		keyMap[key.RefID] = newID
@@ -794,7 +801,7 @@ func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer
 			return fmt.Errorf("ssh server %q is missing ssh configuration", server.Name)
 		}
 		keyID := keyMap[server.SSH.KeyRef]
-		password, err := encrypt.Encrypt([]byte(server.SSH.Password), encrypt.Key)
+		password, err := encrypt.Encrypt([]byte(server.SSH.Password), encrypt.Key, encrypt.SSHPasswordContext(serverID))
 		if err != nil {
 			return err
 		}

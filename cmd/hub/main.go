@@ -52,6 +52,9 @@ func initApp() {
 		log.Fatalln("Initialize encryption key error:", err)
 	}
 	log.Printf("Encryption key loaded from %s", keyPath)
+	if err := db.MigrateEncryptedCredentials(); err != nil {
+		log.Fatalln("Migrate encrypted credentials error:", err)
+	}
 	influx.Init() // InfluxDB
 	redis.Init()  // Redis
 	// Dynamic Config

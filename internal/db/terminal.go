@@ -59,6 +59,7 @@ func ListTerminals(teamId int64) ([]_type.Terminal, error) {
 func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
 	var server _type.TerminalDetail
 	var password []byte
+	var keyID int64
 	var keyContent []byte
 	var keyPassword []byte
 
@@ -69,6 +70,7 @@ func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
 			COALESCE(port, NULL),
 			COALESCE(username, NULL),
 			COALESCE(ssh.password, NULL),
+			COALESCE(ssh.key_id, 0),
 			COALESCE(keys.content, NULL),
 			COALESCE(keys.password, NULL),
 			COALESCE(ssh.host_key, NULL)
@@ -80,14 +82,14 @@ func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
 	).Scan(
 		&server.Type,
 		&server.Address, &server.Port, &server.Username, &password,
-		&keyContent, &keyPassword, &server.HostKey,
+		&keyID, &keyContent, &keyPassword, &server.HostKey,
 	); err != nil {
 		return server, err
 	}
 
 	// Server Password
 	if len(password) != 0 {
-		pwd, err := encrypt.Decrypt(password, encrypt.Key)
+		pwd, err := encrypt.Decrypt(password, encrypt.Key, encrypt.SSHPasswordContext(serverId))
 		if err != nil {
 			return server, err
 		}
@@ -97,7 +99,7 @@ func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
 
 	// Server Key
 	if len(keyContent) != 0 {
-		key, err := encrypt.Decrypt(keyContent, encrypt.Key)
+		key, err := encrypt.Decrypt(keyContent, encrypt.Key, encrypt.KeyContentContext(keyID))
 		if err != nil {
 			return server, err
 		}
@@ -107,7 +109,7 @@ func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {
 
 	// Server Key Password
 	if len(keyPassword) != 0 {
-		kp, err := encrypt.Decrypt(keyPassword, encrypt.Key)
+		kp, err := encrypt.Decrypt(keyPassword, encrypt.Key, encrypt.KeyPasswordContext(keyID))
 		if err != nil {
 			return server, err
 		}

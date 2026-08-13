@@ -133,29 +133,30 @@ func startServer(serverId int64, mode int16) error {
 
 			keyPassword []byte
 			keyPwdStr   string
+			keyID       int64
 		)
 
 		if err := db.Db.QueryRow(
-			"SELECT address, port, username, ssh.password, k.password, k.content, ssh.host_key, s.team_id FROM servers s JOIN ssh ON s.id = ssh.server_id LEFT JOIN keys k ON ssh.key_id = k.id WHERE s.id = $1", serverId,
-		).Scan(&host, &port, &user, &password, &keyPassword, &key, &trustedHostKey, &teamID); err != nil {
+			"SELECT address, port, username, ssh.password, COALESCE(ssh.key_id, 0), k.password, k.content, ssh.host_key, s.team_id FROM servers s JOIN ssh ON s.id = ssh.server_id LEFT JOIN keys k ON ssh.key_id = k.id WHERE s.id = $1", serverId,
+		).Scan(&host, &port, &user, &password, &keyID, &keyPassword, &key, &trustedHostKey, &teamID); err != nil {
 			return err
 		}
 		if len(password) != 0 {
-			pwd, err := encrypt.Decrypt(password, encrypt.Key)
+			pwd, err := encrypt.Decrypt(password, encrypt.Key, encrypt.SSHPasswordContext(serverId))
 			if err != nil {
 				return err
 			}
 			pwdStr = string(pwd)
 		}
 		if len(key) != 0 {
-			k, err := encrypt.Decrypt(key, encrypt.Key)
+			k, err := encrypt.Decrypt(key, encrypt.Key, encrypt.KeyContentContext(keyID))
 			if err != nil {
 				return err
 			}
 			keyStr = string(k)
 		}
 		if len(keyPassword) != 0 {
-			kp, err := encrypt.Decrypt(keyPassword, encrypt.Key)
+			kp, err := encrypt.Decrypt(keyPassword, encrypt.Key, encrypt.KeyPasswordContext(keyID))
 			if err != nil {
 				return err
 			}

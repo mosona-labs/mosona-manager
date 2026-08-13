@@ -147,7 +147,7 @@ func EditServer(teamId, serverId int64, typ int16, data *_type.ServerFullType) e
 			qb = qb.Set("key_id", data.KeyID)
 		}
 		if data.Password != "" {
-			pwd, err := encrypt.Encrypt([]byte(data.Password), encrypt.Key)
+			pwd, err := encrypt.Encrypt([]byte(data.Password), encrypt.Key, encrypt.SSHPasswordContext(serverId))
 			if err != nil {
 				_ = tx.Rollback()
 				return err
