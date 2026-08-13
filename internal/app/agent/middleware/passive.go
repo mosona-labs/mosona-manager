@@ -1,11 +1,10 @@
 package middleware
 
 import (
-	"crypto/ed25519"
 	"database/sql"
-	"encoding/pem"
 	"errors"
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/utils"
 	"mosona-manager/pkg/identity"
 	"time"
 
@@ -49,14 +48,13 @@ func passiveAuthWithLookup(next echo.HandlerFunc, lookup func(agentUID string) (
 				Msg:  "Database error",
 			})
 		}
-		block, _ := pem.Decode([]byte(publicKey))
-		if block == nil {
+		pubKey, err := utils.ParseAgentEd25519PublicKeyPEM(publicKey)
+		if err != nil {
 			return c.JSON(400, _type.H{
 				Code: "unauthorized",
 				Msg:  "Invalid public key",
 			})
 		}
-		pubKey := ed25519.PublicKey(block.Bytes)
 		if err := identity.VerifySignedHeaders(pubKey, uid, ts, nonce, signature, time.Now()); err != nil {
 			return c.JSON(400, _type.H{
 				Code: "unauthorized",

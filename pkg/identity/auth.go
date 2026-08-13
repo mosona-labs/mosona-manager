@@ -19,6 +19,9 @@ var signedHeaderReplay = struct {
 }
 
 func VerifySignedHeaders(publicKey ed25519.PublicKey, uid, ts, nonce, signature string, now time.Time) error {
+	if len(publicKey) != ed25519.PublicKeySize {
+		return fmt.Errorf("invalid public key length")
+	}
 	tsUnix, err := strconv.ParseInt(ts, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid timestamp")

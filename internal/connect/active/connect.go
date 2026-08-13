@@ -4,12 +4,11 @@ import (
 	"context"
 	"crypto/ecdh"
 	"crypto/ed25519"
-	"encoding/pem"
-	"errors"
 	"log"
 	"mosona-manager/agent/types"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/influx"
+	"mosona-manager/pkg/identity"
 	secureWS "mosona-manager/pkg/securews"
 	"time"
 
@@ -52,11 +51,10 @@ func Connect(
 	privKey string, agentUid string,
 	serverId int64,
 ) error {
-	block, _ := pem.Decode([]byte(privKey))
-	if block == nil {
-		return errors.New("failed to decode PEM block")
+	privateKey, err := identity.ParseEd25519PrivateKeyPEM([]byte(privKey))
+	if err != nil {
+		return err
 	}
-	privateKey := ed25519.NewKeyFromSeed(block.Bytes)
 
 	a := &auth{
 		serverID: serverId,
@@ -66,7 +64,7 @@ func Connect(
 		privKey:  &privateKey,
 	}
 
-	if err := a.getInformation(ctx); err != nil {
+	if err = a.getInformation(ctx); err != nil {
 		return err
 	}
 

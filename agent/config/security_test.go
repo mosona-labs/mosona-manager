@@ -145,6 +145,25 @@ func TestLoadPrivateKeyRepairsModeAndValidatesSeed(t *testing.T) {
 	}
 }
 
+func TestLoadPublicKeyValidatesLengthAndClearsStaleKey(t *testing.T) {
+	dir := useTestInstallDir(t)
+	keyPath := filepath.Join(dir, "public_key.pem")
+	invalid := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("short")})
+	if err := os.WriteFile(keyPath, invalid, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	oldPublicKey := PublicKey
+	PublicKey = ed25519.PublicKey("stale")
+	t.Cleanup(func() { PublicKey = oldPublicKey })
+
+	if err := LoadPublicKey(); err == nil || !strings.Contains(err.Error(), "public key length") {
+		t.Fatalf("invalid public key error = %v", err)
+	}
+	if PublicKey != nil {
+		t.Fatal("invalid public key left stale key material loaded")
+	}
+}
+
 func TestLoadPrivateKeyRejectsSymlink(t *testing.T) {
 	dir := useTestInstallDir(t)
 	target := filepath.Join(t.TempDir(), "private_key.pem")

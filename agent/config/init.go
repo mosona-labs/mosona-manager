@@ -3,9 +3,9 @@ package config
 import (
 	"crypto/ed25519"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"mosona-manager/agent/runtime"
+	"mosona-manager/pkg/identity"
 	"path/filepath"
 )
 
@@ -47,17 +47,10 @@ func LoadPrivateKey() error {
 	if err != nil {
 		return fmt.Errorf("read private key file: %w", err)
 	}
-	block, _ := pem.Decode(data)
-	if block == nil {
-		return fmt.Errorf("decode private key PEM block")
+	PrivateKey, err = identity.ParseEd25519PrivateKeyPEM(data)
+	if err != nil {
+		return fmt.Errorf("parse private key: %w", err)
 	}
-	if block.Type != "PRIVATE KEY" {
-		return fmt.Errorf("invalid private key type: %s", block.Type)
-	}
-	if len(block.Bytes) != ed25519.SeedSize {
-		return fmt.Errorf("invalid private key seed length: got %d, want %d", len(block.Bytes), ed25519.SeedSize)
-	}
-	PrivateKey = ed25519.NewKeyFromSeed(block.Bytes)
 	return nil
 }
 
@@ -67,17 +60,14 @@ func CreatePrivateKey(data []byte) error {
 }
 
 func LoadPublicKey() error {
+	PublicKey = nil
 	data, err := readSecureFile(filepath.Join(runtime.InstallDir, "public_key.pem"), 0o600)
 	if err != nil {
 		return fmt.Errorf("read public key file: %w", err)
 	}
-	block, _ := pem.Decode(data)
-	if block == nil {
-		return fmt.Errorf("decode public key PEM block")
+	PublicKey, err = identity.ParseEd25519PublicKeyPEM(data)
+	if err != nil {
+		return fmt.Errorf("parse public key: %w", err)
 	}
-	if block.Type != "PUBLIC KEY" {
-		return fmt.Errorf("invalid public key type: %s", block.Type)
-	}
-	PublicKey = block.Bytes
 	return nil
 }

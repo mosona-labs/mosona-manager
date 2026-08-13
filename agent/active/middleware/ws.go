@@ -101,6 +101,9 @@ func WsMiddleware(next HandlerWSFunc) http.HandlerFunc {
 }
 
 func verifyHandshakeInit(initHub *pbTypes.KTHub, now time.Time) error {
+	if len(config.PublicKey) != ed25519.PublicKeySize {
+		return fmt.Errorf("invalid configured public key length")
+	}
 	hubXPub, err := base64.StdEncoding.DecodeString(initHub.HubX25519Pub)
 	if err != nil {
 		return fmt.Errorf("invalid hub_x25519_pub base64: %w", err)

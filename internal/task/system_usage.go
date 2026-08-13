@@ -1,6 +1,7 @@
 package task
 
 import (
+	"fmt"
 	"log"
 	"mosona-manager/internal/influx"
 	"time"
@@ -10,17 +11,34 @@ import (
 )
 
 func SystemUsage() {
-	percents, err := cpu.Percent(500*time.Millisecond, false)
-	if err != nil {
-		log.Println("System usage error: cpu percent error:", err)
+	if err := collectSystemUsage(cpu.Percent, mem.VirtualMemory, influx.UsageRecordAdd); err != nil {
+		log.Println("System usage error:", err)
 	}
-	vm, err := mem.VirtualMemory()
+}
+
+func collectSystemUsage(
+	cpuPercent func(time.Duration, bool) ([]float64, error),
+	virtualMemory func() (*mem.VirtualMemoryStat, error),
+	record func(int, int),
+) error {
+	percents, err := cpuPercent(500*time.Millisecond, false)
 	if err != nil {
-		log.Println("System usage error: memory percent error:", err)
+		return fmt.Errorf("CPU percent: %w", err)
+	}
+	if len(percents) == 0 {
+		return fmt.Errorf("CPU percent: empty result")
+	}
+	vm, err := virtualMemory()
+	if err != nil {
+		return fmt.Errorf("memory percent: %w", err)
+	}
+	if vm == nil {
+		return fmt.Errorf("memory percent: empty result")
 	}
 
-	influx.UsageRecordAdd(
+	record(
 		int(percents[0]*100),
 		int(vm.UsedPercent*100),
 	)
+	return nil
 }
