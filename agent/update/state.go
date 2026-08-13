@@ -32,7 +32,7 @@ func loadState() persistedState {
 }
 
 func saveState(s persistedState) {
-	_ = os.MkdirAll(agentruntime.InstallDir, 0755)
+	_ = os.MkdirAll(agentruntime.InstallDir, 0o700)
 	data, err := json.Marshal(s)
 	if err != nil {
 		return

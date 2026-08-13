@@ -6,7 +6,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"mosona-manager/agent/runtime"
-	"os"
 	"path/filepath"
 )
 
@@ -18,7 +17,7 @@ var (
 )
 
 func Load() error {
-	file, err := os.ReadFile(filepath.Join(runtime.InstallDir, "config.json"))
+	file, err := readSecureFile(filepath.Join(runtime.InstallDir, "config.json"), 0o600)
 	if err != nil {
 		return fmt.Errorf("read config file: %w", err)
 	}
@@ -33,7 +32,7 @@ func (conf Config) Save() error {
 	if err != nil {
 		return err
 	}
-	if err = os.WriteFile(filepath.Join(runtime.InstallDir, "config.json"), data, 0644); err != nil {
+	if err = writeSecureFile(filepath.Join(runtime.InstallDir, "config.json"), data, 0o600); err != nil {
 		return err
 	}
 
@@ -43,7 +42,8 @@ func (conf Config) Save() error {
 }
 
 func LoadPrivateKey() error {
-	data, err := os.ReadFile(filepath.Join(runtime.InstallDir, "private_key.pem"))
+	PrivateKey = nil
+	data, err := readSecureFile(filepath.Join(runtime.InstallDir, "private_key.pem"), 0o600)
 	if err != nil {
 		return fmt.Errorf("read private key file: %w", err)
 	}
@@ -54,12 +54,20 @@ func LoadPrivateKey() error {
 	if block.Type != "PRIVATE KEY" {
 		return fmt.Errorf("invalid private key type: %s", block.Type)
 	}
+	if len(block.Bytes) != ed25519.SeedSize {
+		return fmt.Errorf("invalid private key seed length: got %d, want %d", len(block.Bytes), ed25519.SeedSize)
+	}
 	PrivateKey = ed25519.NewKeyFromSeed(block.Bytes)
 	return nil
 }
 
+// CreatePrivateKey atomically reserves the passive-agent key path and never overwrites an existing identity.
+func CreatePrivateKey(data []byte) error {
+	return createSecureFile(filepath.Join(runtime.InstallDir, "private_key.pem"), data, 0o600)
+}
+
 func LoadPublicKey() error {
-	data, err := os.ReadFile(filepath.Join(runtime.InstallDir, "public_key.pem"))
+	data, err := readSecureFile(filepath.Join(runtime.InstallDir, "public_key.pem"), 0o600)
 	if err != nil {
 		return fmt.Errorf("read public key file: %w", err)
 	}

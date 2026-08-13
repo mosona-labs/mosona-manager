@@ -37,6 +37,10 @@ Mosona Manager encrypts stored SSH credentials with a local master key. Docker C
 
 Back up the key together with PostgreSQL and keep the backup access-restricted. Restore the same key before starting against a restored database, with its directory and file set to `0700` and `0600`. If encrypted credentials exist but the key is missing, unreadable, or invalid, startup intentionally fails instead of generating a replacement. There is currently no automatic key rotation; a rotation must re-encrypt all stored credentials as one coordinated operation.
 
+## Agent Key Storage
+
+Run each Mosona Agent under a dedicated operating-system service account. The Agent install directory and passive-agent private key are restricted to `0700` and `0600` on Unix; startup rejects symlinks, non-regular key files, and files owned by another user. Existing installations with the expected owner are upgraded in place to the restricted modes. Back up `private_key.pem` only to access-restricted storage and reinstall the Agent if the key may have been exposed.
+
 ## Disclosure Policy
 
 - We aim to fix confirmed vulnerabilities as quickly as possible.

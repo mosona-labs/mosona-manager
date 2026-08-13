@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"mosona-manager/agent/config"
 	"mosona-manager/pkg/identity"
-	"os"
-	"path/filepath"
 )
 
 func Passive(hub, enrollKey string, noMonitor, noTerminal bool, ipPreference string) error {
@@ -25,17 +23,7 @@ func Passive(hub, enrollKey string, noMonitor, noTerminal bool, ipPreference str
 		return err
 	}
 
-	// Save private key
-	privateKeyFile, err := os.Create(
-		filepath.Join(installDir(), "private_key.pem"),
-	)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = privateKeyFile.Close()
-	}()
-	if _, err = privateKeyFile.WriteString(privateKey); err != nil {
+	if err := config.CreatePrivateKey([]byte(privateKey)); err != nil {
 		return err
 	}
 

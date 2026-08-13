@@ -40,7 +40,7 @@ func applyBinary(ctx context.Context, target, downloadURL, wantSHA string) error
 		_ = os.Remove(newPath)
 		return err
 	}
-	if err := os.MkdirAll(agentruntime.InstallDir, 0755); err != nil {
+	if err := os.MkdirAll(agentruntime.InstallDir, 0o700); err != nil {
 		_ = os.Remove(newPath)
 		return err
 	}

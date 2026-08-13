@@ -7,8 +7,8 @@ import (
 )
 
 func prepareInstallDir() error {
-	if _, err := os.Stat(runtime.InstallDir); os.IsNotExist(err) {
-		return os.MkdirAll(runtime.InstallDir, 0755)
+	if _, err := os.Lstat(runtime.InstallDir); os.IsNotExist(err) {
+		return os.MkdirAll(runtime.InstallDir, 0o700)
 	} else if err != nil {
 		return err
 	}
@@ -24,7 +24,7 @@ func prepareInstallDir() error {
 	if err := os.RemoveAll(runtime.InstallDir); err != nil {
 		return err
 	}
-	return os.MkdirAll(runtime.InstallDir, 0755)
+	return os.MkdirAll(runtime.InstallDir, 0o700)
 }
 
 func installDir() string {

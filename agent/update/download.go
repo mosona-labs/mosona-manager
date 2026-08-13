@@ -60,7 +60,7 @@ func downloadToFile(ctx context.Context, client *http.Client, url, dest string) 
 	}
 
 	tmp := dest + ".part"
-	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
 		return err
 	}
 	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
