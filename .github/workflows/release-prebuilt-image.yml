@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-and-push-image:
     name: Build and push prebuilt image
-    runs-on: self-hosted
+    runs-on: []
     steps:
       - name: Checkout mosona-manager
         uses: actions/checkout@v4
@@ -69,7 +69,7 @@ jobs:
 
   build-and-upload-agents:
     name: Build agents and upload release assets
-    runs-on: self-hosted
+    runs-on: []
     steps:
       - name: Checkout mosona-manager
         uses: actions/checkout@v4
