@@ -2,11 +2,76 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/utils"
 
 	"github.com/jmoiron/sqlx"
 )
+
+var ErrDeleteUserConfirmationMismatch = errors.New("delete user confirmation does not match")
+
+type OwnedTeam struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+type UserOwnsTeamsError struct {
+	Teams []OwnedTeam
+}
+
+func (err *UserOwnsTeamsError) Error() string {
+	return fmt.Sprintf("user owns %d team(s)", len(err.Teams))
+}
+
+func DeleteUser(ctx context.Context, userID int64, confirmation string) (string, error) {
+	tx, err := Db.BeginTxx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var username string
+	if err = tx.QueryRowContext(ctx,
+		"SELECT username FROM users WHERE id = $1 FOR UPDATE",
+		userID,
+	).Scan(&username); err != nil {
+		return "", err
+	}
+	if confirmation == "" || confirmation != username {
+		return "", ErrDeleteUserConfirmationMismatch
+	}
+
+	ownedTeams := make([]OwnedTeam, 0)
+	if err = tx.SelectContext(ctx, &ownedTeams,
+		"SELECT id, name FROM teams WHERE owner_id = $1 ORDER BY id",
+		userID,
+	); err != nil {
+		return "", err
+	}
+	if len(ownedTeams) != 0 {
+		return "", &UserOwnsTeamsError{Teams: ownedTeams}
+	}
+
+	result, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = $1", userID)
+	if err != nil {
+		return "", err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return "", err
+	}
+	if affected != 1 {
+		return "", sql.ErrNoRows
+	}
+
+	if err = tx.Commit(); err != nil {
+		return "", err
+	}
+	return username, nil
+}
 
 func GetUserById(id int64) (_type.User, error) {
 	var user _type.User

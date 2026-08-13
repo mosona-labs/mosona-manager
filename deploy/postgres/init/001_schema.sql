@@ -832,7 +832,7 @@ ALTER TABLE "team_public_pages" ADD CONSTRAINT "FK_TPPT" FOREIGN KEY ("team_id")
 -- ----------------------------
 -- Foreign Keys structure for table teams
 -- ----------------------------
-ALTER TABLE "teams" ADD CONSTRAINT "FK_TU" FOREIGN KEY ("owner_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "teams" ADD CONSTRAINT "FK_TU" FOREIGN KEY ("owner_id") REFERENCES "users" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 
 -- ----------------------------
 -- Foreign Keys structure for table teams_notifications
