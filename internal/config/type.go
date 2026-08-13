@@ -1,8 +1,9 @@
 package config
 
 type configType struct {
-	Host string
-	Port int
+	Host          string
+	Port          int
+	SecureCookies bool
 
 	// Postgres
 	PostgresHost string

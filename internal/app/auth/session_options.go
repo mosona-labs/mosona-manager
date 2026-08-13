@@ -1,8 +1,8 @@
 package auth
 
 import (
+	"mosona-manager/internal/config"
 	"net/http"
-	"os"
 
 	"github.com/gorilla/sessions"
 )
@@ -12,7 +12,7 @@ func sessionOptions(maxAge int) *sessions.Options {
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   os.Getenv("SECURE_COOKIES") == "true",
+		Secure:   config.Conf.SecureCookies,
 		SameSite: http.SameSiteLaxMode,
 	}
 }

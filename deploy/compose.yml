@@ -75,6 +75,7 @@ services:
             # Internal container bind. Host exposure is restricted by the port mapping below.
             HOST: 0.0.0.0
             PORT: 8080
+            SECURE_COOKIES: ${SECURE_COOKIES:-true}
 
             POSTGRES_HOST: postgres
             POSTGRES_PORT: 5432

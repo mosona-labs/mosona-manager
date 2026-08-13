@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -17,6 +18,14 @@ func init() {
 	Conf.Port, _ = strconv.Atoi(getEnv("PORT", "0"))
 	if Conf.Port == 0 {
 		Conf.Port = 3214
+	}
+	var err error
+	Conf.SecureCookies, err = parseSecureCookies(getEnv("SECURE_COOKIES", "false"))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	if !Conf.SecureCookies {
+		log.Println("WARNING: SECURE_COOKIES=false; only use this setting for local HTTP access")
 	}
 
 	// Postgres
@@ -47,6 +56,17 @@ func init() {
 
 	// Frontend
 	Conf.FrontendDir = getEnv("FRONTEND_DIR", "./static/")
+}
+
+func parseSecureCookies(value string) (bool, error) {
+	switch value {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	default:
+		return false, fmt.Errorf("SECURE_COOKIES must be either true or false, got %q", value)
+	}
 }
 
 func getEnv(key string, defaultValue string) string {
