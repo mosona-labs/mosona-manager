@@ -28,3 +28,35 @@ func TestParseSecureCookies(t *testing.T) {
 		})
 	}
 }
+
+func TestRedisPasswordFromEnv(t *testing.T) {
+	tests := []struct {
+		name    string
+		values  map[string]string
+		want    string
+		wantErr bool
+	}{
+		{name: "unset", values: map[string]string{}},
+		{name: "canonical", values: map[string]string{"REDIS_PASSWORD": "canonical"}, want: "canonical"},
+		{name: "legacy", values: map[string]string{"REDIS_PASS": "legacy"}, want: "legacy"},
+		{name: "matching", values: map[string]string{"REDIS_PASSWORD": "same", "REDIS_PASS": "same"}, want: "same"},
+		{name: "matching empty", values: map[string]string{"REDIS_PASSWORD": "", "REDIS_PASS": ""}},
+		{name: "conflict", values: map[string]string{"REDIS_PASSWORD": "canonical", "REDIS_PASS": "legacy"}, wantErr: true},
+		{name: "explicit empty conflict", values: map[string]string{"REDIS_PASSWORD": "", "REDIS_PASS": "legacy"}, wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := redisPasswordFromEnv(func(key string) (string, bool) {
+				value, ok := test.values[key]
+				return value, ok
+			})
+			if (err != nil) != test.wantErr {
+				t.Fatalf("redisPasswordFromEnv() error = %v, wantErr %t", err, test.wantErr)
+			}
+			if got != test.want {
+				t.Fatalf("redisPasswordFromEnv() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}

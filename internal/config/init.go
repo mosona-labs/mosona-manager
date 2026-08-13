@@ -49,13 +49,31 @@ func init() {
 	// Redis
 	Conf.RedisHost = getEnv("REDIS_HOST", "localhost")
 	Conf.RedisPort, _ = strconv.Atoi(getEnv("REDIS_PORT", "0"))
-	Conf.RedisPassword = getEnv("REDIS_PASSWORD", "")
+	Conf.RedisPassword, err = redisPasswordFromEnv(os.LookupEnv)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	if Conf.RedisPort == 0 {
 		log.Fatalln("Redis configuration is missing in environment variables")
 	}
 
 	// Frontend
 	Conf.FrontendDir = getEnv("FRONTEND_DIR", "./static/")
+}
+
+func redisPasswordFromEnv(lookup func(string) (string, bool)) (string, error) {
+	password, passwordSet := lookup("REDIS_PASSWORD")
+	legacyPassword, legacySet := lookup("REDIS_PASS")
+	if passwordSet && legacySet && password != legacyPassword {
+		return "", fmt.Errorf("REDIS_PASSWORD and deprecated REDIS_PASS must match when both are set")
+	}
+	if passwordSet {
+		return password, nil
+	}
+	if legacySet {
+		return legacyPassword, nil
+	}
+	return "", nil
 }
 
 func parseSecureCookies(value string) (bool, error) {

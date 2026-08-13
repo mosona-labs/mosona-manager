@@ -21,7 +21,9 @@ services:
     redis:
         container_name: mosona-manager-redis
         image: redis:7-alpine
-        command: ["redis-server", "--appendonly", "yes"]
+        command: ["sh", "-c", 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+        environment:
+            REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
         volumes:
             - redis_data:/data
         ulimits:
@@ -30,7 +32,7 @@ services:
                 hard: 65536
         stop_grace_period: 60s
         healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
+            test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
             interval: 5s
             timeout: 3s
             retries: 30
@@ -85,7 +87,7 @@ services:
 
             REDIS_HOST: redis
             REDIS_PORT: 6379
-            REDIS_PASS: ""
+            REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
 
             INFLUXDB_URL: http://influxdb:8086
             INFLUXDB_ORG: ${INFLUX_ORG}
