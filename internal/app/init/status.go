@@ -10,6 +10,6 @@ import (
 func status(c *echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
-		Data: config.DynamicConf.Init,
+		Data: config.ReadDynamicConf().Init,
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
+	"net/http"
 
 	"github.com/labstack/echo-contrib/v5/session"
 	"github.com/labstack/echo/v5"
@@ -109,8 +110,8 @@ func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
 
 func InitAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
-		if config.DynamicConf.Init {
-			return c.JSON(400, _type.H{
+		if config.ReadDynamicConf().Init {
+			return c.JSON(http.StatusConflict, _type.H{
 				Code: "already_initialized",
 				Msg:  "System already initialized",
 			})
