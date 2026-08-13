@@ -1,8 +1,10 @@
 package notification
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,26 +15,7 @@ import (
 	"mosona-manager/internal/_type"
 )
 
-func stubNetwork(t *testing.T, addresses ...string) {
-	t.Helper()
-	oldLookup := lookupIPAddrs
-	oldInterfaces := localInterfaces
-	lookupIPAddrs = func(context.Context, string) ([]net.IPAddr, error) {
-		result := make([]net.IPAddr, 0, len(addresses))
-		for _, address := range addresses {
-			result = append(result, net.IPAddr{IP: net.ParseIP(address)})
-		}
-		return result, nil
-	}
-	localInterfaces = func() ([]net.Addr, error) { return nil, nil }
-	t.Cleanup(func() {
-		lookupIPAddrs = oldLookup
-		localInterfaces = oldInterfaces
-	})
-}
-
-func TestValidateTargetAcceptsPublicHTTPSGeneric(t *testing.T) {
-	stubNetwork(t, "93.184.216.34")
+func TestValidateTargetAcceptsHTTPAndHTTPSGeneric(t *testing.T) {
 	if err := ValidateTarget(context.Background(), "generic+https://hooks.example.com/notify?template=json"); err != nil {
 		t.Fatal(err)
 	}
@@ -46,19 +29,23 @@ func TestValidateTargetAcceptsPublicHTTPSGeneric(t *testing.T) {
 	if err := ValidateTarget(context.Background(), "generic://hooks.example.com/notify"); err != nil {
 		t.Fatal(err)
 	}
+	for _, target := range []string{
+		"generic+http://127.0.0.1:8080/hook",
+		"generic://10.0.0.2/hook?disabletls=yes",
+		"generic+http://[::1]:8080/hook",
+	} {
+		if err := ValidateTarget(context.Background(), target); err != nil {
+			t.Fatalf("target %q: %v", target, err)
+		}
+	}
 }
 
-func TestValidateTargetRejectsUnsafeGenericTargets(t *testing.T) {
+func TestValidateTargetRejectsMalformedGenericTargets(t *testing.T) {
 	tests := []string{
-		"generic+http://example.com/hook",
 		"generic+https://user:pass@example.com/hook",
-		"generic://example.com/hook?disabletls=yes",
 		"generic://example.com/hook?method=GET",
-		"generic://127.0.0.1/hook",
-		"generic://[::1]/hook",
-		"generic://[fec0::1]/hook",
-		"generic://[fe80::1%25en0]/hook",
-		"generic://169.254.169.254/latest/meta-data",
+		"generic+ftp://example.com/hook",
+		"generic+http:///hook",
 	}
 	for _, target := range tests {
 		t.Run(target, func(t *testing.T) {
@@ -69,76 +56,28 @@ func TestValidateTargetRejectsUnsafeGenericTargets(t *testing.T) {
 	}
 }
 
-func TestValidateTargetRejectsMixedPublicAndPrivateDNS(t *testing.T) {
-	stubNetwork(t, "93.184.216.34", "10.0.0.1")
-	err := ValidateTarget(context.Background(), "generic+https://rebind.example/hook")
-	if !errors.Is(err, ErrInvalidConfiguration) {
-		t.Fatalf("error = %v", err)
-	}
-}
-
-func TestDialRejectsDNSRebindingAfterValidation(t *testing.T) {
-	oldLookup := lookupIPAddrs
-	oldInterfaces := localInterfaces
-	calls := 0
-	lookupIPAddrs = func(context.Context, string) ([]net.IPAddr, error) {
-		calls++
-		if calls == 1 {
-			return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
-		}
-		return []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, nil
-	}
-	localInterfaces = func() ([]net.Addr, error) { return nil, nil }
-	t.Cleanup(func() {
-		lookupIPAddrs = oldLookup
-		localInterfaces = oldInterfaces
-	})
-
-	if err := ValidateTarget(context.Background(), "generic+https://rebind.example/hook"); err != nil {
-		t.Fatalf("initial validation failed: %v", err)
-	}
-	if _, err := dialPublicContext(context.Background(), "tcp", "rebind.example:443"); err == nil {
-		t.Fatal("dial accepted rebound private address")
-	}
-}
-
-func TestValidateTargetRejectsLocalInterfaceAddress(t *testing.T) {
-	oldLookup := lookupIPAddrs
-	oldInterfaces := localInterfaces
-	lookupIPAddrs = func(context.Context, string) ([]net.IPAddr, error) {
-		return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
-	}
-	localInterfaces = func() ([]net.Addr, error) {
-		_, network, _ := net.ParseCIDR("93.184.216.34/32")
-		return []net.Addr{network}, nil
-	}
-	t.Cleanup(func() {
-		lookupIPAddrs = oldLookup
-		localInterfaces = oldInterfaces
-	})
-
-	err := ValidateTarget(context.Background(), "generic+https://local-interface.example/hook")
-	if !errors.Is(err, ErrInvalidConfiguration) {
-		t.Fatalf("error = %v", err)
-	}
-}
-
-func TestValidateTargetRejectsUnsupportedSchemes(t *testing.T) {
+func TestValidateTargetAcceptsSelfHostedServices(t *testing.T) {
 	for _, target := range []string{
-		"smtp://user:password@example.com:25/",
-		"matrix://user:password@example.com/room",
-		"file:///etc/passwd",
+		"gotify://10.0.0.2/Aaa.bbb.ccc.ddd?disabletls=yes",
+		"ntfy://192.168.1.20/alerts?scheme=http",
+		"bark://:device-key@172.16.0.8?scheme=http",
+		"smtp://user:password@mail.internal:25/?fromAddress=sender@example.com&toAddresses=ops@example.com&useStartTLS=no",
 	} {
-		if err := ValidateTarget(context.Background(), target); !errors.Is(err, ErrInvalidConfiguration) {
+		if err := ValidateTarget(context.Background(), target); err != nil {
 			t.Fatalf("target %q: error = %v", target, err)
 		}
 	}
 }
 
-func TestValidateTargetRejectsSlackAPIToken(t *testing.T) {
-	target := "slack://bot@xoxb-AAAAAAAAA-BBBBBBBBB-123456789123456789123456"
-	if err := ValidateTarget(context.Background(), target); !errors.Is(err, ErrInvalidConfiguration) {
-		t.Fatalf("error = %v", err)
+func TestValidateTargetRejectsUnsupportedAndMalformedServices(t *testing.T) {
+	for _, target := range []string{
+		"unknown://example.com/path",
+		"file:///etc/passwd",
+		"ntfy://example.com",
+	} {
+		if err := ValidateTarget(context.Background(), target); !errors.Is(err, ErrInvalidConfiguration) {
+			t.Fatalf("target %q: error = %v", target, err)
+		}
 	}
 }
 
@@ -159,17 +98,22 @@ func TestGenericRedirectPolicy(t *testing.T) {
 	viaURL, _ := url.Parse("https://hooks.example.com/start")
 	via := []*http.Request{{URL: viaURL}}
 
-	privateURL, _ := url.Parse("https://127.0.0.1/internal")
-	if err := client.CheckRedirect(&http.Request{Method: http.MethodPost, URL: privateURL}, via); err == nil {
-		t.Fatal("private redirect was accepted")
-	}
 	crossHostURL, _ := url.Parse("https://other.example.com/hook")
 	if err := client.CheckRedirect(&http.Request{Method: http.MethodPost, URL: crossHostURL}, via); err == nil {
 		t.Fatal("cross-host redirect was accepted")
 	}
+	downgradeURL, _ := url.Parse("http://hooks.example.com/hook")
+	if err := client.CheckRedirect(&http.Request{Method: http.MethodPost, URL: downgradeURL}, via); err == nil {
+		t.Fatal("HTTPS-to-HTTP redirect was accepted")
+	}
 	validURL, _ := url.Parse("https://hooks.example.com/next")
 	if err := client.CheckRedirect(&http.Request{Method: http.MethodPost, URL: validURL}, via); err != nil {
 		t.Fatalf("same-host public redirect rejected: %v", err)
+	}
+	privateHTTPURL, _ := url.Parse("http://127.0.0.1/internal")
+	privateViaURL, _ := url.Parse("http://127.0.0.1/start")
+	if err := client.CheckRedirect(&http.Request{Method: http.MethodPost, URL: privateHTTPURL}, []*http.Request{{URL: privateViaURL}}); err != nil {
+		t.Fatalf("same-host private HTTP redirect rejected: %v", err)
 	}
 	if err := client.CheckRedirect(&http.Request{Method: http.MethodGet, URL: validURL}, via); err == nil {
 		t.Fatal("redirect that changed POST to GET was accepted")
@@ -180,6 +124,40 @@ func TestGenericRedirectPolicy(t *testing.T) {
 	}
 	if err := client.CheckRedirect(&http.Request{Method: http.MethodPost, URL: validURL}, tooMany); err == nil {
 		t.Fatal("redirect limit was not enforced")
+	}
+}
+
+func TestSendGenericDeliversToPrivateHTTPWebhook(t *testing.T) {
+	received := make(chan string, 1)
+	oldDial := genericDialContext
+	genericDialContext = func(context.Context, string, string) (net.Conn, error) {
+		client, server := net.Pipe()
+		go func() {
+			defer func() { _ = server.Close() }()
+			request, err := http.ReadRequest(bufio.NewReader(server))
+			if err != nil {
+				received <- "read error: " + err.Error()
+				return
+			}
+			body, _ := io.ReadAll(request.Body)
+			received <- string(body)
+			_, _ = io.WriteString(server, "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n")
+		}()
+		return client, nil
+	}
+	t.Cleanup(func() { genericDialContext = oldDial })
+
+	target := "generic+http://127.0.0.1:8080/hook?template=json"
+	if err := Send(context.Background(), target, "private webhook test"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case body := <-received:
+		if !strings.Contains(body, "private webhook test") {
+			t.Fatalf("body = %q", body)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("private webhook did not receive notification")
 	}
 }
 

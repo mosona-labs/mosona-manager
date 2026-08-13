@@ -44,7 +44,7 @@ func Send(ctx context.Context, target, message string) error {
 	}
 
 	parsed, _ := url.ParseRequestURI(target)
-	if parsed != nil && (strings.EqualFold(parsed.Scheme, "generic") || strings.EqualFold(parsed.Scheme, "generic+https")) {
+	if parsed != nil && isGenericScheme(parsed.Scheme) {
 		defer func() { <-deliverySlots }()
 		return sendGeneric(deliveryCtx, target, message)
 	}
@@ -63,6 +63,12 @@ func Send(ctx context.Context, target, message string) error {
 	case <-deliveryCtx.Done():
 		return deliveryCtx.Err()
 	}
+}
+
+func isGenericScheme(scheme string) bool {
+	return strings.EqualFold(scheme, "generic") ||
+		strings.EqualFold(scheme, "generic+http") ||
+		strings.EqualFold(scheme, "generic+https")
 }
 
 type targetRateLimiter struct {

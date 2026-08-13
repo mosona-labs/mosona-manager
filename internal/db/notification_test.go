@@ -23,7 +23,7 @@ func TestUpdateNotificationsRejectsInvalidTargetBeforeTransaction(t *testing.T) 
 	t.Cleanup(func() { Db = oldDB })
 
 	err = UpdateNotificationsByTeamId(context.Background(), 7, []_type.TeamNotification{{
-		Module: "shoutrrr", Target: "generic://127.0.0.1/hook",
+		Module: "shoutrrr", Target: "unknown://example.com/hook",
 	}})
 	if !errors.Is(err, notification.ErrInvalidConfiguration) {
 		t.Fatalf("error = %v", err)

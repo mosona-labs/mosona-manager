@@ -9,5 +9,6 @@ import (
 func Router(e *echo.Group) {
 	e.GET("", list)
 	e.PUT("", update, middleware.WriteAuth)
+	e.POST("/validate", validate, middleware.WriteAuth)
 	e.POST("/test", test, middleware.WriteAuth)
 }

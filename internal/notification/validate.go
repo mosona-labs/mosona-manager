@@ -12,8 +12,6 @@ import (
 	"mosona-manager/internal/_type"
 
 	"github.com/nicholas-fedor/shoutrrr"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/slack"
-	"github.com/nicholas-fedor/shoutrrr/pkg/services/chat/teams"
 )
 
 const (
@@ -80,41 +78,18 @@ func ValidateTarget(ctx context.Context, target string) error {
 
 	scheme := strings.ToLower(parsed.Scheme)
 	switch scheme {
-	case "generic", "generic+https":
-		config, err := parseGenericTarget(target)
-		if err != nil {
-			return err
-		}
-		lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		defer cancel()
-		if err := validatePublicDestination(lookupCtx, config.webhookURL, true); err != nil {
-			return fmt.Errorf("%w: generic webhook destination is not allowed", ErrInvalidConfiguration)
-		}
-		return nil
-	case "telegram", "discord":
-		if _, err := shoutrrr.CreateSender(target); err != nil {
-			return fmt.Errorf("%w: malformed %s target", ErrInvalidConfiguration, scheme)
-		}
-		return nil
-	case "slack":
-		var service slack.Service
-		if err := service.Initialize(parsed, nil); err != nil || service.Config == nil {
-			return fmt.Errorf("%w: malformed slack target", ErrInvalidConfiguration)
-		}
-		if service.Config.Token.IsAPIToken() {
-			return fmt.Errorf("%w: slack API tokens are not supported; use a webhook URL", ErrInvalidConfiguration)
-		}
-		return nil
-	case "teams":
-		var service teams.Service
-		if err := service.Initialize(parsed, nil); err != nil || service.Config == nil {
-			return fmt.Errorf("%w: malformed teams target", ErrInvalidConfiguration)
-		}
-		if err := teams.ValidateWebhookURL(service.Config.Host); err != nil {
-			return fmt.Errorf("%w: teams webhook host is not allowed", ErrInvalidConfiguration)
-		}
-		return nil
-	default:
-		return fmt.Errorf("%w: unsupported notification scheme", ErrInvalidConfiguration)
+	case "generic", "generic+http", "generic+https":
+		_, err := parseGenericTarget(target)
+		return err
 	}
+	if strings.HasPrefix(scheme, "generic+") {
+		return fmt.Errorf("%w: generic webhook must use HTTP or HTTPS", ErrInvalidConfiguration)
+	}
+
+	// Shoutrrr is the source of truth for supported services. Keeping a local
+	// allowlist caused valid existing targets to stop working after upgrades.
+	if _, err := shoutrrr.CreateSender(target); err != nil {
+		return fmt.Errorf("%w: malformed or unsupported %s target", ErrInvalidConfiguration, scheme)
+	}
+	return nil
 }

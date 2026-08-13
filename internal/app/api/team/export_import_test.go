@@ -34,7 +34,7 @@ func TestImportNotificationsRejectsUnsafeTargetBeforeDatabaseWrite(t *testing.T)
 	mock.ExpectRollback()
 
 	err = importNotifications(tx, 5, []_type.TeamNotification{{
-		Module: "shoutrrr", Target: "generic://169.254.169.254/latest/meta-data",
+		Module: "shoutrrr", Target: "unknown://example.com/hook",
 	}})
 	if !errors.Is(err, notification.ErrInvalidConfiguration) {
 		t.Fatalf("error = %v", err)
@@ -57,7 +57,7 @@ func TestApplyTeamImportRejectsUnsafeNotificationBeforeTransaction(t *testing.T)
 
 	_, _, err = applyTeamImport(5, teamExportBundle{
 		Notifications: []_type.TeamNotification{{
-			Module: "shoutrrr", Target: "generic://127.0.0.1/hook",
+			Module: "shoutrrr", Target: "unknown://example.com/hook",
 		}},
 	})
 	if !errors.Is(err, notification.ErrInvalidConfiguration) {

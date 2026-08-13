@@ -33,13 +33,13 @@ func TestBeginNotificationTestLimitsConcurrentAndFrequentCalls(t *testing.T) {
 	release()
 }
 
-func TestNotificationTestRejectsPrivateGenericWebhook(t *testing.T) {
+func TestNotificationTestRejectsMalformedTarget(t *testing.T) {
 	e := echo.New()
 	e.POST("/test", func(c *echo.Context) error {
 		c.Set("tid", time.Now().UnixNano())
 		return test(c)
 	})
-	form := url.Values{"uri": {"generic://127.0.0.1/hook"}}
+	form := url.Values{"uri": {"unknown://example.com/hook"}}
 	request := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	recorder := httptest.NewRecorder()
@@ -49,14 +49,40 @@ func TestNotificationTestRejectsPrivateGenericWebhook(t *testing.T) {
 	}
 }
 
-func TestNotificationUpdateRejectsPrivateGenericWebhook(t *testing.T) {
+func TestNotificationUpdateRejectsMalformedTarget(t *testing.T) {
 	e := echo.New()
 	e.PUT("/notification", func(c *echo.Context) error {
 		c.Set("tid", int64(91))
 		return update(c)
 	})
-	body := []byte(`[{"module":"shoutrrr","target":"generic://127.0.0.1/hook"}]`)
+	body := []byte(`[{"module":"shoutrrr","target":"unknown://example.com/hook"}]`)
 	request := httptest.NewRequest(http.MethodPut, "/notification", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), `"code":"invalid_notification"`) {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestNotificationValidateAcceptsPrivateHTTPGeneric(t *testing.T) {
+	e := echo.New()
+	e.POST("/notification/validate", validate)
+	body := []byte(`{"module":"shoutrrr","target":"generic+http://127.0.0.1:8080/hook"}`)
+	request := httptest.NewRequest(http.MethodPost, "/notification/validate", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"code":"ok"`) {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestNotificationValidateRejectsMalformedTarget(t *testing.T) {
+	e := echo.New()
+	e.POST("/notification/validate", validate)
+	body := []byte(`{"module":"shoutrrr","target":"unknown://example.com/hook"}`)
+	request := httptest.NewRequest(http.MethodPost, "/notification/validate", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	e.ServeHTTP(recorder, request)
