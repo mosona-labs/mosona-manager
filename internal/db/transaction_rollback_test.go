@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"testing"
 
@@ -40,8 +41,8 @@ func TestDeleteCategoryUsesSingleTransaction(t *testing.T) {
 	mock.ExpectQuery(`SELECT id FROM categories WHERE team = \$1 ORDER BY id LIMIT 1`).
 		WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(8))
-	mock.ExpectExec(`UPDATE servers SET category = \$1 WHERE category = \$2`).
-		WithArgs(int64(8), int64(9)).
+	mock.ExpectExec(`UPDATE servers SET category = \$1 WHERE category = \$2 AND team_id = \$3`).
+		WithArgs(int64(8), int64(9), int64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 2))
 	mock.ExpectExec(`DELETE FROM categories WHERE id = \$1 AND team = \$2`).
 		WithArgs(int64(9), int64(7)).
@@ -50,6 +51,25 @@ func TestDeleteCategoryUsesSingleTransaction(t *testing.T) {
 
 	if err := DeleteCategory(7, 9); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDeleteCategoryRejectsCategoryOutsideTeam(t *testing.T) {
+	mock := setAlertMockDB(t)
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT id FROM categories WHERE team = \$1 ORDER BY id LIMIT 1`).
+		WithArgs(int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(8))
+	mock.ExpectExec(`UPDATE servers SET category = \$1 WHERE category = \$2 AND team_id = \$3`).
+		WithArgs(int64(8), int64(22), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`DELETE FROM categories WHERE id = \$1 AND team = \$2`).
+		WithArgs(int64(22), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	if err := DeleteCategory(7, 22); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("DeleteCategory() error = %v, want sql.ErrNoRows", err)
 	}
 }
 

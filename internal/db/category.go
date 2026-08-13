@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"mosona-manager/internal/_type"
 )
@@ -53,17 +54,23 @@ func DeleteCategory(teamId, categoryId int64) error {
 
 	// Reassign servers to default category
 	if _, err = tx.Exec(
-		"UPDATE servers SET category = $1 WHERE category = $2",
-		defaultCategoryId, categoryId,
+		"UPDATE servers SET category = $1 WHERE category = $2 AND team_id = $3",
+		defaultCategoryId, categoryId, teamId,
 	); err != nil {
-		_ = tx.Rollback()
 		return err
 	}
 
 	// Delete category
-	if _, err = tx.Exec("DELETE FROM categories WHERE id = $1 AND team = $2", categoryId, teamId); err != nil {
-		_ = tx.Rollback()
+	result, err := tx.Exec("DELETE FROM categories WHERE id = $1 AND team = $2", categoryId, teamId)
+	if err != nil {
 		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		return sql.ErrNoRows
 	}
 
 	return tx.Commit()
