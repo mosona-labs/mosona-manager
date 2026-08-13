@@ -13,7 +13,7 @@ import (
 
 func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
-		if !config.DynamicConf.Init {
+		if !config.ReadDynamicConf().Init {
 			return c.JSON(200, _type.H{
 				Code: "init_required",
 				Msg:  "System initialization required",
@@ -67,7 +67,7 @@ func UserAuth(next echo.HandlerFunc) echo.HandlerFunc {
 
 func AdminAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
-		if !config.DynamicConf.Init {
+		if !config.ReadDynamicConf().Init {
 			return c.JSON(200, _type.H{
 				Code: "init_required",
 				Msg:  "System initialization required",

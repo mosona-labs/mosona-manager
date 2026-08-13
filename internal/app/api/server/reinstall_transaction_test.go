@@ -26,15 +26,13 @@ func setupReinstallTest(t *testing.T) sqlmock.Sqlmock {
 	}
 	oldDB := db.Db
 	db.Db = sqlx.NewDb(database, "sqlmock")
-	config.DConfLock.Lock()
-	oldDynamicConf := config.DynamicConf
-	config.DynamicConf.Token = "test-token-salt"
-	config.DynamicConf.Domain = "https://hub.example.com"
-	config.DConfLock.Unlock()
+	oldDynamicConf := config.ReadDynamicConf()
+	nextDynamicConf := oldDynamicConf
+	nextDynamicConf.Token = "test-token-salt"
+	nextDynamicConf.Domain = "https://hub.example.com"
+	config.ReplaceDynamicConf(nextDynamicConf)
 	t.Cleanup(func() {
-		config.DConfLock.Lock()
-		config.DynamicConf = oldDynamicConf
-		config.DConfLock.Unlock()
+		config.ReplaceDynamicConf(oldDynamicConf)
 		db.Db = oldDB
 		_ = database.Close()
 		if err := mock.ExpectationsWereMet(); err != nil {

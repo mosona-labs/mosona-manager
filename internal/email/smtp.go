@@ -7,20 +7,20 @@ import (
 	"net/smtp"
 )
 
-func sendWithSMTP(toEmail, subject, content string) error {
-	if config.DynamicConf.SMTPHost == "" || config.DynamicConf.SMTPPort == 0 || config.DynamicConf.SMTPUsername == "" || config.DynamicConf.SMTPPassword == "" {
+func sendWithSMTP(dc config.DynamicConfigType, toEmail, subject, content string) error {
+	if dc.SMTPHost == "" || dc.SMTPPort == 0 || dc.SMTPUsername == "" || dc.SMTPPassword == "" {
 		return ErrEmailProviderNotInit
 	}
 
 	// Setup SMTP client
-	auth := smtp.PlainAuth("", config.DynamicConf.SMTPUsername, config.DynamicConf.SMTPPassword, config.DynamicConf.SMTPHost)
-	addr := fmt.Sprintf("%s:%d", config.DynamicConf.SMTPHost, config.DynamicConf.SMTPPort)
-	from := config.DynamicConf.SMTPUsername
+	auth := smtp.PlainAuth("", dc.SMTPUsername, dc.SMTPPassword, dc.SMTPHost)
+	addr := fmt.Sprintf("%s:%d", dc.SMTPHost, dc.SMTPPort)
+	from := dc.SMTPUsername
 	tlsConf := &tls.Config{
 		InsecureSkipVerify: false,
-		ServerName:         config.DynamicConf.SMTPHost,
+		ServerName:         dc.SMTPHost,
 	}
-	useTLS := config.DynamicConf.SMTPTls
+	useTLS := dc.SMTPTls
 
 	// Email headers
 	header := make(map[string]string)

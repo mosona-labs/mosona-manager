@@ -2,7 +2,6 @@ package utils
 
 import (
 	"encoding/json"
-	"mosona-manager/internal/config"
 	"net/http"
 	"net/url"
 )
@@ -12,9 +11,9 @@ type turnstileResponse struct {
 	ErrorCodes []string `json:"error-codes"`
 }
 
-func VerifyCaptcha(token, ip string) (bool, error) {
+func VerifyCaptcha(secret, token, ip string) (bool, error) {
 	form := url.Values{}
-	form.Set("secret", config.DynamicConf.CaptchaSecret)
+	form.Set("secret", secret)
 	form.Set("response", token)
 	form.Set("remoteip", ip)
 

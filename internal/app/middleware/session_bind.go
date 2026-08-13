@@ -14,7 +14,7 @@ func SessionBindingOK(c *echo.Context, sess *sessions.Session) bool {
 		return false
 	}
 
-	if !config.DynamicConf.SessionBindIP {
+	if !config.ReadDynamicConf().SessionBindIP {
 		return true
 	}
 

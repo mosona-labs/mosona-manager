@@ -12,15 +12,11 @@ import (
 )
 
 func TestInitAuthUsesSnapshotAndReturnsConflict(t *testing.T) {
-	config.DConfLock.Lock()
-	previous := config.DynamicConf
-	config.DynamicConf.Init = true
-	config.DConfLock.Unlock()
-	t.Cleanup(func() {
-		config.DConfLock.Lock()
-		config.DynamicConf = previous
-		config.DConfLock.Unlock()
-	})
+	previous := config.ReadDynamicConf()
+	next := previous
+	next.Init = true
+	config.ReplaceDynamicConf(next)
+	t.Cleanup(func() { config.ReplaceDynamicConf(previous) })
 
 	e := echo.New()
 	e.POST("/init", func(c *echo.Context) error {

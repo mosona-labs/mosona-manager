@@ -210,8 +210,9 @@ func add(c *echo.Context) error {
 			"public_key": base64.StdEncoding.EncodeToString([]byte(publicKey)),
 		}
 	case 2: // Agent (passive)
+		dynamicConf := config.ReadDynamicConf()
 		enrollToken := utils.RandomString(32)
-		tokenHash := utils.SHA256(enrollToken + config.DynamicConf.Token)
+		tokenHash := utils.SHA256(enrollToken + dynamicConf.Token)
 		if _, err = tx.Exec(
 			"INSERT INTO enroll_tokens (server_id, token_hash) VALUES ($1, $2)",
 			serverId, tokenHash,
@@ -222,7 +223,7 @@ func add(c *echo.Context) error {
 
 		response = _type.Map{
 			"id":           serverId,
-			"hub":          config.DynamicConf.Domain,
+			"hub":          dynamicConf.Domain,
 			"enroll_token": enrollToken,
 		}
 	}

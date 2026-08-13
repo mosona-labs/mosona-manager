@@ -1,9 +1,11 @@
 package db
 
 import (
+	"errors"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/utils"
 	"strconv"
+	"sync"
 )
 
 type configType struct {
@@ -11,68 +13,77 @@ type configType struct {
 	Value string
 }
 
+var syncConfigMu sync.Mutex
+var generateConfigToken = utils.RandomString
+
 func SyncConfig() error {
+	syncConfigMu.Lock()
+	defer syncConfigMu.Unlock()
+
 	var data []configType
 
 	if err := Db.Select(&data, "SELECT key, value FROM config"); err != nil {
 		return err
 	}
 
-	config.DConfLock.Lock()
-	defer config.DConfLock.Unlock()
+	next := config.ReadDynamicConf()
 
 	for _, item := range data {
 		switch item.Key {
 		case "init":
-			config.DynamicConf.Init = item.Value == "true"
+			next.Init = item.Value == "true"
 		case "debug":
-			config.DynamicConf.Debug = item.Value == "true"
+			next.Debug = item.Value == "true"
 		case "title":
-			config.DynamicConf.Title = item.Value
+			next.Title = item.Value
 		case "favicon":
-			config.DynamicConf.Favicon = item.Value
+			next.Favicon = item.Value
 		case "domain":
-			config.DynamicConf.Domain = item.Value
+			next.Domain = item.Value
 		case "token":
-			config.DynamicConf.Token = item.Value
+			next.Token = item.Value
 		case "captcha_secret":
-			config.DynamicConf.CaptchaSecret = item.Value
+			next.CaptchaSecret = item.Value
 		case "captcha_site_key":
-			config.DynamicConf.CaptchaSiteKey = item.Value
+			next.CaptchaSiteKey = item.Value
 		case "email_verify_login":
-			config.DynamicConf.EmailVerifyLogin = item.Value == "true"
+			next.EmailVerifyLogin = item.Value == "true"
 		case "email_provider":
-			config.DynamicConf.EmailProvider = item.Value
+			next.EmailProvider = item.Value
 		case "smtp_host":
-			config.DynamicConf.SMTPHost = item.Value
+			next.SMTPHost = item.Value
 		case "smtp_port":
-			config.DynamicConf.SMTPPort, _ = strconv.Atoi(item.Value)
+			next.SMTPPort, _ = strconv.Atoi(item.Value)
 		case "smtp_username":
-			config.DynamicConf.SMTPUsername = item.Value
+			next.SMTPUsername = item.Value
 		case "smtp_password":
-			config.DynamicConf.SMTPPassword = item.Value
+			next.SMTPPassword = item.Value
 		case "smtp_tls":
-			config.DynamicConf.SMTPTls = item.Value == "true"
+			next.SMTPTls = item.Value == "true"
 		case "registration_enabled":
-			config.DynamicConf.RegistrationEnabled = item.Value == "true" // Default false
+			next.RegistrationEnabled = item.Value == "true" // Default false
 		case "registration_verify_email":
-			config.DynamicConf.RegistrationVerifyEmail = item.Value == "true" // Default false
+			next.RegistrationVerifyEmail = item.Value == "true" // Default false
 		case "session_bind_ip":
-			config.DynamicConf.SessionBindIP = item.Value != "false" // Default true
+			next.SessionBindIP = item.Value != "false" // Default true
 		case "trust_proxy":
-			config.DynamicConf.TrustProxy = item.Value != "false" // Default true
+			next.TrustProxy = item.Value != "false" // Default true
 		}
 	}
 
 	// Init
-	if config.DynamicConf.Token == "" {
-		token := utils.RandomString(32)
+	if next.Token == "" {
+		token := generateConfigToken(32)
+		if len(token) != 32 {
+			return errors.New("failed to generate configuration token")
+		}
 		if err := SetConfig("token", token); err != nil {
 			return err
 		}
-		config.DynamicConf.Token = token
+		next.Token = token
 	}
 
+	config.ReplaceDynamicConf(next)
 	return nil
 }
 

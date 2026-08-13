@@ -11,9 +11,10 @@ var (
 )
 
 func Send(toEmail, subject, content string) error {
-	switch config.ReadDynamicConf().EmailProvider {
+	dc := config.ReadDynamicConf()
+	switch dc.EmailProvider {
 	case "smtp":
-		return sendWithSMTP(toEmail, subject, content)
+		return sendWithSMTP(dc, toEmail, subject, content)
 	default:
 		return ErrNoEmailProvider
 	}

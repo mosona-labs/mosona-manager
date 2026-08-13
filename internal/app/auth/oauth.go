@@ -178,7 +178,7 @@ func oauthCallback(c *echo.Context) error {
 	}
 
 	// MFA & TOTP Check
-	if (user.TOTP != nil && *user.TOTP) || config.DynamicConf.EmailVerifyLogin {
+	if (user.TOTP != nil && *user.TOTP) || config.ReadDynamicConf().EmailVerifyLogin {
 		provider, err := db.GetAuthProviderByID(identity.ProviderID)
 		if err != nil {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})

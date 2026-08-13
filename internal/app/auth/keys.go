@@ -48,7 +48,7 @@ func keys(c *echo.Context) error {
 		Code: "ok",
 		Msg:  "Success",
 		Data: _type.Map{
-			"captcha": config.DynamicConf.CaptchaSiteKey,
+			"captcha": config.ReadDynamicConf().CaptchaSiteKey,
 			"oauth":   oauthList,
 		},
 	})

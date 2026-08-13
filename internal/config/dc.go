@@ -2,11 +2,19 @@ package config
 
 import "sync"
 
-var DynamicConf DynamicConfigType
-var DConfLock = sync.RWMutex{}
+var (
+	dynamicConf     DynamicConfigType
+	dynamicConfLock sync.RWMutex
+)
 
 func ReadDynamicConf() DynamicConfigType {
-	DConfLock.RLock()
-	defer DConfLock.RUnlock()
-	return DynamicConf
+	dynamicConfLock.RLock()
+	defer dynamicConfLock.RUnlock()
+	return dynamicConf
+}
+
+func ReplaceDynamicConf(next DynamicConfigType) {
+	dynamicConfLock.Lock()
+	dynamicConf = next
+	dynamicConfLock.Unlock()
 }

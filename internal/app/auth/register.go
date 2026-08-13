@@ -11,7 +11,8 @@ import (
 )
 
 func register(c *echo.Context) error {
-	if !config.ReadDynamicConf().RegistrationEnabled {
+	dc := config.ReadDynamicConf()
+	if !dc.RegistrationEnabled {
 		return c.JSON(403, _type.H{Code: "forbidden", Msg: "Registration is disabled"})
 	}
 
@@ -25,9 +26,9 @@ func register(c *echo.Context) error {
 	}
 
 	// Captcha
-	if config.ReadDynamicConf().CaptchaSecret != "" && config.ReadDynamicConf().CaptchaSiteKey != "" {
+	if dc.CaptchaSecret != "" && dc.CaptchaSiteKey != "" {
 		remoteIp := c.RealIP()
-		if ok, err := utils.VerifyCaptcha(token, remoteIp); err != nil || !ok {
+		if ok, err := utils.VerifyCaptcha(dc.CaptchaSecret, token, remoteIp); err != nil || !ok {
 			return c.JSON(400, _type.H{Code: "warning", Msg: "Captcha verification failed"})
 		}
 	}
@@ -49,7 +50,7 @@ func register(c *echo.Context) error {
 	}
 	if _, err := db.Db.Exec(
 		"INSERT INTO users (username, email, password, salt, verified) VALUES ($1, $2, $3, $4, $5)",
-		username, emailAddress, hashed, signature, !config.ReadDynamicConf().RegistrationVerifyEmail,
+		username, emailAddress, hashed, signature, !dc.RegistrationVerifyEmail,
 	); err != nil {
 		return c.JSON(400, _type.H{Code: "error", Msg: "Registration failed"})
 	}

@@ -11,16 +11,12 @@ import (
 )
 
 func TestSessionBindingOK(t *testing.T) {
-	oldBind := config.DynamicConf.SessionBindIP
-	oldTrust := config.DynamicConf.TrustProxy
-	t.Cleanup(func() {
-		config.DynamicConf.SessionBindIP = oldBind
-		config.DynamicConf.TrustProxy = oldTrust
-	})
+	old := config.ReadDynamicConf()
+	t.Cleanup(func() { config.ReplaceDynamicConf(old) })
 
 	e := echo.New()
 	e.IPExtractor = func(req *http.Request) string {
-		if config.DynamicConf.TrustProxy {
+		if config.ReadDynamicConf().TrustProxy {
 			if v := req.Header.Get("CF-Connecting-IP"); v != "" {
 				return v
 			}
@@ -39,8 +35,10 @@ func TestSessionBindingOK(t *testing.T) {
 		"client_ip":  "203.0.113.10",
 	}}
 
-	config.DynamicConf.TrustProxy = true
-	config.DynamicConf.SessionBindIP = true
+	next := old
+	next.TrustProxy = true
+	next.SessionBindIP = true
+	config.ReplaceDynamicConf(next)
 	req.Header.Set("CF-Connecting-IP", "203.0.113.10")
 	if !SessionBindingOK(c, sess) {
 		t.Fatal("expected client IP match via RealIP")
@@ -52,7 +50,8 @@ func TestSessionBindingOK(t *testing.T) {
 		t.Fatal("expected IP mismatch")
 	}
 
-	config.DynamicConf.SessionBindIP = false
+	next.SessionBindIP = false
+	config.ReplaceDynamicConf(next)
 	if !SessionBindingOK(c, sess) {
 		t.Fatal("expected IP check skipped when disabled")
 	}

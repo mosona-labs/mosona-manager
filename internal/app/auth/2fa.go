@@ -66,7 +66,7 @@ func getTwoFAStatus(c *echo.Context) error {
 		Data: _type.Map{
 			"verified":  user.Verified,
 			"totp":      user.TOTP,
-			"login_2fa": config.DynamicConf.EmailVerifyLogin,
+			"login_2fa": config.ReadDynamicConf().EmailVerifyLogin,
 			"cooling":   cooling - time.Now().Unix(),
 		},
 	})

@@ -45,7 +45,7 @@ func enroll(c *echo.Context) error {
 		})
 	}
 
-	tokenHash := utils.SHA256(token + config.DynamicConf.Token)
+	tokenHash := utils.SHA256(token + config.ReadDynamicConf().Token)
 	serverId, err := db.GetEnrollToken(tokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

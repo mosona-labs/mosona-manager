@@ -53,11 +53,12 @@ func login(c *echo.Context) error {
 			})
 		}
 	}
+	dc := config.ReadDynamicConf()
 	ok, needsRehash, err := passwordhash.Verify(
 		password,
 		user.Password,
 		user.Salt,
-		config.DynamicConf.Token,
+		dc.Token,
 	)
 	if err != nil || !ok {
 		_ = recordLoginFailure(c.Request().Context(), emailKey, ip)
@@ -102,7 +103,7 @@ func login(c *echo.Context) error {
 	}
 	sess.Options = sessionOptions(maxAge)
 
-	if (user.TOTP != nil && *user.TOTP != "") || config.DynamicConf.EmailVerifyLogin || !user.Verified {
+	if (user.TOTP != nil && *user.TOTP != "") || dc.EmailVerifyLogin || !user.Verified {
 		sess.Values["pre_2fa_uid"] = user.ID
 		if err = sess.Save(c.Request(), c.Response()); err != nil {
 			return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
