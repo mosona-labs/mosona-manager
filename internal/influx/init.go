@@ -62,5 +62,6 @@ func Init() {
 		}
 	}
 
+	startAuditLogProcessor()
 	StartDownsample()
 }

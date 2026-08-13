@@ -23,6 +23,7 @@ import (
 	init2 "mosona-manager/internal/app/init"
 	middleware2 "mosona-manager/internal/app/middleware"
 	"mosona-manager/internal/config"
+	"mosona-manager/internal/influx"
 	"mosona-manager/internal/redis"
 	"mosona-manager/internal/runtime"
 	"mosona-manager/internal/utils"
@@ -163,10 +164,25 @@ func Start() {
 		HidePort:        true,
 		GracefulTimeout: 3 * time.Second,
 	}
-	if err := sc.Start(ctx, e); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal("failed to start or shutdown server", "error", err)
+	startErr := sc.Start(ctx, e)
+	shutdownInflux()
+	if startErr != nil && !errors.Is(startErr, http.ErrServerClosed) {
+		log.Fatal("failed to start or shutdown server", "error", startErr)
 	}
 	e.Logger.Info("Server stopped gracefully")
+}
+
+func shutdownInflux() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := influx.ShutdownAuditLogs(ctx); err != nil {
+		stats := influx.CurrentAuditLogQueueStats()
+		log.Printf("Audit log shutdown did not drain fully (written=%d failed=%d dropped=%d): %v", stats.Written, stats.Failed, stats.Dropped, err)
+		return
+	}
+	if influx.Client != nil {
+		influx.Client.Close()
+	}
 }
 
 func serveFrontendIndex(c *echo.Context, frontendFS fs.FS) error {
