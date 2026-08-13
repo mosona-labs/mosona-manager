@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/utils/store"
 	"net/http"
 	"strings"
 	"testing"
@@ -253,6 +254,47 @@ func TestRemoveProviderDoesNotDeleteNewerRevision(t *testing.T) {
 	RemoveProvider(providerID, 4)
 	if _, ok := GetProviders(providerID); ok {
 		t.Fatal("matching delete did not remove provider config")
+	}
+}
+
+func TestRemoveProviderRevokesPendingAuthorizationState(t *testing.T) {
+	const providerID = 906
+	clearTestProvider(providerID)
+	t.Cleanup(func() { clearTestProvider(providerID) })
+
+	InstallProvider(providerID, testProviderConfig("enabled", 3))
+	if _, ok := BeginAuthorization(providerID, "state-disabled"); !ok {
+		t.Fatal("expected enabled provider to start authorization")
+	}
+	RemoveProvider(providerID, 3)
+
+	if store.ConsumeAuthSessionState("state-disabled", providerID, 3, time.Now()) {
+		t.Fatal("disabled provider left pending authorization state active")
+	}
+	if _, ok := BeginAuthorization(providerID, "state-after-disable"); ok {
+		t.Fatal("disabled provider started a new authorization")
+	}
+}
+
+func TestProviderRevisionUpdateRevokesOnlyOlderAuthorizationState(t *testing.T) {
+	const providerID = 907
+	clearTestProvider(providerID)
+	t.Cleanup(func() { clearTestProvider(providerID) })
+
+	InstallProvider(providerID, testProviderConfig("old", 3))
+	if _, ok := BeginAuthorization(providerID, "state-old-revision"); !ok {
+		t.Fatal("expected old provider revision to start authorization")
+	}
+	InstallProvider(providerID, testProviderConfig("new", 4))
+	if store.ConsumeAuthSessionState("state-old-revision", providerID, 3, time.Now()) {
+		t.Fatal("provider update left old authorization state active")
+	}
+	if _, ok := BeginAuthorization(providerID, "state-new-revision"); !ok {
+		t.Fatal("expected new provider revision to start authorization")
+	}
+	RemoveProvider(providerID, 3)
+	if !store.ConsumeAuthSessionState("state-new-revision", providerID, 4, time.Now()) {
+		t.Fatal("stale provider removal revoked newer authorization state")
 	}
 }
 

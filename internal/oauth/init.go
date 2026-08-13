@@ -9,6 +9,7 @@ import (
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/security/oauthprofile"
+	"mosona-manager/internal/utils/store"
 	"net/http"
 	"strings"
 	"sync"
@@ -95,19 +96,28 @@ func Init() {
 
 func mergeProviderSnapshot(tempConfigs map[int]*ProviderConfig, providerRevisions map[int]int64) {
 	providerLock.Lock()
-	defer providerLock.Unlock()
+	revocations := make(map[int]int64)
 	for providerID, revision := range providerRevisions {
 		if _, ok := tempConfigs[providerID]; !ok && deletedRevisions[providerID] < revision {
 			deletedRevisions[providerID] = revision
+			revocations[providerID] = revision
 		}
 	}
 	for providerID, cfg := range tempConfigs {
-		installProviderLocked(providerID, cfg)
+		if installProviderLocked(providerID, cfg) && cfg.ConfigRevision > 1 {
+			if revision := cfg.ConfigRevision - 1; revocations[providerID] < revision {
+				revocations[providerID] = revision
+			}
+		}
 	}
 	for providerID, current := range configs {
 		if _, ok := tempConfigs[providerID]; !ok && current.ConfigRevision <= deletedRevisions[providerID] {
 			delete(configs, providerID)
 		}
+	}
+	providerLock.Unlock()
+	for providerID, revision := range revocations {
+		store.RevokeAuthSessionStates(providerID, revision)
 	}
 }
 
@@ -132,18 +142,22 @@ func InstallProvider(providerID int, cfg *ProviderConfig) {
 	if deletedRevisions[providerID] < cfg.ConfigRevision {
 		delete(deletedRevisions, providerID)
 	}
-	installProviderLocked(providerID, cfg)
+	installed := installProviderLocked(providerID, cfg)
 	providerLock.Unlock()
+	if installed && cfg.ConfigRevision > 1 {
+		store.RevokeAuthSessionStates(providerID, cfg.ConfigRevision-1)
+	}
 }
 
-func installProviderLocked(providerID int, cfg *ProviderConfig) {
+func installProviderLocked(providerID int, cfg *ProviderConfig) bool {
 	if deletedRevisions[providerID] >= cfg.ConfigRevision {
-		return
+		return false
 	}
 	if current, ok := configs[providerID]; ok && current.ConfigRevision >= cfg.ConfigRevision {
-		return
+		return false
 	}
 	configs[providerID] = cfg
+	return true
 }
 
 func BuildProvider(ctx context.Context, provider _type.AuthProvider) (*ProviderConfig, error) {
@@ -316,6 +330,18 @@ func RemoveProvider(providerID int, configRevision int64) {
 		delete(configs, providerID)
 	}
 	providerLock.Unlock()
+	store.RevokeAuthSessionStates(providerID, configRevision)
+}
+
+func BeginAuthorization(providerID int, state string) (*ProviderConfig, bool) {
+	providerLock.RLock()
+	defer providerLock.RUnlock()
+	conf, ok := configs[providerID]
+	if !ok {
+		return nil, false
+	}
+	store.SetAuthSessionState(state, providerID, conf.ConfigRevision)
+	return cloneProviderConfig(conf), true
 }
 
 func GetProviders(providerID int) (*ProviderConfig, bool) {

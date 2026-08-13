@@ -98,7 +98,7 @@ func oauthLink(c *echo.Context) error {
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Session update failed")
 	}
-	if !ok || !store.ConsumeAuthSessionState(state, time.Now()) {
+	if !ok || !store.ConsumeAuthSessionState(state, oauthID, authorizationState.ConfigRevision, time.Now()) {
 		if ok {
 			store.DeleteAuthSessionState(state)
 		}

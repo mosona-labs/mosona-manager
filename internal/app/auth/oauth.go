@@ -26,24 +26,26 @@ func oauthLogin(c *echo.Context) error {
 			Msg:  "Invalid OAuth ID",
 		})
 	}
-	cfg, ok := oauth.GetProviders(oauthID)
+	// Generate state parameter
+	state := utils.RandomString(32)
+	if state == "" {
+		return c.JSON(500, _type.H{Code: "error", Msg: "Failed to generate OAuth state"})
+	}
+	cfg, ok := oauth.BeginAuthorization(oauthID, state)
 	if !ok {
 		return c.JSON(400, _type.H{
 			Code: "invalid",
 			Msg:  "Invalid OAuth provider",
 		})
 	}
-
-	// Generate state parameter
-	state := utils.RandomString(32)
 	nonce := ""
 	if cfg.Protocol == oauth.ProtocolOIDC {
 		nonce = utils.RandomString(32)
+		if nonce == "" {
+			store.DeleteAuthSessionState(state)
+			return c.JSON(500, _type.H{Code: "error", Msg: "Failed to generate OAuth state"})
+		}
 	}
-	if state == "" || (cfg.Protocol == oauth.ProtocolOIDC && nonce == "") {
-		return c.JSON(500, _type.H{Code: "error", Msg: "Failed to generate OAuth state"})
-	}
-	store.SetAuthSessionState(state)
 	if err := utils.SaveOAuthState(c, oauthID, state, nonce, cfg.IdentityNamespaceVersion, cfg.ConfigRevision); err != nil {
 		store.DeleteAuthSessionState(state)
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session save failed"})
@@ -92,7 +94,7 @@ func oauthCallback(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Session update failed"})
 	}
-	if !ok || !store.ConsumeAuthSessionState(state, time.Now()) {
+	if !ok || !store.ConsumeAuthSessionState(state, oauthID, authorizationState.ConfigRevision, time.Now()) {
 		if ok {
 			store.DeleteAuthSessionState(state)
 		}

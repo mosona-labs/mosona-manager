@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -249,7 +250,75 @@ func TestOIDCCallbackRejectsStateFromPreviousIdentityNamespace(t *testing.T) {
 	request.AddCookie(login.Result().Cookies()[0])
 	callback := httptest.NewRecorder()
 	e.ServeHTTP(callback, request)
-	if callback.Code != http.StatusConflict || !strings.Contains(callback.Body.String(), `"code":"identity_namespace_changed"`) {
+	if callback.Code != http.StatusBadRequest || !strings.Contains(callback.Body.String(), "Invalid or expired OAuth state") {
 		t.Fatalf("callback status = %d, body = %s", callback.Code, callback.Body.String())
+	}
+}
+
+func TestDisabledOAuthProviderRejectsDirectURLAndPendingState(t *testing.T) {
+	const providerID = 9
+	provider := &mosonaoauth.ProviderConfig{
+		Config: &oauth2.Config{
+			ClientID: "client-id",
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "https://provider.example/authorize",
+				TokenURL: "https://provider.example/token",
+			},
+		},
+		Protocol:                 mosonaoauth.ProtocolOAuth2,
+		IdentityNamespaceVersion: 1,
+		ConfigRevision:           1,
+	}
+	mosonaoauth.InstallProvider(providerID, provider)
+	t.Cleanup(func() { mosonaoauth.RemoveProvider(providerID, 1<<63-1) })
+
+	e := echo.New()
+	e.Use(session.Middleware(sessions.NewCookieStore([]byte("01234567890123456789012345678901"))))
+	Router(e.Group("/api/auth"))
+
+	login := httptest.NewRecorder()
+	e.ServeHTTP(login, httptest.NewRequest(http.MethodGet, "/api/auth/oauth/9", nil))
+	if login.Code != http.StatusOK {
+		t.Fatalf("login start status = %d, body = %s", login.Code, login.Body.String())
+	}
+	var response struct {
+		Data struct {
+			State string `json:"state"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(login.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Data.State == "" || len(login.Result().Cookies()) == 0 {
+		t.Fatal("login start did not persist OAuth state")
+	}
+
+	mosonaoauth.RemoveProvider(providerID, 1)
+	direct := httptest.NewRecorder()
+	e.ServeHTTP(direct, httptest.NewRequest(http.MethodGet, "/api/auth/oauth/9", nil))
+	if direct.Code != http.StatusBadRequest || !strings.Contains(direct.Body.String(), "Invalid OAuth provider") {
+		t.Fatalf("disabled direct URL status = %d, body = %s", direct.Code, direct.Body.String())
+	}
+
+	provider.ConfigRevision = 2
+	mosonaoauth.InstallProvider(providerID, provider)
+	tokenRequests := 0
+	tokenClient := &http.Client{Transport: callbackRoundTripper(func(request *http.Request) (*http.Response, error) {
+		tokenRequests++
+		return nil, errors.New("token endpoint must not be called for revoked state")
+	})}
+	form := url.Values{"code": {"unused"}, "state": {response.Data.State}}
+	request := httptest.NewRequest(http.MethodPost, "/api/auth/oauth/9", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.AddCookie(login.Result().Cookies()[0])
+	request = request.WithContext(context.WithValue(request.Context(), oauth2.HTTPClient, tokenClient))
+	callback := httptest.NewRecorder()
+	e.ServeHTTP(callback, request)
+
+	if callback.Code != http.StatusBadRequest || !strings.Contains(callback.Body.String(), "Invalid or expired OAuth state") {
+		t.Fatalf("revoked callback status = %d, body = %s", callback.Code, callback.Body.String())
+	}
+	if tokenRequests != 0 {
+		t.Fatalf("revoked callback made %d token requests", tokenRequests)
 	}
 }
