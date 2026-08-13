@@ -1,8 +1,15 @@
 package ws
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 func TestReconnectDelayBackoffAndCap(t *testing.T) {
@@ -25,5 +32,179 @@ func TestReconnectDelayBackoffAndCap(t *testing.T) {
 		if delay < min || delay > max {
 			t.Fatalf("retries=%d delay=%v outside [%v,%v]", tt.retries, delay, min, max)
 		}
+	}
+}
+
+func TestCloseCancelsInitialConnectAndPermanentlyClosesClient(t *testing.T) {
+	client := NewClient()
+	started := make(chan struct{})
+	client.dialContext = func(ctx context.Context, _ string, _ http.Header, _ string) (*websocket.Conn, error) {
+		close(started)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+
+	connectDone := make(chan error, 1)
+	go func() {
+		connectDone <- client.Connect(context.Background(), "ws://example.test")
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("initial dial did not start")
+	}
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-connectDone:
+		if !errors.Is(err, ErrClientClosed) {
+			t.Fatalf("Connect() error = %v, want ErrClientClosed", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Connect did not stop after Close")
+	}
+	if err := client.Connect(context.Background(), "ws://example.test"); !errors.Is(err, ErrClientClosed) {
+		t.Fatalf("Connect() after Close error = %v, want ErrClientClosed", err)
+	}
+}
+
+func TestConcurrentReconnectCallersShareOneDial(t *testing.T) {
+	client := NewClient()
+	client.SetReconnectConfig(1, 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	client.ctx = ctx
+	client.cancel = cancel
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var dials atomic.Int32
+	client.dialContext = func(context.Context, string, http.Header, string) (*websocket.Conn, error) {
+		if dials.Add(1) == 1 {
+			close(started)
+		}
+		<-release
+		return nil, errors.New("dial failed")
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		errs <- client.reconnect(nil)
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("reconnect dial did not start")
+	}
+	wg.Add(1)
+	secondStarted := make(chan struct{})
+	go func() {
+		defer wg.Done()
+		close(secondStarted)
+		errs <- client.reconnect(nil)
+	}()
+	<-secondStarted
+	// Give the caller a scheduling turn to join the in-flight reconnect before
+	// completing that reconnect. The repeated race run below guards this window.
+	time.Sleep(10 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if !errors.Is(err, ErrReconnectExhausted) {
+			t.Fatalf("reconnect() error = %v, want ErrReconnectExhausted", err)
+		}
+	}
+	if got := dials.Load(); got != 1 {
+		t.Fatalf("dial calls = %d, want 1", got)
+	}
+}
+
+func TestCloseCancelsReconnectAndPreventsFurtherDials(t *testing.T) {
+	client := NewClient()
+	client.SetReconnectBackoff(-1, 0, 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	client.ctx = ctx
+	client.cancel = cancel
+
+	started := make(chan struct{})
+	var dials atomic.Int32
+	client.dialContext = func(ctx context.Context, _ string, _ http.Header, _ string) (*websocket.Conn, error) {
+		if dials.Add(1) == 1 {
+			close(started)
+		}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+
+	reconnectDone := make(chan error, 1)
+	go func() {
+		reconnectDone <- client.reconnect(nil)
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("reconnect dial did not start")
+	}
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-reconnectDone:
+		if !errors.Is(err, ErrClientClosed) {
+			t.Fatalf("reconnect() error = %v, want ErrClientClosed", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("reconnect did not stop after Close")
+	}
+	if err := client.reconnect(nil); !errors.Is(err, ErrClientClosed) {
+		t.Fatalf("reconnect() after Close error = %v, want ErrClientClosed", err)
+	}
+	if got := dials.Load(); got != 1 {
+		t.Fatalf("dial calls after Close = %d, want 1", got)
+	}
+}
+
+func TestReconnectExhaustionIsTerminal(t *testing.T) {
+	client := NewClient()
+	client.SetReconnectConfig(1, 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	client.ctx = ctx
+	client.cancel = cancel
+	var dials atomic.Int32
+	client.dialContext = func(context.Context, string, http.Header, string) (*websocket.Conn, error) {
+		dials.Add(1)
+		return nil, errors.New("dial failed")
+	}
+
+	if err := client.reconnect(nil); !errors.Is(err, ErrReconnectExhausted) {
+		t.Fatalf("reconnect() error = %v, want ErrReconnectExhausted", err)
+	}
+	if _, err := client.connection(); !errors.Is(err, ErrReconnectExhausted) {
+		t.Fatalf("connection() error = %v, want ErrReconnectExhausted", err)
+	}
+	if err := client.reconnect(nil); !errors.Is(err, ErrReconnectExhausted) {
+		t.Fatalf("second reconnect() error = %v, want ErrReconnectExhausted", err)
+	}
+	if got := dials.Load(); got != 1 {
+		t.Fatalf("dial calls after exhaustion = %d, want 1", got)
+	}
+}
+
+func TestReadAndWriteAfterCloseReturnClientClosed(t *testing.T) {
+	client := NewClient()
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := client.ReadMessage(); !errors.Is(err, ErrClientClosed) {
+		t.Fatalf("ReadMessage() error = %v, want ErrClientClosed", err)
+	}
+	if err := client.SendMessage(websocket.BinaryMessage, nil); !errors.Is(err, ErrClientClosed) {
+		t.Fatalf("SendMessage() error = %v, want ErrClientClosed", err)
 	}
 }

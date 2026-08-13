@@ -90,7 +90,9 @@ func Run() {
 	for {
 		msgType, data, err := client.ReadMessage()
 		if err != nil {
-			continue
+			_ = client.Close()
+			log.Println("Passive agent connection ended:", err)
+			return
 		}
 
 		if msgType == websocket.BinaryMessage {
