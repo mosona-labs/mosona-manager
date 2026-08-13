@@ -7,12 +7,11 @@ import (
 )
 
 type alertItemRule struct {
-	label           string
-	description     string
-	threshold       _type.AlertFieldConfig
-	forDuration     _type.AlertFieldConfig
-	notifyOnce      bool
-	normalizeConfig func(threshold, forDuration int) (int, int, error)
+	label       string
+	description string
+	threshold   _type.AlertFieldConfig
+	forDuration _type.AlertFieldConfig
+	notifyOnce  bool
 }
 
 var alertItemRules = map[string]alertItemRule{
@@ -64,12 +63,6 @@ var alertItemRules = map[string]alertItemRule{
 		threshold:   _type.AlertFieldConfig{Enabled: true, Min: 1, Max: 7, Default: 3, Unit: "day"},
 		forDuration: _type.AlertFieldConfig{Enabled: false},
 		notifyOnce:  true,
-		normalizeConfig: func(threshold, _ int) (int, int, error) {
-			if threshold < 1 || threshold > 7 {
-				return 0, 0, ErrAlertInvalidConfig
-			}
-			return threshold, 0, nil
-		},
 	},
 }
 
@@ -82,10 +75,25 @@ func normalizeAlertConfig(item string, threshold, forDuration int) (int, int, er
 	if !ok {
 		return 0, 0, ErrAlertNotFound
 	}
-	if rule.normalizeConfig != nil {
-		return rule.normalizeConfig(threshold, forDuration)
+	threshold, err := normalizeAlertField(threshold, rule.threshold)
+	if err != nil {
+		return 0, 0, err
+	}
+	forDuration, err = normalizeAlertField(forDuration, rule.forDuration)
+	if err != nil {
+		return 0, 0, err
 	}
 	return threshold, forDuration, nil
+}
+
+func normalizeAlertField(value int, config _type.AlertFieldConfig) (int, error) {
+	if !config.Enabled {
+		return 0, nil
+	}
+	if value < config.Min || value > config.Max {
+		return 0, ErrAlertInvalidConfig
+	}
+	return value, nil
 }
 
 func AlertItemConfigs() []_type.AlertItemConfig {
