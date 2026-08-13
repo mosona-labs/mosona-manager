@@ -52,8 +52,12 @@ func TestMigrateEncryptedCredentialsCommitsLegacyRows(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	if err := MigrateEncryptedCredentials(); err != nil {
+	report, err := MigrateEncryptedCredentials()
+	if err != nil {
 		t.Fatal(err)
+	}
+	if len(report.Failures) != 0 {
+		t.Fatalf("unexpected failures: %#v", report.Failures)
 	}
 }
 
@@ -77,12 +81,16 @@ func TestMigrateEncryptedCredentialsSkipsCurrentAndEmptyRows(t *testing.T) {
 			AddRow(int64(9), []byte{}))
 	mock.ExpectCommit()
 
-	if err := MigrateEncryptedCredentials(); err != nil {
+	report, err := MigrateEncryptedCredentials()
+	if err != nil {
 		t.Fatal(err)
+	}
+	if len(report.Failures) != 0 {
+		t.Fatalf("unexpected failures: %#v", report.Failures)
 	}
 }
 
-func TestMigrateEncryptedCredentialsRollsBackOnInvalidCiphertext(t *testing.T) {
+func TestMigrateEncryptedCredentialsReportsInvalidCiphertextAndCommits(t *testing.T) {
 	mock := setEncryptionMigrationMockDB(t)
 	previousKey := encrypt.Key
 	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
@@ -92,10 +100,20 @@ func TestMigrateEncryptedCredentialsRollsBackOnInvalidCiphertext(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, content, password FROM keys ORDER BY id FOR UPDATE")).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "content", "password"}).
 			AddRow(int64(7), []byte("invalid"), nil))
-	mock.ExpectRollback()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}))
+	mock.ExpectCommit()
 
-	if err := MigrateEncryptedCredentials(); err == nil {
-		t.Fatal("migration accepted invalid ciphertext")
+	report, err := MigrateEncryptedCredentials()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Failures) != 1 {
+		t.Fatalf("failures = %#v, want one", report.Failures)
+	}
+	failure := report.Failures[0]
+	if failure.Table != "keys" || failure.RecordID != 7 || failure.Field != "content" || failure.Err == nil {
+		t.Fatalf("failure = %#v", failure)
 	}
 }
 
@@ -129,12 +147,53 @@ func TestMigrateEncryptedCredentialsRollsBackOnDatabaseError(t *testing.T) {
 		WillReturnError(want)
 	mock.ExpectRollback()
 
-	if err := MigrateEncryptedCredentials(); !errors.Is(err, want) {
+	_, err := MigrateEncryptedCredentials()
+	if !errors.Is(err, want) {
 		t.Fatalf("error = %v, want %v", err, want)
 	}
 }
 
-func TestMigrateEncryptedCredentialsRollsBackAfterEarlierUpdate(t *testing.T) {
+func TestMigrateEncryptedCredentialsRollsBackOnUpdateError(t *testing.T) {
+	mock := setEncryptionMigrationMockDB(t)
+	key := bytes.Repeat([]byte{0x42}, 32)
+	previousKey := encrypt.Key
+	encrypt.Key = key
+	t.Cleanup(func() { encrypt.Key = previousKey })
+	want := errors.New("update failed")
+	legacyContent := legacyCiphertextForMigrationTest(t, []byte("private-key"), key)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, content, password FROM keys ORDER BY id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "content", "password"}).
+			AddRow(int64(7), legacyContent, nil))
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE keys SET content = $1, password = $2 WHERE id = $3")).
+		WithArgs(sqlmock.AnyArg(), nil, int64(7)).
+		WillReturnError(want)
+	mock.ExpectRollback()
+
+	_, err := MigrateEncryptedCredentials()
+	if !errors.Is(err, want) {
+		t.Fatalf("error = %v, want %v", err, want)
+	}
+}
+
+func TestMigrateEncryptedCredentialsReturnsCommitError(t *testing.T) {
+	mock := setEncryptionMigrationMockDB(t)
+	want := errors.New("commit failed")
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, content, password FROM keys ORDER BY id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "content", "password"}))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}))
+	mock.ExpectCommit().WillReturnError(want)
+
+	_, err := MigrateEncryptedCredentials()
+	if !errors.Is(err, want) {
+		t.Fatalf("error = %v, want %v", err, want)
+	}
+}
+
+func TestMigrateEncryptedCredentialsCommitsEarlierUpdateAndReportsBadSSHRow(t *testing.T) {
 	mock := setEncryptionMigrationMockDB(t)
 	key := bytes.Repeat([]byte{0x42}, 32)
 	previousKey := encrypt.Key
@@ -152,10 +211,45 @@ func TestMigrateEncryptedCredentialsRollsBackAfterEarlierUpdate(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
 		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}).
 			AddRow(int64(9), []byte("invalid")))
-	mock.ExpectRollback()
+	mock.ExpectCommit()
 
-	if err := MigrateEncryptedCredentials(); err == nil {
-		t.Fatal("migration accepted invalid SSH ciphertext after updating a key")
+	report, err := MigrateEncryptedCredentials()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Failures) != 1 || report.Failures[0].Table != "ssh" || report.Failures[0].RecordID != 9 {
+		t.Fatalf("failures = %#v", report.Failures)
+	}
+}
+
+func TestMigrateEncryptedCredentialsMigratesHealthyFieldBesideBadField(t *testing.T) {
+	mock := setEncryptionMigrationMockDB(t)
+	key := bytes.Repeat([]byte{0x42}, 32)
+	previousKey := encrypt.Key
+	encrypt.Key = key
+	t.Cleanup(func() { encrypt.Key = previousKey })
+	legacyPassword := legacyCiphertextForMigrationTest(t, []byte("key-password"), key)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, content, password FROM keys ORDER BY id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "content", "password"}).
+			AddRow(int64(7), []byte("invalid"), legacyPassword))
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE keys SET content = $1, password = $2 WHERE id = $3")).
+		WithArgs([]byte("invalid"), authenticatedCiphertextMatcher{
+			plaintext: []byte("key-password"),
+			context:   encrypt.KeyPasswordContext(7),
+		}, int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}))
+	mock.ExpectCommit()
+
+	report, err := MigrateEncryptedCredentials()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Failures) != 1 || report.Failures[0].Field != "content" {
+		t.Fatalf("failures = %#v", report.Failures)
 	}
 }
 

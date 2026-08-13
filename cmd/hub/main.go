@@ -52,8 +52,15 @@ func initApp() {
 		log.Fatalln("Initialize encryption key error:", err)
 	}
 	log.Printf("Encryption key loaded from %s", keyPath)
-	if err := db.MigrateEncryptedCredentials(); err != nil {
+	migrationReport, err := db.MigrateEncryptedCredentials()
+	if err != nil {
 		log.Fatalln("Migrate encrypted credentials error:", err)
+	}
+	for _, failure := range migrationReport.Failures {
+		log.Printf(
+			"WARNING: skipped unreadable encrypted credential table=%s record_id=%d field=%s error=%v; replace or delete this credential",
+			failure.Table, failure.RecordID, failure.Field, failure.Err,
+		)
 	}
 	influx.Init() // InfluxDB
 	redis.Init()  // Redis
