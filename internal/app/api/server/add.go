@@ -127,6 +127,7 @@ func add(c *echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+	defer func() { _ = tx.Rollback() }()
 	var serverId int64
 	if err = tx.QueryRow(`INSERT INTO servers (team_id, name, type, category, allow_monitor, allow_terminal, weight) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
 		tid, name, mode, categoryId, allowMonitor, allowTerminal, weight,

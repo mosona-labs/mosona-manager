@@ -29,6 +29,7 @@ func UpdateNotificationsByTeamId(ctx context.Context, teamID int64, notification
 	if err != nil {
 		return err
 	}
+	defer func() { _ = tx.Rollback() }()
 	_, err = tx.Exec("DELETE FROM teams_notifications WHERE team_id=$1", teamID)
 	if err != nil {
 		_ = tx.Rollback()

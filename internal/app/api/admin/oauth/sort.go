@@ -21,6 +21,7 @@ func sort(c *echo.Context) error {
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
+	defer func() { _ = tx.Rollback() }()
 
 	for index, id := range req {
 		_, err = tx.Exec(

@@ -30,6 +30,7 @@ func set(c *echo.Context) error {
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
+	defer func() { _ = tx.Rollback() }()
 
 	stmt := `INSERT INTO config (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2`
 	for _, item := range *req {

@@ -75,6 +75,7 @@ func enroll(c *echo.Context) error {
 			Msg:  "Database error",
 		})
 	}
+	defer func() { _ = tx.Rollback() }()
 
 	agentUID, _ := uuid.NewUUID()
 	if _, err = tx.Exec(

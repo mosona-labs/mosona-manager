@@ -154,6 +154,7 @@ func UpsertTeamAlert(teamId int64, item string, threshold, forDuration int, over
 	if err != nil {
 		return 0, err
 	}
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.Exec(`
   INSERT INTO team_alerts (team_id, item, threshold, for_duration)
@@ -243,6 +244,7 @@ func DeleteTeamAlert(teamId int64, item string, override bool) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer func() { _ = tx.Rollback() }()
 
 	var data _type.ServerAlert
 	if !override {

@@ -26,6 +26,7 @@ func AutoRenew() {
 		log.Println("auto_renew:", err)
 		return
 	}
+	defer func() { _ = tx.Rollback() }()
 	for _, v := range data {
 		var newEndTime time.Time
 		switch v.Cycle {

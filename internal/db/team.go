@@ -121,6 +121,7 @@ func CreateTeam(
 	if err != nil {
 		return 0, err
 	}
+	defer func() { _ = tx.Rollback() }()
 
 	var teamId int64
 	if err = tx.QueryRow(

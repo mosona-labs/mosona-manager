@@ -93,25 +93,31 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 			return err
 		}
 
-		tx, err := Db.Beginx()
-		if err != nil {
+		if err = applyMigration(version, sqlBytes); err != nil {
 			return err
-		}
-		if _, err = tx.Exec(string(sqlBytes)); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("apply migration %s: %w", version, err)
-		}
-		if _, err = tx.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", version); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("record migration %s: %w", version, err)
-		}
-		if err = tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %s: %w", version, err)
 		}
 
 		log.Printf("Applied Postgres migration: %s", version)
 	}
 
+	return nil
+}
+
+func applyMigration(version string, sqlBytes []byte) error {
+	tx, err := Db.Beginx()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err = tx.Exec(string(sqlBytes)); err != nil {
+		return fmt.Errorf("apply migration %s: %w", version, err)
+	}
+	if _, err = tx.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", version); err != nil {
+		return fmt.Errorf("record migration %s: %w", version, err)
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit migration %s: %w", version, err)
+	}
 	return nil
 }
 

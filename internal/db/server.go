@@ -65,6 +65,7 @@ func EditServer(teamId, serverId int64, typ int16, data *_type.ServerFullType) e
 	if err != nil {
 		return err
 	}
+	defer func() { _ = tx.Rollback() }()
 
 	// Main
 	psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)

@@ -114,11 +114,7 @@ func updateRuleStatus(queue []alertRuleUpdate) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.Prepare("UPDATE server_alerts SET last_status = $1, last_notify_at = $2 WHERE id = $3")
 	if err != nil {

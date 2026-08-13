@@ -46,6 +46,7 @@ func initialize(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(500, _type.H{Code: "error", Msg: "Database error"})
 	}
+	defer func() { _ = tx.Rollback() }()
 
 	signature := utils.RandomString(32)
 	hashed, hashErr := passwordhash.Hash(password)

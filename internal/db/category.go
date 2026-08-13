@@ -37,13 +37,13 @@ func DeleteCategory(teamId, categoryId int64) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = tx.Rollback() }()
 
 	var defaultCategoryId int64
-	if err = Db.Get(
-		&defaultCategoryId,
+	if err = tx.QueryRow(
 		"SELECT id FROM categories WHERE team = $1 ORDER BY id LIMIT 1",
 		teamId,
-	); err != nil {
+	).Scan(&defaultCategoryId); err != nil {
 		return err
 	}
 	if defaultCategoryId == categoryId {
@@ -60,7 +60,7 @@ func DeleteCategory(teamId, categoryId int64) error {
 	}
 
 	// Delete category
-	if _, err = Db.Exec("DELETE FROM categories WHERE id = $1 AND team = $2", categoryId, teamId); err != nil {
+	if _, err = tx.Exec("DELETE FROM categories WHERE id = $1 AND team = $2", categoryId, teamId); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
@@ -87,6 +87,7 @@ func SortCategories(teamId int64, categoryIds []int64) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = tx.Rollback() }()
 	for index, categoryId := range categoryIds {
 		if _, err = tx.Exec(
 			"UPDATE categories SET sort = $1 WHERE id = $2 AND team = $3",

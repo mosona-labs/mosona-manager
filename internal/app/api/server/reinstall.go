@@ -44,6 +44,7 @@ func reinstall(c *echo.Context) error {
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
+	defer func() { _ = tx.Rollback() }()
 
 	var response _type.Map
 
