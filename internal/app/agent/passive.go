@@ -1,11 +1,13 @@
 package agent
 
 import (
+	"context"
 	"log"
 	agentTypes "mosona-manager/agent/types"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/app/agent/connection"
 	"mosona-manager/internal/connect/callback"
+	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/pkg/httporigin"
 	"mosona-manager/pkg/wsutil"
@@ -75,13 +77,15 @@ func passiveWS(c *echo.Context) error {
 		log.Println("upgrade:", err)
 		return err
 	}
-	defer func() {
-		connection.MainRemove(serverId)
-
-		_ = ws.Close()
-	}()
-
 	mainConn := connection.MainSet(serverId, ws)
+	defer func() {
+		connection.MainRemove(serverId, mainConn)
+		mainConn.Close()
+	}()
+	monitoringEnabled, err := db.IsPassiveServerMonitoringEnabled(serverId)
+	if err != nil || !monitoringEnabled {
+		return nil
+	}
 
 	wsutil.StartPing(c.Request().Context(), ws, mainConn.WriteMutex(), "passive agent ping")
 
@@ -95,26 +99,30 @@ func passiveWS(c *echo.Context) error {
 		if err = msgpack.Unmarshal(msg, &data); err != nil {
 			continue
 		}
-
-		if err = influx.AddServerStatus(serverId, _type.ServerStatusType{
-			CPU:           data.CPU,
-			MemTotalMB:    data.MemTotalMB,
-			MemUsedMB:     data.MemUsedMB,
-			SwapTotalMB:   data.SwapTotalMB,
-			SwapUsedMB:    data.SwapUsedMB,
-			Disks:         agentDisksToServerDisks(data.Disks),
-			DiskReadKibS:  data.DiskReadKibS,
-			DiskWriteKibS: data.DiskWriteKibS,
-			DiskReadIOPS:  data.DiskReadIOPS,
-			DiskWriteIOPS: data.DiskWriteIOPS,
-			RxKibS:        data.RxKibS,
-			TxKibS:        data.TxKibS,
-			RxTotalMB:     data.RxTotalMB,
-			TxTotalMB:     data.TxTotalMB,
-			TCPTotal:      data.TCPTotal,
-			UDPTotal:      data.UDPTotal,
-			Time:          time.Now(),
-		}); err != nil {
+		if !mainConn.WhileOpen(func(ctx context.Context) {
+			err = influx.AddServerStatusContext(ctx, serverId, _type.ServerStatusType{
+				CPU:           data.CPU,
+				MemTotalMB:    data.MemTotalMB,
+				MemUsedMB:     data.MemUsedMB,
+				SwapTotalMB:   data.SwapTotalMB,
+				SwapUsedMB:    data.SwapUsedMB,
+				Disks:         agentDisksToServerDisks(data.Disks),
+				DiskReadKibS:  data.DiskReadKibS,
+				DiskWriteKibS: data.DiskWriteKibS,
+				DiskReadIOPS:  data.DiskReadIOPS,
+				DiskWriteIOPS: data.DiskWriteIOPS,
+				RxKibS:        data.RxKibS,
+				TxKibS:        data.TxKibS,
+				RxTotalMB:     data.RxTotalMB,
+				TxTotalMB:     data.TxTotalMB,
+				TCPTotal:      data.TCPTotal,
+				UDPTotal:      data.UDPTotal,
+				Time:          time.Now(),
+			})
+		}) {
+			return nil
+		}
+		if err != nil {
 			log.Println("Failed to add server status:", err)
 		}
 	}

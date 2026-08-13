@@ -66,7 +66,7 @@ func Connect(
 		privKey:  &privateKey,
 	}
 
-	if err := a.getInformation(); err != nil {
+	if err := a.getInformation(ctx); err != nil {
 		return err
 	}
 
@@ -74,19 +74,18 @@ func Connect(
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = client.Close()
-	}()
-
 	sc, err := secureWS.NewSessionCrypto(
 		secureWS.RoleHub, a.xAgentPubKey, a.xHubPrivKey, a.hubNonce, a.agentNonce,
 	)
 	if err != nil {
+		_ = client.Close()
 		return err
 	}
 
 	// Read loop
+	readDone := make(chan struct{})
 	go func() {
+		defer close(readDone)
 		for {
 			select {
 			case <-ctx.Done():
@@ -108,7 +107,7 @@ func Connect(
 				continue
 			}
 
-			if err = influx.AddServerStatus(serverId, _type.ServerStatusType{
+			if err = influx.AddServerStatusContext(ctx, serverId, _type.ServerStatusType{
 				CPU:           state.CPU,
 				MemTotalMB:    state.MemTotalMB,
 				MemUsedMB:     state.MemUsedMB,
@@ -130,6 +129,10 @@ func Connect(
 				log.Println("Failed to add server status:", err)
 			}
 		}
+	}()
+	defer func() {
+		_ = client.Close()
+		<-readDone
 	}()
 
 	// Ping

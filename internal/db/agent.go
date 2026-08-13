@@ -7,11 +7,20 @@ func GetEnrollToken(hash string) (int64, error) {
 }
 
 func GetPassiveAgentPublicKey(agentUID string) (int64, string, error) {
+	return getPassiveAgentPublicKey(agentUID, false)
+}
+
+func GetPassiveMonitoringAgentPublicKey(agentUID string) (int64, string, error) {
+	return getPassiveAgentPublicKey(agentUID, true)
+}
+
+func getPassiveAgentPublicKey(agentUID string, requireMonitoring bool) (int64, string, error) {
 	var serverId int64
 	var publicKey string
-	err := Db.QueryRow(
-		"SELECT server_id, public_key FROM agents a LEFT JOIN servers s ON a.server_id = s.id WHERE s.type = 2 AND agent_uid = $1",
-		agentUID,
-	).Scan(&serverId, &publicKey)
+	query := "SELECT server_id, public_key FROM agents a JOIN servers s ON a.server_id = s.id WHERE s.type = 2 AND agent_uid = $1"
+	if requireMonitoring {
+		query += " AND s.allow_monitor = true"
+	}
+	err := Db.QueryRow(query, agentUID).Scan(&serverId, &publicKey)
 	return serverId, publicKey, err
 }

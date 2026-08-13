@@ -198,3 +198,12 @@ func IsServerExists(teamId, serverId int64) (bool, error) {
 	).Scan(&exists)
 	return exists, err
 }
+
+func IsPassiveServerMonitoringEnabled(serverID int64) (bool, error) {
+	var enabled bool
+	err := Db.QueryRow(
+		"SELECT type = 2 AND allow_monitor FROM servers WHERE id = $1",
+		serverID,
+	).Scan(&enabled)
+	return enabled, err
+}

@@ -108,15 +108,18 @@ func reinstall(c *echo.Context) error {
 		}
 	}
 
+	conn.StopServer(id)
 	if err = tx.Commit(); err != nil {
+		_ = conn.ReconcileServer(id)
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
-	go func() {
-		if err = conn.StartServer(id, int16(mode)); err != nil {
-			fmt.Println("Failed to start server connection:", err)
-		}
-	}()
+	// Close any passive connection that authenticated against the old agent row
+	// between the pre-commit stop and the transaction becoming visible.
+	conn.StopServer(id)
+	if reconcileErr := conn.ReconcileServer(id); reconcileErr != nil {
+		fmt.Println("Failed to reconcile server connection:", reconcileErr)
+	}
 
 	// Log action
 	influx.LogAdd(

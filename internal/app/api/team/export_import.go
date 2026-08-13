@@ -222,11 +222,18 @@ func importTeam(c *echo.Context) error {
 		}
 		return utils.ErrorHandler(c, err, "Failed to import team data")
 	}
-	if err = siteaccess.Refresh(); err != nil {
-		return utils.ErrorHandler(c, err, "Failed to refresh site access cache")
-	}
 	for _, serverID := range oldServers {
 		conn.StopServer(serverID)
+	}
+	defer func() {
+		for _, server := range newServers {
+			if reconcileErr := conn.ReconcileServer(server.id); reconcileErr != nil {
+				log.Println("Failed to reconcile imported server connection:", reconcileErr)
+			}
+		}
+	}()
+	if err = siteaccess.Refresh(); err != nil {
+		return utils.ErrorHandler(c, err, "Failed to refresh site access cache")
 	}
 	for _, serverID := range oldServers {
 		if err = influx.RemoveServerStatus(serverID); err != nil {
@@ -237,14 +244,6 @@ func importTeam(c *echo.Context) error {
 		if err = influx.RemoveServerStatus(server.id); err != nil {
 			return utils.ErrorHandler(c, err, "Failed to clear server status from InfluxDB")
 		}
-		if !server.allowMonitor {
-			continue
-		}
-		go func(serverID int64, mode int16) {
-			if err := conn.StartServer(serverID, mode); err != nil {
-				log.Println("Failed to start imported server connection:", err)
-			}
-		}(server.id, server.mode)
 	}
 	influx.LogAdd(tid, c.Get("uid").(int64), "team", "Import Team Configuration", c.RealIP(), c.Request().UserAgent(), "high")
 
@@ -495,9 +494,7 @@ func exportServerConnection(server *teamExportServer) error {
 }
 
 type importedServerRuntime struct {
-	id           int64
-	mode         int16
-	allowMonitor bool
+	id int64
 }
 
 func applyTeamImport(teamID int64, data teamExportBundle) ([]int64, []importedServerRuntime, error) {
@@ -742,9 +739,7 @@ func importServers(tx *sqlx.Tx, teamID int64, servers []teamExportServer, catego
 			}
 		}
 		imported = append(imported, importedServerRuntime{
-			id:           newServerID,
-			mode:         server.Type,
-			allowMonitor: server.AllowMonitor,
+			id: newServerID,
 		})
 	}
 	return imported, nil

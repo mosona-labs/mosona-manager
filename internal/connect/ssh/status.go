@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +17,7 @@ import (
 
 var errStatusMonitorEnded = errors.New("ssh status monitor ended unexpectedly")
 
-func status(client *ssh.Client, serverId int64) error {
+func status(ctx context.Context, client *ssh.Client, serverId int64) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -43,7 +44,7 @@ func status(client *ssh.Client, serverId int64) error {
 			if err := json.Unmarshal([]byte(stdoutScanner.Text()), &data); err != nil {
 				continue
 			}
-			if err := influx.AddServerStatus(serverId, data); err != nil {
+			if err := influx.AddServerStatusContext(ctx, serverId, data); err != nil {
 				log.Println("Failed to add server status:", err)
 			}
 		}

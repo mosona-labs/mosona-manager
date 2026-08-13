@@ -2,7 +2,9 @@ package aserver
 
 import (
 	"fmt"
+	"log"
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/connect/conn"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
@@ -32,13 +34,15 @@ func del(c *echo.Context) error {
 			Msg:  "Server not found",
 		})
 	}
-
-	if err := influx.RemoveServerStatus(serverId); err != nil {
-		return utils.ErrorHandler(c, err, "Failed to remove server status from InfluxDB")
-	}
+	conn.StopServer(serverId)
 
 	if err := db.DeleteServer(tid, serverId); err != nil {
+		_ = conn.ReconcileServer(serverId)
 		return utils.ErrorHandler(c, err, "Failed to delete server")
+	}
+	conn.StopServer(serverId)
+	if err := influx.RemoveServerStatus(serverId); err != nil {
+		log.Printf("failed to remove deleted server %d status from InfluxDB: %v", serverId, err)
 	}
 
 	// Log action

@@ -94,7 +94,7 @@ func SSH(
 				}); err != nil {
 					return err
 				}
-				if err = status(client, serverId); err != nil {
+				if err = status(connCtx, client, serverId); err != nil {
 					return err
 				}
 			}

@@ -7,7 +7,7 @@ import (
 )
 
 func Init() {
-	rows, err := db.Db.Query("SELECT id, type FROM servers WHERE type <> 2 AND allow_monitor = true")
+	rows, err := db.Db.Query("SELECT id FROM servers WHERE type <> 2 AND allow_monitor = true")
 	if err != nil {
 		log.Fatalln("Failed to load monitor servers:", err)
 	}
@@ -19,21 +19,16 @@ func Init() {
 
 	for rows.Next() {
 		var serverId int64
-		var serverType int16
-		if err = rows.Scan(&serverId, &serverType); err != nil {
+		if err = rows.Scan(&serverId); err != nil {
 			log.Println("Failed to scan server row:", err)
 			continue
 		}
 		semaphore <- struct{}{}
-		go func(id int64, typ int16) {
+		go func(id int64) {
 			defer func() { <-semaphore }()
-			for {
-				if err := conn.StartServer(id, typ); err != nil {
-					log.Printf("Failed to start monitoring for server %d: %v\n", id, err)
-				} else {
-					break
-				}
+			if err := conn.ReconcileServer(id); err != nil {
+				log.Printf("Failed initial monitoring reconciliation for server %d: %v", id, err)
 			}
-		}(serverId, serverType)
+		}(serverId)
 	}
 }

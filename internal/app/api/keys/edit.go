@@ -58,8 +58,8 @@ func edit(c *echo.Context) error {
 			if err = rows.Scan(&sid); err != nil {
 				return
 			}
-			if err = conn.StartServer(sid, 0); err != nil {
-				fmt.Println("Failed to restart server connection:", err)
+			if reconcileErr := conn.ReconcileServer(sid); reconcileErr != nil {
+				fmt.Println("Failed to restart server connection:", reconcileErr)
 			}
 		}
 	}()

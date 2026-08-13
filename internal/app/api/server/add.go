@@ -252,14 +252,14 @@ func add(c *echo.Context) error {
 	}
 
 	if err = influx.RemoveServerStatus(serverId); err != nil {
+		if reconcileErr := conn.ReconcileServer(serverId); reconcileErr != nil {
+			log.Println("Failed to reconcile new server connection:", reconcileErr)
+		}
 		return utils.ErrorHandler(c, err, "Failed to clear server status from InfluxDB")
 	}
-
-	go func() {
-		if err = conn.StartServer(serverId, int16(mode)); err != nil {
-			log.Println("Failed to start server connection:", err)
-		}
-	}()
+	if reconcileErr := conn.ReconcileServer(serverId); reconcileErr != nil {
+		log.Println("Failed to reconcile new server connection:", reconcileErr)
+	}
 
 	// Log action
 	influx.LogAdd(

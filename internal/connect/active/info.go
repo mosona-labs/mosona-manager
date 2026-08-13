@@ -1,6 +1,7 @@
 package active
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -22,7 +23,7 @@ type infoResponse struct {
 	Version   string `json:"version"`
 }
 
-func (a *auth) getInformation() error {
+func (a *auth) getInformation(ctx context.Context) error {
 	nonceBytes := make([]byte, 16)
 	if _, err := rand.Read(nonceBytes); err != nil {
 		return err
@@ -36,7 +37,8 @@ func (a *auth) getInformation() error {
 	}
 
 	var info infoResponse
-	if err = utils.PostForm(
+	if err = utils.PostFormContext(
+		ctx,
 		fmt.Sprintf("http://%s:%d/api/info", a.host, a.port),
 		map[string]interface{}{},
 		map[string]string{

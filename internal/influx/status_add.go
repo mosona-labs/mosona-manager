@@ -12,6 +12,12 @@ import (
 )
 
 func AddServerStatus(serverId int64, status _type.ServerStatusType) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return AddServerStatusContext(ctx, serverId, status)
+}
+
+func AddServerStatusContext(ctx context.Context, serverId int64, status _type.ServerStatusType) error {
 	disksJSON, _ := json.Marshal(status.Disks)
 
 	point := influxdb2.NewPoint(
@@ -40,5 +46,5 @@ func AddServerStatus(serverId int64, status _type.ServerStatusType) error {
 		time.Now(),
 	)
 	writeAPI := Client.WriteAPIBlocking(config.Conf.InfluxDBOrg, "server_status_raw")
-	return writeAPI.WritePoint(context.Background(), point)
+	return writeAPI.WritePoint(ctx, point)
 }

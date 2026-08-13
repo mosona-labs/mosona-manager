@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,13 +13,18 @@ import (
 )
 
 func PostForm(urlStr string, data map[string]interface{}, headers map[string]string, res any) error {
+	return PostFormContext(context.Background(), urlStr, data, headers, res)
+}
+
+func PostFormContext(ctx context.Context, urlStr string, data map[string]interface{}, headers map[string]string, res any) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	formData := make(url.Values)
 	for k, v := range data {
 		formData.Set(k, fmt.Sprint(v))
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	req, err := http.NewRequest("POST", urlStr, strings.NewReader(formData.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlStr, strings.NewReader(formData.Encode()))
 	if err != nil {
 		return err
 	}
@@ -29,7 +35,7 @@ func PostForm(urlStr string, data map[string]interface{}, headers map[string]str
 	}
 	req.Header.Set("User-Agent", "mosona-manager-hub/"+runtime.Version)
 
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

@@ -65,7 +65,15 @@ func edit(c *echo.Context) error {
 		hostKeyChanged = validation.Changed
 	}
 
+	if !data.AllowMonitor {
+		conn.StopServer(serverId)
+	}
 	if err := db.EditServer(tid, serverId, typ, &data); err != nil {
+		if !data.AllowMonitor && lastAllowMonitor {
+			if reconcileErr := conn.ReconcileServer(serverId); reconcileErr != nil {
+				log.Println("Failed to restore server connection:", reconcileErr)
+			}
+		}
 		if errors.Is(err, db.ErrServerCategoryNotFound) {
 			return c.JSON(400, _type.H{
 				Code: "invalid_category",
@@ -81,15 +89,8 @@ func edit(c *echo.Context) error {
 		return utils.ErrorHandler(c, err, "Failed to edit server")
 	}
 
-	// Handle monitoring service
-	if typ != 1 && data.AllowMonitor {
-		go func() {
-			if err := conn.StartServer(serverId, typ); err != nil {
-				log.Println("Failed to start server connection:", err)
-			}
-		}()
-	} else if lastAllowMonitor != data.AllowMonitor && !data.AllowMonitor {
-		conn.StopServer(serverId)
+	if reconcileErr := conn.ReconcileServer(serverId); reconcileErr != nil {
+		log.Println("Failed to reconcile server connection:", reconcileErr)
 	}
 
 	// Log action
