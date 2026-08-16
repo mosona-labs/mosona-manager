@@ -3,6 +3,7 @@ package aserver
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -26,6 +27,10 @@ func setupReinstallTest(t *testing.T) sqlmock.Sqlmock {
 	}
 	oldDB := db.Db
 	db.Db = sqlx.NewDb(database, "sqlmock")
+	oldStopServer := reinstallStopServer
+	oldReconcileServer := reinstallReconcileServer
+	reinstallStopServer = func(int64) {}
+	reinstallReconcileServer = func(int64) error { return nil }
 	oldDynamicConf := config.ReadDynamicConf()
 	nextDynamicConf := oldDynamicConf
 	nextDynamicConf.Token = "test-token-salt"
@@ -34,6 +39,8 @@ func setupReinstallTest(t *testing.T) sqlmock.Sqlmock {
 	t.Cleanup(func() {
 		config.ReplaceDynamicConf(oldDynamicConf)
 		db.Db = oldDB
+		reinstallStopServer = oldStopServer
+		reinstallReconcileServer = oldReconcileServer
 		_ = database.Close()
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Errorf("unmet SQL expectations: %v", err)
@@ -134,6 +141,7 @@ func TestReinstallRejectsMissingOrIncompatibleServer(t *testing.T) {
 func TestReinstallActiveReplacesAgentStateAtomically(t *testing.T) {
 	mock := setupReinstallTest(t)
 	auditCalls := captureReinstallAuditCalls(t)
+	stopCalls, reconcileCalls := captureReinstallLifecycleCalls(t, mock)
 	expectLockedServerType(mock, 1)
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE servers SET type = $1, updated_at = now() WHERE id = $2 AND team_id = $3")).
 		WithArgs(1, int64(91), int64(7)).
@@ -148,9 +156,6 @@ func TestReinstallActiveReplacesAgentStateAtomically(t *testing.T) {
 		WithArgs(int64(91), sqlmock.AnyArg(), 0, "agent.example.com", 443, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT type, allow_monitor FROM servers WHERE id = $1")).
-		WithArgs(int64(91)).
-		WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(1, false))
 
 	rec := serveReinstall(t, url.Values{
 		"mode":    {"1"},
@@ -166,6 +171,9 @@ func TestReinstallActiveReplacesAgentStateAtomically(t *testing.T) {
 	}
 	if *auditCalls != 1 {
 		t.Fatalf("audit calls = %d, want 1", *auditCalls)
+	}
+	if *stopCalls != 1 || *reconcileCalls != 1 {
+		t.Fatalf("lifecycle calls = stop %d, reconcile %d; want 1 each", *stopCalls, *reconcileCalls)
 	}
 }
 
@@ -189,9 +197,6 @@ func TestReinstallPassiveReplacesAgentStateAtomically(t *testing.T) {
 		WithArgs(int64(91), capturedString{target: &insertedHash}).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT type, allow_monitor FROM servers WHERE id = $1")).
-		WithArgs(int64(91)).
-		WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(2, true))
 
 	rec := serveReinstall(t, url.Values{"mode": {"2"}})
 	if rec.Code != http.StatusOK {
@@ -213,6 +218,61 @@ func TestReinstallPassiveReplacesAgentStateAtomically(t *testing.T) {
 	}
 }
 
+func TestReinstallActiveInsertFailureRollsBackWithoutStoppingConnections(t *testing.T) {
+	mock := setupReinstallTest(t)
+	stopCalls, reconcileCalls := captureReinstallLifecycleCalls(t, mock)
+	expectLockedServerType(mock, 1)
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE servers SET type = $1, updated_at = now() WHERE id = $2 AND team_id = $3")).
+		WithArgs(1, int64(91), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM enroll_tokens WHERE server_id = $1")).
+		WithArgs(int64(91)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM agents WHERE server_id = $1")).
+		WithArgs(int64(91)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO agents (server_id, agent_uid, status, host, port, private_key) VALUES ($1, $2, $3, $4, $5, $6)")).
+		WithArgs(int64(91), sqlmock.AnyArg(), 0, "agent.example.com", 443, sqlmock.AnyArg()).
+		WillReturnError(errors.New("duplicate key value"))
+	mock.ExpectRollback()
+
+	rec := serveReinstall(t, url.Values{
+		"mode":    {"1"},
+		"address": {"agent.example.com"},
+		"port":    {"443"},
+	})
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("response = %d %s", rec.Code, rec.Body.String())
+	}
+	if *stopCalls != 0 || *reconcileCalls != 0 {
+		t.Fatalf("lifecycle calls after failed insert = stop %d, reconcile %d", *stopCalls, *reconcileCalls)
+	}
+}
+
+func TestReinstallCommitFailureDoesNotStopConnections(t *testing.T) {
+	mock := setupReinstallTest(t)
+	stopCalls, reconcileCalls := captureReinstallLifecycleCalls(t, mock)
+	expectLockedServerType(mock, 2)
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE servers SET type = $1, updated_at = now() WHERE id = $2 AND team_id = $3")).
+		WithArgs(2, int64(91), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM agents WHERE server_id = $1")).
+		WithArgs(int64(91)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO enroll_tokens").
+		WithArgs(int64(91), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit().WillReturnError(errors.New("commit failed"))
+
+	rec := serveReinstall(t, url.Values{"mode": {"2"}})
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("response = %d %s", rec.Code, rec.Body.String())
+	}
+	if *stopCalls != 0 || *reconcileCalls != 0 {
+		t.Fatalf("lifecycle calls after failed commit = stop %d, reconcile %d", *stopCalls, *reconcileCalls)
+	}
+}
+
 func int16Pointer(value int16) *int16 {
 	return &value
 }
@@ -228,6 +288,29 @@ func captureReinstallAuditCalls(t *testing.T) *int {
 		reinstallLogAdd = oldLogAdd
 	})
 	return &calls
+}
+
+func captureReinstallLifecycleCalls(t *testing.T, mock sqlmock.Sqlmock) (*int, *int) {
+	t.Helper()
+	stopCalls := 0
+	reconcileCalls := 0
+	oldStopServer := reinstallStopServer
+	oldReconcileServer := reinstallReconcileServer
+	reinstallStopServer = func(int64) {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("connection stopped before transaction completed: %v", err)
+		}
+		stopCalls++
+	}
+	reinstallReconcileServer = func(int64) error {
+		reconcileCalls++
+		return nil
+	}
+	t.Cleanup(func() {
+		reinstallStopServer = oldStopServer
+		reinstallReconcileServer = oldReconcileServer
+	})
+	return &stopCalls, &reconcileCalls
 }
 
 func responseData(t *testing.T, body []byte) map[string]string {

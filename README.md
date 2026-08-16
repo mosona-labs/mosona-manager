@@ -74,6 +74,10 @@ This is a passive (reverse) connection. The Hub must be exposed so that it can b
 
 See [CHANGELOG.md](./CHANGELOG.md) for history of changes.
 
+## Operations
+
+See [PostgreSQL bloat recovery](./docs/postgres-bloat-recovery.md) when an old transaction has prevented VACUUM from reclaiming dead tuples.
+
 ## Community
 
 - [Discord](https://discord.gg/gmWzrXFXsB)

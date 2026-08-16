@@ -1,16 +1,19 @@
 package config
 
+import "time"
+
 type configType struct {
 	Host          string
 	Port          int
 	SecureCookies bool
 
 	// Postgres
-	PostgresHost string
-	PostgresPort int
-	PostgresUser string
-	PostgresPass string
-	PostgresDB   string
+	PostgresHost                   string
+	PostgresPort                   int
+	PostgresUser                   string
+	PostgresPass                   string
+	PostgresDB                     string
+	PostgresIdleTransactionTimeout time.Duration
 
 	// InfluxDB 2
 	InfluxDBUrl   string

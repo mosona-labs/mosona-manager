@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -34,6 +35,10 @@ func init() {
 	Conf.PostgresUser = getEnv("POSTGRES_USER", "")
 	Conf.PostgresPass = getEnv("POSTGRES_PASS", "")
 	Conf.PostgresDB = getEnv("POSTGRES_DB", "")
+	Conf.PostgresIdleTransactionTimeout, err = parsePostgresIdleTransactionTimeout(getEnv("POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT", "60s"))
+	if err != nil {
+		log.Fatalln(err)
+	}
 	if Conf.PostgresPort == 0 || Conf.PostgresUser == "" || Conf.PostgresPass == "" || Conf.PostgresDB == "" {
 		log.Fatalln("Postgres configuration is missing in environment variables")
 	}
@@ -59,6 +64,20 @@ func init() {
 
 	// Frontend
 	Conf.FrontendDir = getEnv("FRONTEND_DIR", "./static/")
+}
+
+func parsePostgresIdleTransactionTimeout(value string) (time.Duration, error) {
+	timeout, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT must be a duration such as 60s, 2m, or 0: %w", err)
+	}
+	if timeout < 0 {
+		return 0, fmt.Errorf("POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT must not be negative")
+	}
+	if timeout > 0 && timeout < time.Millisecond {
+		return 0, fmt.Errorf("POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT must be 0 or at least 1ms")
+	}
+	return timeout, nil
 }
 
 func redisPasswordFromEnv(lookup func(string) (string, bool)) (string, error) {

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Stop passive-agent WebSocket reconnect attempts from submitting a full host
+  information report before every retry. Startup and jittered periodic reports
+  remain unchanged.
+- Avoid rewriting unchanged server inventory and alert state rows, preventing
+  dead-tuple growth during stable operation.
+- Bound agent-information and alert update transactions, and keep agent
+  connection shutdown outside the reinstall database transaction.
+
+### Operations
+
+- Label Hub PostgreSQL sessions with `application_name=mosona-manager-hub` and
+  default `POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT` to `60s` (`0` disables it).
+- Add a [PostgreSQL bloat recovery runbook](./docs/postgres-bloat-recovery.md)
+  for diagnosing stale transactions and reclaiming affected tables safely.
+
 ## v0.1.12 - 2026-08-14
 
 This release is a comprehensive security and logic audit of the hub, the agent,

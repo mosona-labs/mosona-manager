@@ -77,6 +77,7 @@ func SSH(
 					u, _ := strconv.ParseInt(data.Uptime, 10, 64)
 					bootTime := time.Unix(time.Now().Unix()-u, 0)
 					if err := callback.Information(
+						connCtx,
 						serverId,
 						host,
 						data.SystemVersion,

@@ -1,10 +1,13 @@
 package alerttasks
 
 import (
+	"context"
 	"log"
 	"mosona-manager/internal/db"
 	"time"
 )
+
+const alertUpdateTimeout = 15 * time.Second
 
 func Run() {
 	rulesMap, serverMap, expiryMap, err := allServerAlerts()
@@ -91,6 +94,9 @@ func Run() {
 					continue
 				}
 
+				if alertStateEqual(serverRule.LastStatus, ls, serverRule.LastNotifyAt, ln) {
+					continue
+				}
 				updateQueue = append(updateQueue, alertRuleUpdate{
 					id:           r.id,
 					lastStatus:   ls,
@@ -110,13 +116,18 @@ func updateRuleStatus(queue []alertRuleUpdate) error {
 		return nil
 	}
 
-	tx, err := db.Db.Begin()
+	ctx, cancel := context.WithTimeout(context.Background(), alertUpdateTimeout)
+	defer cancel()
+	tx, err := db.Db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	stmt, err := tx.Prepare("UPDATE server_alerts SET last_status = $1, last_notify_at = $2 WHERE id = $3")
+	stmt, err := tx.PrepareContext(ctx, `UPDATE server_alerts
+		SET last_status = $1, last_notify_at = $2
+		WHERE id = $3
+		  AND (last_status IS DISTINCT FROM $1 OR last_notify_at IS DISTINCT FROM $2)`)
 	if err != nil {
 		return err
 	}
@@ -125,10 +136,25 @@ func updateRuleStatus(queue []alertRuleUpdate) error {
 	}()
 
 	for _, u := range queue {
-		if _, err = stmt.Exec(u.lastStatus, u.lastNotifyAt, u.id); err != nil {
+		if _, err = stmt.ExecContext(ctx, u.lastStatus, u.lastNotifyAt, u.id); err != nil {
 			return err
 		}
 	}
 
 	return tx.Commit()
+}
+
+func alertStateEqual(oldStatus, newStatus *bool, oldNotifyAt, newNotifyAt *time.Time) bool {
+	if oldStatus == nil || newStatus == nil {
+		if oldStatus != nil || newStatus != nil {
+			return false
+		}
+	} else if *oldStatus != *newStatus {
+		return false
+	}
+
+	if oldNotifyAt == nil || newNotifyAt == nil {
+		return oldNotifyAt == nil && newNotifyAt == nil
+	}
+	return oldNotifyAt.Equal(*newNotifyAt)
 }

@@ -52,6 +52,10 @@ También es una conexión activa (directa), como se describió anteriormente.
 
 Esta es una conexión pasiva (inversa). El Hub debe estar expuesto para que el Agente pueda conectarse. En un entorno de red pública, el Hub debe tener una dirección IP pública.
 
+## Operaciones
+
+Consulta [Recuperación de tablas infladas de PostgreSQL](./docs/postgres-bloat-recovery.md) si una transacción antigua impide que VACUUM recupere tuplas muertas.
+
 ## Capturas de pantalla
 
 | Inicio | Terminal |

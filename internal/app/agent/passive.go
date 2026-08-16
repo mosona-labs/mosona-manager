@@ -34,6 +34,7 @@ func passiveInfo(c *echo.Context) error {
 	version := c.FormValue("version")
 
 	if err := callback.AgentInformation(
+		c.Request().Context(),
 		serverId, "", system, time.Unix(start, 0), hostName, cpuName, coreC, coreT, kernel, c.RealIP(), arch, version,
 	); err != nil {
 		return c.JSON(500, _type.H{

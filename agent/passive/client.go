@@ -25,14 +25,9 @@ func connectHub(path string) (*ws.Client, error) {
 	}
 
 	client.SetReconnectBackoff(-1, 5*time.Second, time.Minute)
-	client.OnReconnect(func() {
-		if err := reportInfo(); err != nil {
-			log.Println("Failed to report info before reconnect:", err)
-		}
-		if err := setAuthHeaders(client); err != nil {
-			log.Println("Failed to refresh reconnect authentication headers:", err)
-		}
-	})
+	client.OnReconnect(reconnectAuthCallback(func() error {
+		return setAuthHeaders(client)
+	}))
 
 	url := strings.Replace(
 		strings.Replace(
@@ -51,6 +46,14 @@ func connectHub(path string) (*ws.Client, error) {
 	}
 
 	return client, nil
+}
+
+func reconnectAuthCallback(refresh func() error) func() {
+	return func() {
+		if err := refresh(); err != nil {
+			log.Println("Failed to refresh reconnect authentication headers:", err)
+		}
+	}
 }
 
 func setAuthHeaders(client *ws.Client) error {

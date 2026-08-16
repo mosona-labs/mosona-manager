@@ -19,7 +19,11 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
-var reinstallLogAdd = influx.LogAdd
+var (
+	reinstallLogAdd          = influx.LogAdd
+	reinstallStopServer      = conn.StopServer
+	reinstallReconcileServer = conn.ReconcileServer
+)
 
 func reinstall(c *echo.Context) error {
 	uid, _ := c.Get("uid").(int64)
@@ -47,13 +51,14 @@ func reinstall(c *echo.Context) error {
 		})
 	}
 
-	tx, err := db.Db.Begin()
+	ctx := c.Request().Context()
+	tx, err := db.Db.BeginTx(ctx, nil)
 	if err != nil {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 	defer func() { _ = tx.Rollback() }()
 	var currentType int16
-	if err = tx.QueryRow(
+	if err = tx.QueryRowContext(ctx,
 		"SELECT type FROM servers WHERE id = $1 AND team_id = $2 FOR UPDATE",
 		id, tid,
 	).Scan(&currentType); err != nil {
@@ -74,7 +79,7 @@ func reinstall(c *echo.Context) error {
 			Msg:  "Reinstall mode must match the server Agent type",
 		})
 	}
-	if _, err = tx.Exec(
+	if _, err = tx.ExecContext(ctx,
 		"UPDATE servers SET type = $1, updated_at = now() WHERE id = $2 AND team_id = $3",
 		mode, id, tid,
 	); err != nil {
@@ -85,10 +90,10 @@ func reinstall(c *echo.Context) error {
 
 	switch mode {
 	case 1:
-		if _, err = tx.Exec("DELETE FROM enroll_tokens WHERE server_id = $1", id); err != nil {
+		if _, err = tx.ExecContext(ctx, "DELETE FROM enroll_tokens WHERE server_id = $1", id); err != nil {
 			return utils.ErrorHandler(c, err, "Database error")
 		}
-		if _, err = tx.Exec("DELETE FROM agents WHERE server_id = $1", id); err != nil {
+		if _, err = tx.ExecContext(ctx, "DELETE FROM agents WHERE server_id = $1", id); err != nil {
 			return utils.ErrorHandler(c, err, "Database error")
 		}
 
@@ -101,7 +106,7 @@ func reinstall(c *echo.Context) error {
 			return utils.ErrorHandler(c, err, "Key generation error")
 		}
 
-		if _, err = tx.Exec(
+		if _, err = tx.ExecContext(ctx,
 			"INSERT INTO agents (server_id, agent_uid, status, host, port, private_key) VALUES ($1, $2, $3, $4, $5, $6)",
 			id, agentUUID.String(), 0, address, port, privateKey,
 		); err != nil {
@@ -115,7 +120,7 @@ func reinstall(c *echo.Context) error {
 			"public_key": base64.StdEncoding.EncodeToString([]byte(publicKey)),
 		}
 	case 2:
-		if _, err = tx.Exec("DELETE FROM agents WHERE server_id = $1", id); err != nil {
+		if _, err = tx.ExecContext(ctx, "DELETE FROM agents WHERE server_id = $1", id); err != nil {
 			return utils.ErrorHandler(c, err, "Database error")
 		}
 		dynamicConf := config.ReadDynamicConf()
@@ -124,7 +129,7 @@ func reinstall(c *echo.Context) error {
 			return utils.ErrorHandler(c, errors.New("generate enrollment token"), "Token generation error")
 		}
 		tokenHash := utils.SHA256(enrollToken + dynamicConf.Token)
-		if _, err = tx.Exec(
+		if _, err = tx.ExecContext(ctx,
 			`INSERT INTO enroll_tokens (server_id, token_hash, is_revoked, created_at)
 			 VALUES ($1, $2, FALSE, NOW())
 			 ON CONFLICT (server_id) DO UPDATE
@@ -141,16 +146,14 @@ func reinstall(c *echo.Context) error {
 		}
 	}
 
-	conn.StopServer(id)
 	if err = tx.Commit(); err != nil {
-		_ = conn.ReconcileServer(id)
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
-	// Close any passive connection that authenticated against the old agent row
-	// between the pre-commit stop and the transaction becoming visible.
-	conn.StopServer(id)
-	if reconcileErr := conn.ReconcileServer(id); reconcileErr != nil {
+	// Connection shutdown can wait for transport goroutines, so keep it outside
+	// the database transaction.
+	reinstallStopServer(id)
+	if reconcileErr := reinstallReconcileServer(id); reconcileErr != nil {
 		fmt.Println("Failed to reconcile server connection:", reconcileErr)
 	}
 

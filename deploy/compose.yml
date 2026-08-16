@@ -84,6 +84,7 @@ services:
             POSTGRES_USER: ${PG_USER}
             POSTGRES_PASS: ${PG_PASSWORD}
             POSTGRES_DB: ${PG_DB}
+            POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT: ${POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT:-60s}
 
             REDIS_HOST: redis
             REDIS_PORT: 6379

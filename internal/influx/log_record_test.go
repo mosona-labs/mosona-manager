@@ -14,7 +14,7 @@ import (
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 )
 
-func TestGetLogsByPageUsesFluxParameters(t *testing.T) {
+func TestGetLogsByPageEscapesFluxLiterals(t *testing.T) {
 	type queryRequest struct {
 		Query  string                 `json:"query"`
 		Params map[string]interface{} `json:"params"`
@@ -51,7 +51,7 @@ func TestGetLogsByPageUsesFluxParameters(t *testing.T) {
 		config.Conf.InfluxDBOrg = previousOrg
 	})
 
-	message := `") |> yield(name: "injected") //`
+	message := `") |> yield(name: "injected") // ${ 1 + 1 }`
 	_, _, err := GetLogsByPage(context.Background(), 12, 1, 20, "server", "high", []int64{7, 8}, message)
 	if err != nil {
 		t.Fatal(err)
@@ -60,23 +60,27 @@ func TestGetLogsByPageUsesFluxParameters(t *testing.T) {
 		t.Fatalf("query request count = %d, want 2", len(requests))
 	}
 	for _, request := range requests {
-		if strings.Contains(request.Query, message) || strings.Contains(request.Query, `== "server"`) || strings.Contains(request.Query, `== "high"`) {
-			t.Fatalf("user-controlled value was embedded in Flux source: %s", request.Query)
+		if strings.Contains(request.Query, message) {
+			t.Fatalf("user-controlled value was embedded unescaped in Flux source: %s", request.Query)
+		}
+		if len(request.Params) != 0 {
+			t.Fatalf("server-side query params are Cloud-only and must not be sent: %#v", request.Params)
 		}
 		for _, fragment := range []string{
 			`range(start: -365d)`,
-			`r["team_id"] == params.teamID`,
-			`r["category"] == params.category`,
-			`r["level"] == params.level`,
-			`substr: params.message`,
-			`r["user_id"] == params.userID0`,
+			`r["team_id"] == "12"`,
+			`r["category"] == "server"`,
+			`r["level"] == "high"`,
+			`r["user_id"] == 7`,
+			`substr: "\") |> yield(name: \"injected\") // \${ 1 + 1 }"`,
+			`strings.containsStr(`,
 		} {
 			if !strings.Contains(request.Query, fragment) {
 				t.Fatalf("Flux query missing %q: %s", fragment, request.Query)
 			}
 		}
-		if request.Params["teamID"] != "12" || request.Params["category"] != "server" || request.Params["level"] != "high" || request.Params["message"] != message {
-			t.Fatalf("unexpected query params: %#v", request.Params)
+		if strings.Contains(request.Query, `sort(columns`) && !strings.Contains(request.Query, `limit(n: 20, offset: 0)`) {
+			t.Fatalf("data query missing pagination limit: %s", request.Query)
 		}
 	}
 }

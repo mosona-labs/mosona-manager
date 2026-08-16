@@ -52,6 +52,10 @@ English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
 
 这是被动（反向）连接。Hub 必须暴露出来，以便 Agent 可以连接。在公网环境中，Hub 必须具有公网 IP。
 
+## 运维
+
+如果旧事务导致 VACUUM 无法清理 dead tuples，请参阅 [PostgreSQL 表膨胀恢复手册](./docs/postgres-bloat-recovery.md)。
+
 ## 截图
 
 | 首页 | 终端 |

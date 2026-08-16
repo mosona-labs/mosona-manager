@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -81,9 +82,9 @@ func GetLogsByPage(ctx context.Context, teamID int64, page, pageSize int, catego
 	ctx, cancel := context.WithTimeout(ctx, logQueryTimeout)
 	defer cancel()
 
-	countQuery, dataQuery, params := buildLogQueries(teamID, page, pageSize, category, level, userIDs, message)
+	countQuery, dataQuery := buildLogQueries(teamID, page, pageSize, category, level, userIDs, message)
 	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
-	countResult, err := queryAPI.QueryWithParams(ctx, countQuery, params)
+	countResult, err := queryAPI.Query(ctx, countQuery)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -103,7 +104,7 @@ func GetLogsByPage(ctx context.Context, teamID int64, page, pageSize int, catego
 	}
 	_ = countResult.Close()
 
-	result, err := queryAPI.QueryWithParams(ctx, dataQuery, params)
+	result, err := queryAPI.Query(ctx, dataQuery)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -153,24 +154,16 @@ func GetLogsByPage(ctx context.Context, teamID int64, page, pageSize int, catego
 	return logs, total, nil
 }
 
-func buildLogQueries(teamID int64, page, pageSize int, category, level string, userIDs []int64, message string) (string, string, map[string]interface{}) {
-	params := map[string]interface{}{
-		"teamID":   fmt.Sprintf("%d", teamID),
-		"pageSize": pageSize,
-		"offset":   (page - 1) * pageSize,
-	}
-
+func buildLogQueries(teamID int64, page, pageSize int, category, level string, userIDs []int64, message string) (string, string) {
 	var imports string
 	var filters strings.Builder
 	if category != "" && category != "all" {
-		params["category"] = category
-		filters.WriteString(`
-		|> filter(fn: (r) => r["category"] == params.category)`)
+		fmt.Fprintf(&filters, `
+		|> filter(fn: (r) => r["category"] == %s)`, fluxStringLiteral(category))
 	}
 	if level != "" && level != "all" {
-		params["level"] = level
-		filters.WriteString(`
-		|> filter(fn: (r) => r["level"] == params.level)`)
+		fmt.Fprintf(&filters, `
+		|> filter(fn: (r) => r["level"] == %s)`, fluxStringLiteral(level))
 	}
 	if len(userIDs) > 0 {
 		filters.WriteString(`
@@ -179,30 +172,59 @@ func buildLogQueries(teamID int64, page, pageSize int, category, level string, u
 			if i > 0 {
 				filters.WriteString(" or ")
 			}
-			paramName := fmt.Sprintf("userID%d", i)
-			params[paramName] = uid
-			fmt.Fprintf(&filters, `r["user_id"] == params.%s`, paramName)
+			fmt.Fprintf(&filters, `r["user_id"] == %d`, uid)
 		}
 		filters.WriteString("))")
 	}
 	if message != "" {
 		imports = "import \"strings\"\n"
-		params["message"] = message
-		filters.WriteString(`
-		|> filter(fn: (r) => strings.contains(v: r["message"], substr: params.message))`)
+		fmt.Fprintf(&filters, `
+		|> filter(fn: (r) => strings.containsStr(v: r["message"], substr: %s))`, fluxStringLiteral(message))
 	}
 
+	// Server-side query parameters (params.*) are only supported by InfluxDB
+	// Cloud; OSS returns "undefined identifier params", so values are inlined
+	// as escaped Flux literals instead.
 	baseQuery := fmt.Sprintf(`%sfrom(bucket: "logs")
 	|> range(start: -365d)
 	|> filter(fn: (r) => r._measurement == "logs")
-	|> filter(fn: (r) => r["team_id"] == params.teamID)
-	|> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")%s`, imports, filters.String())
+	|> filter(fn: (r) => r["team_id"] == %s)
+	|> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")%s`,
+		imports, fluxStringLiteral(strconv.FormatInt(teamID, 10)), filters.String())
 
 	countQuery := baseQuery + `
 	|> group()
 	|> count(column: "_measurement")`
-	dataQuery := baseQuery + `
+	dataQuery := fmt.Sprintf(`%s
 	|> sort(columns: ["_time"], desc: true)
-	|> limit(n: params.pageSize, offset: params.offset)`
-	return countQuery, dataQuery, params
+	|> limit(n: %d, offset: %d)`, baseQuery, pageSize, (page-1)*pageSize)
+	return countQuery, dataQuery
+}
+
+// fluxStringLiteral renders s as a Flux double-quoted string literal. In
+// addition to the usual escapes, "$" is escaped because Flux evaluates
+// ${...} interpolation inside string literals.
+func fluxStringLiteral(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case '\\':
+			b.WriteString(`\\`)
+		case '"':
+			b.WriteString(`\"`)
+		case '$':
+			b.WriteString(`\$`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
 }

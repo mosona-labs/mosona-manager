@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestParseSecureCookies(t *testing.T) {
 	tests := []struct {
@@ -24,6 +27,37 @@ func TestParseSecureCookies(t *testing.T) {
 			}
 			if err == nil && got != test.want {
 				t.Fatalf("parseSecureCookies(%q) = %t, want %t", test.value, got, test.want)
+			}
+		})
+	}
+}
+
+func TestParsePostgresIdleTransactionTimeout(t *testing.T) {
+	tests := []struct {
+		value   string
+		want    time.Duration
+		wantErr bool
+	}{
+		{value: "0"},
+		{value: "0s"},
+		{value: "60s", want: time.Minute},
+		{value: "2m", want: 2 * time.Minute},
+		{value: "1.5s", want: 1500 * time.Millisecond},
+		{value: "1ms", want: time.Millisecond},
+		{value: "1", wantErr: true},
+		{value: "-1s", wantErr: true},
+		{value: "1us", wantErr: true},
+		{value: "disabled", wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.value, func(t *testing.T) {
+			got, err := parsePostgresIdleTransactionTimeout(test.value)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("parsePostgresIdleTransactionTimeout(%q) error = %v, wantErr %t", test.value, err, test.wantErr)
+			}
+			if err == nil && got != test.want {
+				t.Fatalf("parsePostgresIdleTransactionTimeout(%q) = %s, want %s", test.value, got, test.want)
 			}
 		})
 	}

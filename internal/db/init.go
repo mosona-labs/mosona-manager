@@ -8,6 +8,7 @@ import (
 	"mosona-manager/internal/config"
 	"path"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -16,14 +17,16 @@ import (
 
 var Db *sqlx.DB
 
+const postgresApplicationName = "mosona-manager-hub"
+
 func Init() {
-	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+	dsn := postgresDSN(
 		config.Conf.PostgresHost,
 		config.Conf.PostgresPort,
 		config.Conf.PostgresUser,
 		config.Conf.PostgresPass,
 		config.Conf.PostgresDB,
+		config.Conf.PostgresIdleTransactionTimeout,
 	)
 
 	var err error
@@ -48,6 +51,28 @@ func Init() {
 	}
 
 	log.Fatalln("Failed to connect to Postgres after retries:", err)
+}
+
+func postgresDSN(host string, port int, user, password, database string, idleTransactionTimeout time.Duration) string {
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable application_name=%s idle_in_transaction_session_timeout=%d",
+		quoteDSNValue(host),
+		port,
+		quoteDSNValue(user),
+		quoteDSNValue(password),
+		quoteDSNValue(database),
+		postgresApplicationName,
+		idleTransactionTimeout.Milliseconds(),
+	)
+}
+
+// quoteDSNValue quotes a keyword/value DSN value for lib/pq: values are
+// wrapped in single quotes with backslashes and single quotes escaped, so
+// whitespace or special characters in credentials cannot break parsing.
+func quoteDSNValue(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `'`, `\'`)
+	return "'" + value + "'"
 }
 
 func runMigrations() error {

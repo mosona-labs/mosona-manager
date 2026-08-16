@@ -53,6 +53,7 @@ func (a *auth) getInformation(ctx context.Context) error {
 	}
 
 	if err = callback.AgentInformation(
+		ctx,
 		a.serverID, "",
 		info.System, time.Unix(info.StartTime, 0), info.HostName, info.CpuName,
 		info.CoreC, info.CoreT, info.Kernel, a.host, info.Arch, info.Version,
