@@ -18,6 +18,9 @@ Options:
 
 Environment overrides:
   VERSION
+  UPX     Set to 1 to compress binaries with upx (off by default; packed
+          binaries can be killed silently before main on hardened Alpine
+          kernels, LXC, gVisor and other restricted environments)
 EOF
 }
 
@@ -58,7 +61,7 @@ mkdir -p "$BUILD_DIR"
 
 echo "Build version: $VERSION"
 echo "Packaging deployment files..."
-cd deploy && zip -r ../build/deployment_files.zip . -x "*.DS_Store" && cd ..
+(cd deploy && zip -r "$BUILD_DIR/deployment_files.zip" . -x "*.DS_Store")
 
 targets=(
   "linux amd64"
@@ -98,11 +101,15 @@ for t in "${targets[@]}"; do
     else
       ldflags="-s -w -X mosona-manager/agent/runtime.Version=${VERSION}"
     fi
-    GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$ldflags" -o "$out" "cmd/${app}/main.go"
+    CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$ldflags" -o "$out" "cmd/${app}/main.go"
     echo "Built $(basename "$out")"
 
-    if command -v upx >/dev/null 2>&1; then
-      upx -qqq "$out" && echo "Compressed $(basename "$out")"
+    if [ "${UPX:-0}" = "1" ]; then
+      if command -v upx >/dev/null 2>&1; then
+        upx -qqq "$out" && echo "Compressed $(basename "$out")"
+      else
+        echo "UPX=1 but upx is not installed, skipping compression." >&2
+      fi
     fi
 
     if [ "$app" = "agent" ]; then

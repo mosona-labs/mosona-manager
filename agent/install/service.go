@@ -2,6 +2,7 @@ package install
 
 import (
 	"fmt"
+	"mosona-manager/agent/initsys"
 	agentruntime "mosona-manager/agent/runtime"
 	"os"
 	"os/exec"
@@ -28,8 +29,20 @@ func installService() error {
 	}
 }
 
-// Linux systemd
+// Linux: systemd or OpenRC
 func installLinuxService() error {
+	switch init, err := initsys.DetectLinux(); {
+	case err != nil:
+		return err
+	case init == initsys.OpenRC:
+		return installOpenRCService()
+	default:
+		return installSystemdService()
+	}
+}
+
+// Linux systemd
+func installSystemdService() error {
 	serviceContent := fmt.Sprintf(`[Unit]
 Description=Mosona Agent Service
 After=network.target
@@ -55,6 +68,47 @@ WantedBy=multi-user.target`, agentruntime.InstallDir)
 		{"systemctl", "start", "mosona-agent"},
 	}
 
+	for _, args := range commands {
+		if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
+			return fmt.Errorf("failed to execute %v: %w", args, err)
+		}
+	}
+
+	return nil
+}
+
+// Linux OpenRC (Alpine and other OpenRC distributions)
+func installOpenRCService() error {
+	execPath := filepath.Join(agentruntime.InstallDir, "mosona-agent")
+	script := fmt.Sprintf(`#!/sbin/openrc-run
+
+description="Mosona Agent Service"
+
+command=%q
+command_args="run"
+
+supervisor="supervise-daemon"
+supervise_daemon_args="--respawn-delay 5"
+output_log="/var/log/mosona-agent.log"
+error_log="/var/log/mosona-agent.log"
+
+depend() {
+	after net
+}
+`, execPath)
+
+	scriptPath := "/etc/init.d/mosona-agent"
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		return err
+	}
+	if err := os.Chmod(scriptPath, 0755); err != nil {
+		return err
+	}
+
+	commands := [][]string{
+		{"rc-update", "add", "mosona-agent", "default"},
+		{"rc-service", "mosona-agent", "start"},
+	}
 	for _, args := range commands {
 		if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
 			return fmt.Errorf("failed to execute %v: %w", args, err)
@@ -145,8 +199,20 @@ func UninstallService() error {
 	}
 }
 
-// Linux systemd
+// Linux: systemd or OpenRC
 func uninstallLinuxService() error {
+	switch init, err := initsys.DetectLinux(); {
+	case err != nil:
+		return err
+	case init == initsys.OpenRC:
+		return uninstallOpenRCService()
+	default:
+		return uninstallSystemdService()
+	}
+}
+
+// Linux systemd
+func uninstallSystemdService() error {
 	commands := [][]string{
 		{"systemctl", "stop", "mosona-agent"},
 		{"systemctl", "disable", "mosona-agent"},
@@ -165,6 +231,17 @@ func uninstallLinuxService() error {
 	// Reload systemd
 	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
 		return fmt.Errorf("failed to reload systemd: %w", err)
+	}
+
+	return nil
+}
+
+// Linux OpenRC
+func uninstallOpenRCService() error {
+	_ = exec.Command("rc-service", "mosona-agent", "stop").Run()
+	_ = exec.Command("rc-update", "del", "mosona-agent", "default").Run()
+	if err := os.Remove("/etc/init.d/mosona-agent"); err != nil && !os.IsNotExist(err) {
+		return err
 	}
 
 	return nil

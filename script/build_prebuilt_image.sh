@@ -204,8 +204,9 @@ if [ "$BUILD_BACKEND" = "yes" ]; then
   rm -f "$CTX/hub_linux_amd64" "$CTX/hub_linux_arm64"
   (
     cd "$REPO_ROOT"
-    GOOS=linux GOARCH=amd64 go build -ldflags="$HUB_LDFLAGS" -o "$CTX/hub_linux_amd64" cmd/hub/main.go
-    GOOS=linux GOARCH=arm64 go build -ldflags="$HUB_LDFLAGS" -o "$CTX/hub_linux_arm64" cmd/hub/main.go
+    # Keep binaries static and consistent across native/cross builds (see script/build.sh).
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="$HUB_LDFLAGS" -o "$CTX/hub_linux_amd64" cmd/hub/main.go
+    CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="$HUB_LDFLAGS" -o "$CTX/hub_linux_arm64" cmd/hub/main.go
   )
 fi
 
