@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.1.13 - 2026-08-17
 
 ### Fixed
 
+- Distinguish users without an active team (`409 team_required`) from revoked
+  team access, and defer team-scoped web UI requests until a team is active,
+  preventing new instances from refresh-looping between `/` and
+  `/create-team`.
 - Stop passive-agent WebSocket reconnect attempts from submitting a full host
   information report before every retry. Startup and jittered periodic reports
   remain unchanged.

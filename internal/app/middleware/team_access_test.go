@@ -42,6 +42,30 @@ func TestTeamAccessRevokedClearsStaleTeamAndRejectsRequest(t *testing.T) {
 	}
 }
 
+func TestTeamAccessWithoutActiveTeamReturnsTeamRequired(t *testing.T) {
+	mock, cleanup := setTeamAccessMockDB(t)
+	defer cleanup()
+
+	e := newTeamAccessTestEchoWithTeam(0)
+	reached := false
+	e.GET("/", func(c *echo.Context) error {
+		reached = true
+		return c.NoContent(http.StatusNoContent)
+	}, TeamAccess)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if reached {
+		t.Fatal("protected handler was reached without an active team")
+	}
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), `"code":"team_required"`) {
+		t.Fatalf("response = %d %s", rec.Code, rec.Body.String())
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unexpected database access: %v", err)
+	}
+}
+
 func TestTeamAccessDatabaseFailureDoesNotDowngradeRole(t *testing.T) {
 	mock, cleanup := setTeamAccessMockDB(t)
 	defer cleanup()
@@ -77,12 +101,16 @@ func TestWriteAndTerminalAuthFailClosedWithoutRole(t *testing.T) {
 }
 
 func newTeamAccessTestEcho() *echo.Echo {
+	return newTeamAccessTestEchoWithTeam(7)
+}
+
+func newTeamAccessTestEchoWithTeam(teamID int64) *echo.Echo {
 	e := echo.New()
 	e.Use(contribsession.Middleware(sessions.NewCookieStore([]byte("01234567890123456789012345678901"))))
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			c.Set("uid", int64(42))
-			c.Set("tid", int64(7))
+			c.Set("tid", teamID)
 			return next(c)
 		}
 	})

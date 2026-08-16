@@ -15,6 +15,12 @@ func TeamAccess(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		uid, _ := c.Get("uid").(int64)
 		tid, _ := c.Get("tid").(int64)
+		if tid == 0 {
+			return c.JSON(409, _type.H{
+				Code: "team_required",
+				Msg:  "An active team is required",
+			})
+		}
 
 		role, err := db.GetTeamRole(c.Request().Context(), uid, tid)
 		if err != nil {
