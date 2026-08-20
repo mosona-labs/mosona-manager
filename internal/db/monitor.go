@@ -1,12 +1,17 @@
 package db
 
 import (
+	"context"
 	"mosona-manager/internal/_type"
 
 	"github.com/Masterminds/squirrel"
 )
 
 func ListMonitoredServers(teamId int64) ([]_type.MonitorList, error) {
+	return ListMonitoredServersContext(context.Background(), teamId)
+}
+
+func ListMonitoredServersContext(ctx context.Context, teamId int64) ([]_type.MonitorList, error) {
 	var servers = make([]_type.MonitorList, 0)
 
 	psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
@@ -31,7 +36,7 @@ func ListMonitoredServers(teamId int64) ([]_type.MonitorList, error) {
 	if err != nil {
 		return servers, err
 	}
-	err = Db.Select(&servers, sql, args...)
+	err = Db.SelectContext(ctx, &servers, sql, args...)
 	return servers, err
 }
 

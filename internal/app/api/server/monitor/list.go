@@ -1,7 +1,6 @@
 package amonitor
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +14,13 @@ import (
 
 	"github.com/labstack/echo/v5"
 )
+
+const (
+	monitorSessionCheckInterval = 30 * time.Second
+	monitorSSEWriteTimeout      = 5 * time.Second
+)
+
+var monitorSSEErrorEvent = []byte("event: error\ndata: {\"msg\":\"Failed to load monitor data\"}\n\n")
 
 func list(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
@@ -49,80 +55,78 @@ func sse(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	sid, _ := c.Get("sid").(string)
 
-	c.Response().Header().Set("Content-Type", "text/event-stream")
-	c.Response().Header().Set("Cache-Control", "no-cache")
-	c.Response().Header().Set("Connection", "keep-alive")
-	c.Response().WriteHeader(200)
-
-	ctx, cancel := context.WithCancel(c.Request().Context())
-	defer cancel()
-
-	sendData := func() bool {
-		if err := access.ValidateTeamSession(ctx, uid, tid, sid, 0, 1, 2); err != nil {
-			event := "error"
-			code := "error"
-			message := "Authorization check failed"
-			if errors.Is(err, access.ErrTeamAccessRevoked) {
-				event = "revoked"
-				code = "team_access_revoked"
-				message = "Team access has been revoked"
-			}
-			data, _ := json.Marshal(_type.Map{"code": code, "msg": message})
-			_, _ = fmt.Fprintf(c.Response(), "event: %s\ndata: %s\n\n", event, data)
-			if flusher, ok := c.Response().(http.Flusher); ok {
-				flusher.Flush()
-			}
-			return false
+	ctx := c.Request().Context()
+	authErr := access.ValidateTeamSession(ctx, uid, tid, sid, 0, 1, 2)
+	var initial monitorSnapshotResult
+	var updates <-chan monitorSnapshotResult
+	var unsubscribe func()
+	if authErr == nil {
+		var source *monitorSnapshotSource
+		source, updates, unsubscribe = monitorSnapshots.subscribe(tid)
+		defer unsubscribe()
+		initial = source.get(ctx)
+		if ctx.Err() != nil {
+			return nil
 		}
-		servers, err := db.ListMonitoredServers(tid)
-		if err != nil {
-			_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: {\"msg\":\"Failed to list monitored servers\"}\n\n")
-			if flusher, ok := c.Response().(http.Flusher); ok {
-				flusher.Flush()
-			}
-			return true
-		}
-
-		var ids []int64
-		for _, server := range servers {
-			ids = append(ids, server.ID)
-		}
-
-		statusMap, err := influx.GetLatestServerStatusBatch(ids)
-		if err != nil {
-			_, _ = fmt.Fprintf(c.Response(), "event: error\ndata: {\"msg\":\"Failed to get server statuses\"}\n\n")
-			if flusher, ok := c.Response().(http.Flusher); ok {
-				flusher.Flush()
-			}
-			return true
-		}
-
-		data, _ := json.Marshal(_type.Map{
-			"servers": servers,
-			"status":  statusMap,
-			"now":     time.Now().Unix(),
-		})
-
-		_, _ = fmt.Fprintf(c.Response(), "event: update\ndata: %s\n\n", string(data))
-		if flusher, ok := c.Response().(http.Flusher); ok {
-			flusher.Flush()
-		}
-		return true
 	}
 
-	if !sendData() {
+	c.Response().Header().Set("Content-Type", "text/event-stream")
+	c.Response().Header().Set("Cache-Control", "no-cache, no-store")
+	c.Response().Header().Set("Connection", "keep-alive")
+	c.Response().Header().Set("X-Accel-Buffering", "no")
+	c.Response().WriteHeader(http.StatusOK)
+
+	write := func(event []byte) error {
+		controller := http.NewResponseController(c.Response())
+		if err := controller.SetWriteDeadline(time.Now().Add(monitorSSEWriteTimeout)); err == nil {
+			defer func() { _ = controller.SetWriteDeadline(time.Time{}) }()
+		}
+		if _, err := c.Response().Write(event); err != nil {
+			return err
+		}
+		return controller.Flush()
+	}
+	writeAuthError := func(err error) error {
+		event := "error"
+		code := "error"
+		message := "Authorization check failed"
+		if errors.Is(err, access.ErrTeamAccessRevoked) {
+			event = "revoked"
+			code = "team_access_revoked"
+			message = "Team access has been revoked"
+		}
+		data, _ := json.Marshal(_type.Map{"code": code, "msg": message})
+		return write(fmt.Appendf(nil, "event: %s\ndata: %s\n\n", event, data))
+	}
+	writeResult := func(result monitorSnapshotResult) error {
+		if result.err != nil {
+			return write(monitorSSEErrorEvent)
+		}
+		return write(fmt.Appendf(nil, "event: update\ndata: %s\n\n", result.data))
+	}
+
+	if authErr != nil {
+		_ = writeAuthError(authErr)
+		return nil
+	}
+	if err := writeResult(initial); err != nil {
 		return nil
 	}
 
-	ticker := time.NewTicker(3 * time.Second)
-	defer ticker.Stop()
+	authTicker := time.NewTicker(monitorSessionCheckInterval)
+	defer authTicker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-ticker.C:
-			if !sendData() {
+		case <-authTicker.C:
+			if err := access.ValidateTeamSession(ctx, uid, tid, sid, 0, 1, 2); err != nil {
+				_ = writeAuthError(err)
+				return nil
+			}
+		case result := <-updates:
+			if err := writeResult(result); err != nil {
 				return nil
 			}
 		}
