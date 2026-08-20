@@ -70,6 +70,12 @@ This is a passive (reverse) connection. The Hub must be exposed so that it can b
 |---|---|
 | ![profile](https://github.com/user-attachments/assets/2efcc2dc-e87d-4a95-a854-0b44b871a903) | ![admin](https://github.com/user-attachments/assets/3e93b6b7-a41f-4cc6-9b72-4e7419696c0c) |
 
+## Linked Repository
+
+- Frontend (Web): [mosona-labs/mosona-manager-web](https://github.com/mosona-labs/mosona-manager-web)
+- Public Page Frontend (Web): [mosona-labs/mosona-manager-pub](https://github.com/mosona-labs/mosona-manager-pub)
+- Docs (Web): [mosona-labs/mosona-manager-docs](https://github.com/mosona-labs/mosona-manager-docs)
+
 ## Changelog
 
 See [CHANGELOG.md](./CHANGELOG.md) for history of changes.

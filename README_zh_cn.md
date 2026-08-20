@@ -74,6 +74,12 @@ English | [Español](./README_es.md) | [简体中文](./README_zh_cn.md)
 |---|---|
 | ![profile](https://github.com/user-attachments/assets/2efcc2dc-e87d-4a95-a854-0b44b871a903) | ![admin](https://github.com/user-attachments/assets/3e93b6b7-a41f-4cc6-9b72-4e7419696c0c) |
 
+## 关联仓库
+
+- 前端 (Web)：[mosona-labs/mosona-manager-web](https://github.com/mosona-labs/mosona-manager-web)
+- 公开页面前端 (Web)：[mosona-labs/mosona-manager-pub](https://github.com/mosona-labs/mosona-manager-pub)
+- 文档 (Web)：[mosona-labs/mosona-manager-docs](https://github.com/mosona-labs/mosona-manager-docs)
+
 ## 更新日志
 
 请查看 [CHANGELOG.md](./CHANGELOG.md) 了解更改历史。

@@ -74,6 +74,12 @@ Consulta [Recuperación de tablas infladas de PostgreSQL](./docs/postgres-bloat-
 |---|---|
 | ![profile](https://github.com/user-attachments/assets/2efcc2dc-e87d-4a95-a854-0b44b871a903) | ![admin](https://github.com/user-attachments/assets/3e93b6b7-a41f-4cc6-9b72-4e7419696c0c) |
 
+## Repositorio vinculado
+
+- Frontend (Web): [mosona-labs/mosona-manager-web](https://github.com/mosona-labs/mosona-manager-web)
+- Frontend de página pública (Web): [mosona-labs/mosona-manager-pub](https://github.com/mosona-labs/mosona-manager-pub)
+- Documentación (Web): [mosona-labs/mosona-manager-docs](https://github.com/mosona-labs/mosona-manager-docs)
+
 ## Changelog
 
 Consulta [CHANGELOG.md](./CHANGELOG.md) para el historial de cambios.
