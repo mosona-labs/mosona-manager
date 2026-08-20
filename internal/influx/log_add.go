@@ -33,6 +33,8 @@ type auditLogEvent struct {
 	occurredAt time.Time
 }
 
+// An auditLogWriter must return promptly when ctx is canceled because shutdown
+// waits for the active writer before closing the InfluxDB client.
 type auditLogWriter func(context.Context, auditLogEvent) error
 
 type auditLogMetrics struct {
@@ -271,6 +273,7 @@ func (p *auditLogProcessor) shutdown(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		p.cancel()
+		<-p.done
 		return ctx.Err()
 	}
 }

@@ -37,6 +37,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -175,10 +176,35 @@ func Start() {
 func shutdownInflux() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := influx.ShutdownAuditLogs(ctx); err != nil {
-		stats := influx.CurrentAuditLogQueueStats()
-		log.Printf("Audit log shutdown did not drain fully (written=%d failed=%d dropped=%d): %v", stats.Written, stats.Failed, stats.Dropped, err)
-		return
+	type shutdownResult struct {
+		name string
+		err  error
+	}
+	results := make(chan shutdownResult, 2)
+	var wait sync.WaitGroup
+	wait.Add(2)
+	go func() {
+		defer wait.Done()
+		results <- shutdownResult{name: "audit", err: influx.ShutdownAuditLogs(ctx)}
+	}()
+	go func() {
+		defer wait.Done()
+		results <- shutdownResult{name: "status", err: influx.ShutdownServerStatuses(ctx)}
+	}()
+	wait.Wait()
+	close(results)
+	for result := range results {
+		if result.err == nil {
+			continue
+		}
+		switch result.name {
+		case "audit":
+			stats := influx.CurrentAuditLogQueueStats()
+			log.Printf("Audit log shutdown did not drain fully (written=%d failed=%d dropped=%d): %v", stats.Written, stats.Failed, stats.Dropped, result.err)
+		case "status":
+			stats := influx.CurrentServerStatusQueueStats()
+			log.Printf("Server status shutdown did not drain fully (written=%d failed=%d dropped=%d): %v", stats.Written, stats.Failed, stats.Dropped, result.err)
+		}
 	}
 	if influx.Client != nil {
 		influx.Client.Close()

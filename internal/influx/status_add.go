@@ -4,21 +4,40 @@ import (
 	"context"
 	"encoding/json"
 	"mosona-manager/internal/_type"
-	"mosona-manager/internal/config"
 	"strconv"
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api/write"
 )
 
-func AddServerStatus(serverId int64, status _type.ServerStatusType) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	return AddServerStatusContext(ctx, serverId, status)
+func AddServerStatusContext(ctx context.Context, serverId int64, status _type.ServerStatusType) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	serverStatusProcessorMu.RLock()
+	processor := serverStatuses
+	serverStatusProcessorMu.RUnlock()
+	if processor == nil {
+		return ErrServerStatusWriterUnavailable
+	}
+	occurredAt := status.Time
+	if occurredAt.IsZero() {
+		occurredAt = time.Now()
+	}
+	point, err := serverStatusPoint(serverId, status, occurredAt)
+	if err != nil {
+		return err
+	}
+	return processor.enqueue(ctx, point)
 }
 
-func AddServerStatusContext(ctx context.Context, serverId int64, status _type.ServerStatusType) error {
-	disksJSON, _ := json.Marshal(status.Disks)
+func serverStatusPoint(serverId int64, status _type.ServerStatusType, occurredAt time.Time) (*write.Point, error) {
+	disksJSON, err := json.Marshal(status.Disks)
+	if err != nil {
+		return nil, err
+	}
 
 	point := influxdb2.NewPoint(
 		"server_status",
@@ -43,8 +62,7 @@ func AddServerStatusContext(ctx context.Context, serverId int64, status _type.Se
 			"tcp_total":        status.TCPTotal,
 			"udp_total":        status.UDPTotal,
 		},
-		time.Now(),
+		occurredAt,
 	)
-	writeAPI := Client.WriteAPIBlocking(config.Conf.InfluxDBOrg, "server_status_raw")
-	return writeAPI.WritePoint(ctx, point)
+	return point, nil
 }
