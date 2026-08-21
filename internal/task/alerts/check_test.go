@@ -70,14 +70,11 @@ func TestCheckStatusAlertDoesNotRepeatRecoveryWhileOnline(t *testing.T) {
 	lastNotifyAt := now.Add(-2 * time.Hour)
 	serverMap := map[int64]string{1: "test-server"}
 	alert := &alertInstance{
-		serverMap: &serverMap,
-		statuses: []*_type.ServerStatusType{
-			{Time: now},
-		},
+		serverMap:   &serverMap,
+		observation: alertObservation{present: true},
 	}
 
 	currentStatus, nextNotifyAt := alert.checkStatusAlert(1, &alertRule{
-		startTime:    now.Add(-10 * time.Minute),
 		lastStatus:   boolPtr(true),
 		lastNotifyAt: &lastNotifyAt,
 	})
@@ -101,13 +98,10 @@ func TestCheckStatusAlertNotifiesRecoveryAfterConfirmedOffline(t *testing.T) {
 	alert := &alertInstance{
 		serverMap:     &serverMap,
 		notifications: []*_type.TeamNotification{{Module: "shoutrrr", Target: "generic://test"}},
-		statuses: []*_type.ServerStatusType{
-			{Time: now},
-		},
+		observation:   alertObservation{present: true},
 	}
 
 	currentStatus, nextNotifyAt := alert.checkStatusAlert(1, &alertRule{
-		startTime:    now.Add(-10 * time.Minute),
 		lastStatus:   boolPtr(false),
 		lastNotifyAt: &lastNotifyAt,
 	})
@@ -131,12 +125,11 @@ func TestCheckStatusAlertFailedDeliveryKeepsPendingTransition(t *testing.T) {
 	alert := &alertInstance{
 		serverMap:     &serverMap,
 		notifications: []*_type.TeamNotification{{Module: "shoutrrr", Target: "generic://test"}},
-		statuses:      []*_type.ServerStatusType{{Time: now}},
+		observation:   alertObservation{present: true},
 	}
 
 	lastStatus := boolPtr(false)
 	currentStatus, nextNotifyAt := alert.checkStatusAlert(1, &alertRule{
-		startTime:    now.Add(-10 * time.Minute),
 		lastStatus:   lastStatus,
 		lastNotifyAt: &lastNotifyAt,
 	})
@@ -154,12 +147,11 @@ func TestCheckStatusAlertTracksStateWithoutNotificationChannels(t *testing.T) {
 	lastNotifyAt := now.Add(-time.Minute)
 	serverMap := map[int64]string{1: "test-server"}
 	alert := &alertInstance{
-		serverMap: &serverMap,
-		statuses:  []*_type.ServerStatusType{{Time: now}},
+		serverMap:   &serverMap,
+		observation: alertObservation{present: true},
 	}
 
 	currentStatus, nextNotifyAt := alert.checkStatusAlert(1, &alertRule{
-		startTime:    now.Add(-10 * time.Minute),
 		lastStatus:   boolPtr(false),
 		lastNotifyAt: &lastNotifyAt,
 	})
@@ -181,7 +173,6 @@ func TestCheckStatusAlertUsesConfiguredOfflineWindowInMessage(t *testing.T) {
 	}
 	defer func() { sendAlertShoutrrr = originalSender }()
 
-	now := time.Now()
 	serverMap := map[int64]string{1: "test-server"}
 	alert := &alertInstance{
 		serverMap:     &serverMap,
@@ -189,7 +180,6 @@ func TestCheckStatusAlertUsesConfiguredOfflineWindowInMessage(t *testing.T) {
 	}
 
 	alert.checkStatusAlert(1, &alertRule{
-		startTime:   now.Add(-17 * time.Minute),
 		forDuration: 17,
 		lastStatus:  boolPtr(true),
 	})
@@ -211,11 +201,10 @@ func TestCheckMetricAlertFailedDeliveryKeepsPendingAlert(t *testing.T) {
 	alert := &alertInstance{
 		serverMap:     &serverMap,
 		notifications: []*_type.TeamNotification{{Module: "shoutrrr", Target: "generic://test"}},
-		statuses:      []*_type.ServerStatusType{{Time: now, CPU: 95}},
+		observation:   alertObservation{present: true, value: 95},
 	}
 
 	currentStatus, nextNotifyAt := alert.checkCPUUsageAlert(1, &alertRule{
-		startTime:    now.Add(-10 * time.Minute),
 		threshold:    80,
 		forDuration:  10,
 		lastStatus:   lastStatus,

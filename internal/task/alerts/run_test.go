@@ -2,6 +2,7 @@ package alerttasks
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,6 +80,58 @@ func TestUpdateRuleStatusUsesConditionalUpdate(t *testing.T) {
 
 	if err := updateRuleStatus([]alertRuleUpdate{{id: 7, lastStatus: &status, lastNotifyAt: &now}}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSkippedAlertRulesMessageReportsCountsAndLoadHealth(t *testing.T) {
+	observations := newAlertObservationSet()
+	observations.queryFailures = 2
+	observations.invalidDurations = 1
+	observations.loadStopped = true
+	message := skippedAlertRulesMessage(4, map[string]int{
+		alertItemStatus: 1,
+		alertItemCPU:    3,
+	}, observations)
+	for _, fragment := range []string{
+		"skipped 4 rules",
+		"cpu_usage=3, status=1",
+		"query_failures=2",
+		"invalid_durations=1",
+		"load_stopped=true",
+	} {
+		if !strings.Contains(message, fragment) {
+			t.Fatalf("summary %q missing %q", message, fragment)
+		}
+	}
+}
+
+func TestSetObservationForRuleRequiresLoadedDataAndClearsState(t *testing.T) {
+	observations := newAlertObservationSet()
+	cpuKey := alertObservationKey{serverID: 7, item: alertItemCPU}
+	observations.loaded[cpuKey] = struct{}{}
+	observations.values[cpuKey] = alertObservation{present: true, value: 88}
+	alert := &alertInstance{observation: alertObservation{present: true, value: 99}}
+
+	if !alert.setObservationForRule(observations, 7, alertItemCPU) {
+		t.Fatal("loaded CPU observation was rejected")
+	}
+	if alert.observation != (alertObservation{present: true, value: 88}) {
+		t.Fatalf("CPU observation = %#v", alert.observation)
+	}
+
+	if !alert.setObservationForRule(observations, 7, alertItemExpiry) {
+		t.Fatal("expiry rule unexpectedly requires an InfluxDB observation")
+	}
+	if alert.observation != (alertObservation{}) {
+		t.Fatalf("expiry retained a previous observation: %#v", alert.observation)
+	}
+
+	alert.observation = alertObservation{present: true, value: 77}
+	if alert.setObservationForRule(observations, 7, alertItemMemory) {
+		t.Fatal("missing memory observation was accepted")
+	}
+	if alert.observation != (alertObservation{}) {
+		t.Fatalf("missing observation retained previous state: %#v", alert.observation)
 	}
 }
 

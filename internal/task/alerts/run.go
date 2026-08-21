@@ -2,8 +2,11 @@ package alerttasks
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"mosona-manager/internal/db"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -28,6 +31,12 @@ func Run() {
 		log.Printf("failed to get notifications: %v", err)
 		return
 	}
+	now := time.Now()
+	loadCtx, cancelLoad := context.WithTimeout(context.Background(), alertLoadTimeout)
+	observations := loadAlertObservations(loadCtx, rulesMap, now, executeAlertQuery)
+	cancelLoad()
+	skippedRules := make(map[string]int)
+	totalSkippedRules := 0
 
 	for _, teamId := range teamIds {
 		notifications := notificationsMap[teamId]
@@ -39,31 +48,20 @@ func Run() {
 		var updateQueue []alertRuleUpdate
 
 		for serverId, serverRules := range rules {
-			maxTime := 0
-			for _, rule := range serverRules {
-				if rule.ForDuration > maxTime {
-					maxTime = rule.ForDuration
-				}
-			}
-
-			now := time.Now()
-			statuses, err := statusWindow(serverId, maxTime, now)
-			if err != nil {
-				log.Printf("failed to get status window for server %d: %v", serverId, err)
-				continue
-			}
-
 			alert := &alertInstance{
 				serverMap:     &serverMap,
 				expiryMap:     expiryMap,
 				notifications: notifications,
-				statuses:      statuses,
 			}
 
 			for rule, serverRule := range serverRules {
+				if !alert.setObservationForRule(observations, serverId, rule) {
+					skippedRules[rule]++
+					totalSkippedRules++
+					continue
+				}
 				r := &alertRule{
 					id:           serverRule.ID,
-					startTime:    now.Add(-time.Duration(serverRule.ForDuration) * time.Minute),
 					threshold:    serverRule.Threshold,
 					forDuration:  serverRule.ForDuration,
 					lastStatus:   serverRule.LastStatus,
@@ -74,21 +72,21 @@ func Run() {
 				var ln *time.Time
 
 				switch rule {
-				case "status":
+				case alertItemStatus:
 					ls, ln = alert.checkStatusAlert(serverId, r)
-				case "cpu_usage":
+				case alertItemCPU:
 					ls, ln = alert.checkCPUUsageAlert(serverId, r)
-				case "memory_usage":
+				case alertItemMemory:
 					ls, ln = alert.checkMemoryUsageAlert(serverId, r)
-				case "disk_usage":
+				case alertItemDisk:
 					ls, ln = alert.checkDiskUsageAlert(serverId, r)
-				case "read_iops":
+				case alertItemReadIOPS:
 					ls, ln = alert.checkReadIOPSAlert(serverId, r)
-				case "write_iops":
+				case alertItemWriteIOPS:
 					ls, ln = alert.checkWriteIOPSAlert(serverId, r)
-				case "bandwidth":
+				case alertItemBandwidth:
 					ls, ln = alert.checkBandwidthAlert(serverId, r)
-				case "expiry_reminder":
+				case alertItemExpiry:
 					ls, ln = alert.checkExpiryReminderAlert(serverId, r)
 				default:
 					continue
@@ -109,6 +107,45 @@ func Run() {
 			log.Printf("failed to update rule status for team %d: %v", teamId, err)
 		}
 	}
+	if totalSkippedRules > 0 {
+		log.Print(skippedAlertRulesMessage(totalSkippedRules, skippedRules, observations))
+	}
+}
+
+func (a *alertInstance) setObservationForRule(
+	observations *alertObservationSet,
+	serverID int64,
+	item string,
+) bool {
+	a.observation = alertObservation{}
+	if item == alertItemExpiry {
+		return true
+	}
+	observation, loaded := observations.get(serverID, item)
+	if loaded {
+		a.observation = observation
+	}
+	return loaded
+}
+
+func skippedAlertRulesMessage(total int, skippedRules map[string]int, observations *alertObservationSet) string {
+	items := make([]string, 0, len(skippedRules))
+	for item := range skippedRules {
+		items = append(items, item)
+	}
+	sort.Strings(items)
+	counts := make([]string, 0, len(items))
+	for _, item := range items {
+		counts = append(counts, fmt.Sprintf("%s=%d", item, skippedRules[item]))
+	}
+	return fmt.Sprintf(
+		"alert evaluation skipped %d rules with unavailable observations (%s; query_failures=%d invalid_durations=%d load_stopped=%t)",
+		total,
+		strings.Join(counts, ", "),
+		observations.queryFailures,
+		observations.invalidDurations,
+		observations.loadStopped,
+	)
 }
 
 func updateRuleStatus(queue []alertRuleUpdate) error {

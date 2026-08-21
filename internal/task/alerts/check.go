@@ -3,11 +3,7 @@ package alerttasks
 import (
 	"fmt"
 	"time"
-
-	"mosona-manager/internal/_type"
 )
-
-type metricCalculator func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int)
 
 type statusNotification int
 
@@ -59,17 +55,14 @@ func statusPtr(status bool) *bool {
 func (a *alertInstance) checkMetricAlert(
 	serverId int64,
 	r *alertRule,
-	calculator metricCalculator,
 	alertTitle string,
 	messageFormatter func(value float64, duration int, threshold int) string,
 ) (*bool, *time.Time) {
-	value, count := calculator(a.statuses, r.startTime)
-
-	if count == 0 {
+	if !a.observation.present {
 		return statusPtr(false), r.lastNotifyAt
 	}
 
-	avgValue := value / float64(count)
+	avgValue := a.observation.value
 	currentStatus := avgValue >= float64(r.threshold)
 
 	if shouldNotify(currentStatus, r) {
@@ -87,14 +80,7 @@ func (a *alertInstance) checkMetricAlert(
 }
 
 func (a *alertInstance) checkStatusAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
-	// Check if server has any status data after startTime
-	currentStatus := false
-	for _, item := range a.statuses {
-		if item.Time.After(r.startTime) {
-			currentStatus = true
-			break
-		}
-	}
+	currentStatus := a.observation.present
 
 	notification := statusNotificationFor(r.lastStatus, currentStatus)
 	if notification != statusNotificationNone {
@@ -121,22 +107,9 @@ func (a *alertInstance) checkStatusAlert(serverId int64, r *alertRule) (*bool, *
 }
 
 func (a *alertInstance) checkCPUUsageAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
-	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
-		var sum float64
-		var count int
-		for _, item := range statuses {
-			if item.Time.After(startTime) {
-				sum += item.CPU
-				count++
-			}
-		}
-		return sum, count
-	}
-
 	return a.checkMetricAlert(
 		serverId,
 		r,
-		calculator,
 		"CPU usage exceeded threshold",
 		func(value float64, duration int, threshold int) string {
 			return fmt.Sprintf("The %d-minutes average CPU usage reached %.2f%%, exceeding the configured threshold of %d%%",
@@ -146,22 +119,9 @@ func (a *alertInstance) checkCPUUsageAlert(serverId int64, r *alertRule) (*bool,
 }
 
 func (a *alertInstance) checkMemoryUsageAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
-	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
-		var sum float64
-		var count int
-		for _, item := range statuses {
-			if item.Time.After(startTime) {
-				sum += (item.MemUsedMB / item.MemTotalMB) * 100 // Convert to percentage
-				count++
-			}
-		}
-		return sum, count
-	}
-
 	return a.checkMetricAlert(
 		serverId,
 		r,
-		calculator,
 		"Memory usage exceeded threshold",
 		func(value float64, duration int, threshold int) string {
 			return fmt.Sprintf("The %d-minutes average Memory usage reached %.2f%%, exceeding the configured threshold of %d%%",
@@ -171,53 +131,12 @@ func (a *alertInstance) checkMemoryUsageAlert(serverId int64, r *alertRule) (*bo
 }
 
 func (a *alertInstance) checkDiskUsageAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
-	type diskStat struct {
-		sum   float64
-		count int
-	}
-	perDisk := make(map[string]*diskStat)
-	for _, item := range a.statuses {
-		if !item.Time.After(r.startTime) {
-			continue
-		}
-		for _, d := range item.Disks {
-			if d.TotalGB <= 0 {
-				continue
-			}
-			key := d.MountPoint
-			if key == "" {
-				key = "/"
-			}
-			stat, ok := perDisk[key]
-			if !ok {
-				stat = &diskStat{}
-				perDisk[key] = stat
-			}
-			stat.sum += (d.UsedGB / d.TotalGB) * 100
-			stat.count++
-		}
-	}
-
-	var currentStatus bool
-	var mountPoint string
-	var avgValue float64
-	for mp, stat := range perDisk {
-		if stat.count == 0 {
-			continue
-		}
-		avg := stat.sum / float64(stat.count)
-		if avg > avgValue {
-			avgValue = avg
-			mountPoint = mp
-		}
-		if avg >= float64(r.threshold) {
-			currentStatus = true
-		}
-	}
-
-	if len(perDisk) == 0 {
+	if !a.observation.present {
 		return statusPtr(false), r.lastNotifyAt
 	}
+	avgValue := a.observation.value
+	mountPoint := a.observation.mountPoint
+	currentStatus := avgValue >= float64(r.threshold)
 
 	if shouldNotify(currentStatus, r) {
 		delivery := a.notifyAll(
@@ -283,22 +202,9 @@ func (a *alertInstance) checkExpiryReminderAlert(serverId int64, r *alertRule) (
 }
 
 func (a *alertInstance) checkReadIOPSAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
-	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
-		var sum float64
-		var count int
-		for _, item := range statuses {
-			if item.Time.After(startTime) {
-				sum += item.DiskReadIOPS
-				count++
-			}
-		}
-		return sum, count
-	}
-
 	return a.checkMetricAlert(
 		serverId,
 		r,
-		calculator,
 		"Read IOPS exceeded threshold",
 		func(value float64, duration int, threshold int) string {
 			return fmt.Sprintf("The %d-minutes average Read IOPS reached %.1f, exceeding the configured threshold of %d IOPS",
@@ -308,22 +214,9 @@ func (a *alertInstance) checkReadIOPSAlert(serverId int64, r *alertRule) (*bool,
 }
 
 func (a *alertInstance) checkWriteIOPSAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
-	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
-		var sum float64
-		var count int
-		for _, item := range statuses {
-			if item.Time.After(startTime) {
-				sum += item.DiskWriteIOPS
-				count++
-			}
-		}
-		return sum, count
-	}
-
 	return a.checkMetricAlert(
 		serverId,
 		r,
-		calculator,
 		"Write IOPS exceeded threshold",
 		func(value float64, duration int, threshold int) string {
 			return fmt.Sprintf("The %d-minutes average Write IOPS reached %.1f, exceeding the configured threshold of %d IOPS",
@@ -333,22 +226,9 @@ func (a *alertInstance) checkWriteIOPSAlert(serverId int64, r *alertRule) (*bool
 }
 
 func (a *alertInstance) checkBandwidthAlert(serverId int64, r *alertRule) (*bool, *time.Time) {
-	calculator := func(statuses []*_type.ServerStatusType, startTime time.Time) (float64, int) {
-		var sum float64 // Mbps
-		var count int
-		for _, item := range statuses {
-			if item.Time.After(startTime) {
-				sum += (item.RxKibS + item.TxKibS) * 8 / 1024
-				count++
-			}
-		}
-		return sum, count
-	}
-
 	return a.checkMetricAlert(
 		serverId,
 		r,
-		calculator,
 		"Bandwidth usage exceeded threshold",
 		func(value float64, duration int, threshold int) string {
 			return fmt.Sprintf("The %d-minutes average Bandwidth usage reached %.2f Mbps, exceeding the configured threshold of %d Mbps",
