@@ -20,13 +20,13 @@ const (
 
 // TestAuditLogRoundTripIntegration verifies that a LogAdd audit event actually
 // lands in a real InfluxDB 2 instance and is readable through both the raw
-// query API and the GetLogsByPage read path used by the API handlers.
+// query API and the cursor-based GetLogs read path used by the API handlers.
 //
-// Requires: docker run -d --name mm-review-influx -p 58086:8086 \
-//   -e DOCKER_INFLUXDB_INIT_MODE=setup -e DOCKER_INFLUXDB_INIT_USERNAME=mm \
-//   -e DOCKER_INFLUXDB_INIT_PASSWORD=mmpass1234 -e DOCKER_INFLUXDB_INIT_ORG=mm_org \
-//   -e DOCKER_INFLUXDB_INIT_BUCKET=mm_bucket -e DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=mm_token \
-//   influxdb:2-alpine
+//	Requires: docker run -d --name mm-review-influx -p 58086:8086 \
+//	  -e DOCKER_INFLUXDB_INIT_MODE=setup -e DOCKER_INFLUXDB_INIT_USERNAME=mm \
+//	  -e DOCKER_INFLUXDB_INIT_PASSWORD=mmpass1234 -e DOCKER_INFLUXDB_INIT_ORG=mm_org \
+//	  -e DOCKER_INFLUXDB_INIT_BUCKET=mm_bucket -e DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=mm_token \
+//	  influxdb:2-alpine
 func TestAuditLogRoundTripIntegration(t *testing.T) {
 	probe := influxdb2.NewClient(integrationInfluxURL, integrationInfluxToken)
 	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -81,6 +81,12 @@ func TestAuditLogRoundTripIntegration(t *testing.T) {
 		if got := record.ValueByKey("team_id"); got != "42" {
 			t.Fatalf("team_id tag = %v, want 42", got)
 		}
+		if got := record.ValueByKey("category"); got != "server" {
+			t.Fatalf("category tag = %v, want server", got)
+		}
+		if got := record.ValueByKey("level"); got != "medium" {
+			t.Fatalf("level tag = %v, want medium", got)
+		}
 		found++
 	}
 	if err := result.Err(); err != nil {
@@ -90,15 +96,15 @@ func TestAuditLogRoundTripIntegration(t *testing.T) {
 		t.Fatalf("found %d records for marker, want 1", found)
 	}
 
-	// Exercise the paginated read path used by the log API handlers.
-	logs, total, err := GetLogsByPage(context.Background(), 42, 1, 10, "server", "medium", []int64{7}, marker)
+	// Exercise the cursor-based read path used by the log API handlers.
+	page, err := GetLogs(context.Background(), 42, 10, "server", "medium", []int64{7}, marker, time.Now().Add(-time.Hour), time.Now().Add(time.Minute), "")
 	if err != nil {
-		t.Fatalf("GetLogsByPage: %v", err)
+		t.Fatalf("GetLogs: %v", err)
 	}
-	if total != 1 || len(logs) != 1 {
-		t.Fatalf("GetLogsByPage returned total=%d logs=%d, want 1/1", total, len(logs))
+	if page.HasMore || page.NextCursor != "" || len(page.Logs) != 1 {
+		t.Fatalf("GetLogs returned page=%#v, want one final record", page)
 	}
-	entry := logs[0]
+	entry := page.Logs[0]
 	if entry.UserID != 7 || entry.Category != "server" || entry.Message != marker ||
 		entry.IP != "8.8.8.8" || entry.UserAgent != "integration-test-agent" || entry.Level != "medium" {
 		t.Fatalf("unexpected log entry: %#v", entry)
@@ -106,6 +112,48 @@ func TestAuditLogRoundTripIntegration(t *testing.T) {
 	if entry.IPCountry == "" || entry.IPCountryCode == "" {
 		t.Fatalf("expected geo fields to be populated, got %#v", entry)
 	}
+
+	t.Run("legacy field schema remains readable", func(t *testing.T) {
+		legacyMarker := fmt.Sprintf("legacy-integration-marker-%d", time.Now().UnixNano())
+		occurredAt := time.Now().UTC()
+		legacyPoint := influxdb2.NewPoint(
+			"logs",
+			map[string]string{"team_id": "42"},
+			map[string]interface{}{
+				"user_id":         int64(11),
+				"category":        "security",
+				"message":         legacyMarker,
+				"ip":              "127.0.0.2",
+				"ip_country":      "Private Network",
+				"ip_country_code": "UN",
+				"user_agent":      "legacy-agent",
+				"level":           "high",
+			},
+			occurredAt,
+		)
+		writeCtx, writeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer writeCancel()
+		if err := Client.WriteAPIBlocking(integrationInfluxOrg, "logs").WritePoint(writeCtx, legacyPoint); err != nil {
+			t.Fatalf("write legacy audit log: %v", err)
+		}
+
+		legacyPage, err := GetLogs(
+			context.Background(), 42, 10, "security", "high", []int64{11}, legacyMarker,
+			occurredAt.Add(-time.Minute), occurredAt.Add(time.Minute), "",
+		)
+		if err != nil {
+			t.Fatalf("GetLogs legacy audit log: %v", err)
+		}
+		if legacyPage.HasMore || legacyPage.NextCursor != "" || len(legacyPage.Logs) != 1 {
+			t.Fatalf("GetLogs returned legacy page=%#v, want one final record", legacyPage)
+		}
+		legacy := legacyPage.Logs[0]
+		if legacy.UserID != 11 || legacy.Category != "security" || legacy.Message != legacyMarker ||
+			legacy.IP != "127.0.0.2" || legacy.IPCountry != "Private Network" || legacy.IPCountryCode != "UN" ||
+			legacy.UserAgent != "legacy-agent" || legacy.Level != "high" {
+			t.Fatalf("unexpected legacy log entry: %#v", legacy)
+		}
+	})
 }
 
 // TestAuditLogUnreachableBackendIntegration verifies that when InfluxDB is

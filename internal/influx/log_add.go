@@ -311,17 +311,17 @@ func auditLogPoint(event auditLogEvent) *write.Point {
 	return influxdb2.NewPoint(
 		"logs",
 		map[string]string{
-			"team_id": strconv.FormatInt(event.teamID, 10),
+			"team_id":  strconv.FormatInt(event.teamID, 10),
+			"category": event.category,
+			"level":    event.level,
 		},
 		map[string]interface{}{
 			"user_id":         event.userID,
-			"category":        event.category,
 			"message":         event.message,
 			"ip":              event.ip,
 			"ip_country":      ipGEO.Country,
 			"ip_country_code": ipGEO.CountryCode,
 			"user_agent":      event.ua,
-			"level":           event.level,
 		},
 		event.occurredAt,
 	)

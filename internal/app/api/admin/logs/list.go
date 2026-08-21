@@ -1,25 +1,27 @@
 package mlogs
 
 import (
+	"errors"
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
 	"strconv"
+	"time"
 
 	"github.com/labstack/echo/v5"
 )
 
 func list(c *echo.Context) error {
-	page, _ := strconv.Atoi(c.QueryParam("page"))
-	pageSize, _ := strconv.Atoi(c.QueryParam("page_size"))
-	if page <= 0 {
-		page = 1
+	legacyPage, _ := strconv.Atoi(c.QueryParam("page"))
+	if legacyPage > 1 {
+		return c.JSON(400, _type.H{Code: "invalid", Msg: "Offset pagination is no longer supported"})
 	}
-	if pageSize <= 0 || pageSize > 1000 {
+	pageSize, _ := strconv.Atoi(c.QueryParam("page_size"))
+	if pageSize <= 0 {
 		pageSize = 20
 	}
-	if err := influx.ValidateLogPagination(page, pageSize); err != nil {
+	if err := influx.ValidateLogPageSize(pageSize); err != nil {
 		return c.JSON(400, _type.H{Code: "invalid", Msg: "Invalid pagination"})
 	}
 
@@ -30,6 +32,11 @@ func list(c *echo.Context) error {
 	if err := influx.ValidateLogFilters(category, level, message); err != nil {
 		return c.JSON(400, _type.H{Code: "invalid", Msg: "Invalid log filter"})
 	}
+	start, end, err := influx.ParseLogTimeRange(c.QueryParam("start"), c.QueryParam("end"), message, time.Now())
+	if err != nil {
+		return c.JSON(400, _type.H{Code: "invalid", Msg: "Invalid log time range"})
+	}
+	cursor := c.QueryParam("cursor")
 
 	ctx := c.Request().Context()
 
@@ -46,20 +53,24 @@ func list(c *echo.Context) error {
 				Code: "ok",
 				Msg:  "Success",
 				Data: _type.Map{
-					"logs":  []_type.Log{},
-					"total": 0,
+					"logs":        []_type.Log{},
+					"next_cursor": "",
+					"has_more":    false,
 				},
 			})
 		}
 	}
 
-	data, total, err := influx.GetLogsByPage(ctx, 0, page, pageSize, category, level, uids, message)
+	page, err := influx.GetLogs(ctx, 0, pageSize, category, level, uids, message, start, end, cursor)
 	if err != nil {
+		if errors.Is(err, influx.ErrInvalidLogFilter) {
+			return c.JSON(400, _type.H{Code: "invalid", Msg: "Invalid log query"})
+		}
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
 	var userIDs []int64
-	for _, logRecord := range data {
+	for _, logRecord := range page.Logs {
 		if logRecord.UserID != 0 {
 			userIDs = append(userIDs, logRecord.UserID)
 		}
@@ -69,7 +80,7 @@ func list(c *echo.Context) error {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
-	for i, logRecord := range data {
+	for i, logRecord := range page.Logs {
 		user, ok := userMap[logRecord.UserID]
 		if !ok {
 			user = _type.User{
@@ -77,16 +88,17 @@ func list(c *echo.Context) error {
 				Username: "[Deleted]",
 			}
 		}
-		data[i].Username = user.Username
-		data[i].Email = user.Email
+		page.Logs[i].Username = user.Username
+		page.Logs[i].Email = user.Email
 	}
 
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Success",
 		Data: _type.Map{
-			"logs":  data,
-			"total": total,
+			"logs":        page.Logs,
+			"next_cursor": page.NextCursor,
+			"has_more":    page.HasMore,
 		},
 	})
 }

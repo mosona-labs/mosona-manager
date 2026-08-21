@@ -3,6 +3,7 @@ package influx
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -129,5 +130,41 @@ func TestAuditLogProcessorRejectsEventsAfterShutdown(t *testing.T) {
 	}
 	if stats := processor.stats(); stats.Dropped != 1 {
 		t.Fatalf("unexpected stats: %#v", stats)
+	}
+}
+
+func TestAuditLogPointUsesFilterableTags(t *testing.T) {
+	point := auditLogPoint(auditLogEvent{
+		teamID:     42,
+		userID:     7,
+		category:   "server",
+		level:      "high",
+		message:    "updated server",
+		ip:         "127.0.0.1",
+		ua:         "test-agent",
+		occurredAt: time.Now(),
+	})
+
+	tags := make(map[string]string)
+	for _, tag := range point.TagList() {
+		tags[tag.Key] = tag.Value
+	}
+	if tags["team_id"] != "42" || tags["category"] != "server" || tags["level"] != "high" {
+		t.Fatalf("unexpected log tags: %#v", tags)
+	}
+	fields := make(map[string]interface{}, len(point.FieldList()))
+	for _, field := range point.FieldList() {
+		fields[field.Key] = field.Value
+	}
+	wantFields := map[string]interface{}{
+		"user_id":         int64(7),
+		"message":         "updated server",
+		"ip":              "127.0.0.1",
+		"ip_country":      "Private Network",
+		"ip_country_code": "UN",
+		"user_agent":      "test-agent",
+	}
+	if !reflect.DeepEqual(fields, wantFields) {
+		t.Fatalf("log fields = %#v, want %#v", fields, wantFields)
 	}
 }
