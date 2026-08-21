@@ -2,6 +2,7 @@ package mteam
 
 import (
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/app/api/pagination"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 	"strconv"
@@ -11,8 +12,10 @@ import (
 )
 
 func list(c *echo.Context) error {
-	page, _ := strconv.Atoi(c.QueryParam("page"))
-	size, _ := strconv.Atoi(c.QueryParam("size"))
+	page, size, err := pagination.ParseOffset(c.QueryParam("page"), c.QueryParam("size"))
+	if err != nil {
+		return c.JSON(400, _type.H{Code: "invalid", Msg: "Invalid pagination"})
+	}
 
 	search := c.QueryParam("search")
 	email := c.QueryParam("email")
@@ -21,39 +24,33 @@ func list(c *echo.Context) error {
 
 	// Query
 	query := psql.Select(
-		"id",
-		"name",
-		"description",
-		"created_at",
-		"updated_at",
+		"teams.id",
+		"teams.name",
+		"teams.description",
+		"teams.created_at",
+		"teams.updated_at",
 	).From("teams").
-		Join("m_team_user mtu ON teams.id = mtu.team_id").
-		Join("users u ON mtu.user_id = u.id").
-		OrderBy("id DESC").
+		OrderBy("teams.id DESC").
 		Limit(uint64(size)).Offset(uint64((page - 1) * size))
 
 	// Count
-	countQuery := psql.Select("COUNT(DISTINCT teams.id)").From("teams").
-		Join("m_team_user mtu ON teams.id = mtu.team_id").
-		Join("users u ON mtu.user_id = u.id")
+	countQuery := psql.Select("COUNT(teams.id)").From("teams")
 
 	// Filters
 	if email != "" {
-		query = query.Where(squirrel.Like{"u.email": "%" + email + "%"})
-		countQuery = countQuery.Where(squirrel.Like{"u.email": "%" + email + "%"})
+		emailFilter := squirrel.Expr(`EXISTS (
+			SELECT 1
+			FROM m_team_user mtu
+			JOIN users u ON mtu.user_id = u.id
+			WHERE mtu.team_id = teams.id AND u.email LIKE ? ESCAPE '\'
+		)`, "%"+utils.EscapeLike(email)+"%")
+		query = query.Where(emailFilter)
+		countQuery = countQuery.Where(emailFilter)
 	}
 	if search != "" {
-		searchPattern := "%" + search + "%"
-		query = query.Where(squirrel.Or{
-			squirrel.Eq{"teams.id": search},
-			squirrel.Like{"teams.name": searchPattern},
-			squirrel.Like{"teams.description": searchPattern},
-		})
-		countQuery = countQuery.Where(squirrel.Or{
-			squirrel.Eq{"teams.id": search},
-			squirrel.Like{"teams.name": searchPattern},
-			squirrel.Like{"teams.description": searchPattern},
-		})
+		searchFilter := teamSearchFilter(search)
+		query = query.Where(searchFilter)
+		countQuery = countQuery.Where(searchFilter)
 	}
 
 	// To SQL
@@ -78,4 +75,16 @@ func list(c *echo.Context) error {
 			"total": total,
 		},
 	})
+}
+
+func teamSearchFilter(search string) squirrel.Sqlizer {
+	searchPattern := "%" + utils.EscapeLike(search) + "%"
+	conditions := squirrel.Or{}
+	if teamID, err := strconv.ParseInt(search, 10, 64); err == nil {
+		conditions = append(conditions, squirrel.Eq{"teams.id": teamID})
+	}
+	return append(conditions,
+		squirrel.Expr(`teams.name LIKE ? ESCAPE '\'`, searchPattern),
+		squirrel.Expr(`teams.description LIKE ? ESCAPE '\'`, searchPattern),
+	)
 }

@@ -2,6 +2,7 @@ package muser
 
 import (
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/app/api/pagination"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
 	"strconv"
@@ -11,8 +12,10 @@ import (
 )
 
 func list(c *echo.Context) error {
-	page, _ := strconv.Atoi(c.QueryParam("page"))
-	size, _ := strconv.Atoi(c.QueryParam("size"))
+	page, size, err := pagination.ParseOffset(c.QueryParam("page"), c.QueryParam("size"))
+	if err != nil {
+		return c.JSON(400, _type.H{Code: "invalid", Msg: "Invalid pagination"})
+	}
 
 	search := c.QueryParam("search")
 	verify := c.QueryParam("verify")
@@ -37,17 +40,9 @@ func list(c *echo.Context) error {
 
 	// Filters
 	if search != "" {
-		searchPattern := "%" + search + "%"
-		query = query.Where(squirrel.Or{
-			squirrel.Eq{"id": search},
-			squirrel.Like{"username": searchPattern},
-			squirrel.Like{"email": searchPattern},
-		})
-		countQuery = countQuery.Where(squirrel.Or{
-			squirrel.Eq{"id": search},
-			squirrel.Like{"username": searchPattern},
-			squirrel.Like{"email": searchPattern},
-		})
+		searchFilter := userSearchFilter(search)
+		query = query.Where(searchFilter)
+		countQuery = countQuery.Where(searchFilter)
 	}
 	if verify == "true" {
 		query = query.Where("verified = TRUE")
@@ -79,4 +74,16 @@ func list(c *echo.Context) error {
 			"total": total,
 		},
 	})
+}
+
+func userSearchFilter(search string) squirrel.Sqlizer {
+	searchPattern := "%" + utils.EscapeLike(search) + "%"
+	conditions := squirrel.Or{}
+	if userID, err := strconv.ParseInt(search, 10, 64); err == nil {
+		conditions = append(conditions, squirrel.Eq{"id": userID})
+	}
+	return append(conditions,
+		squirrel.Expr(`username LIKE ? ESCAPE '\'`, searchPattern),
+		squirrel.Expr(`email LIKE ? ESCAPE '\'`, searchPattern),
+	)
 }

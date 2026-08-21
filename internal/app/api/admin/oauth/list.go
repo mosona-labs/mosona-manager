@@ -2,16 +2,18 @@ package moauth
 
 import (
 	"mosona-manager/internal/_type"
+	"mosona-manager/internal/app/api/pagination"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
-	"strconv"
 
 	"github.com/labstack/echo/v5"
 )
 
 func list(c *echo.Context) error {
-	page, _ := strconv.Atoi(c.QueryParam("page"))
-	size, _ := strconv.Atoi(c.QueryParam("size"))
+	page, size, err := pagination.ParseOffset(c.QueryParam("page"), c.QueryParam("size"))
+	if err != nil {
+		return c.JSON(400, _type.H{Code: "invalid", Msg: "Invalid pagination"})
+	}
 
 	var data = make([]_type.AuthProvider, 0)
 	if err := db.Db.Select(
