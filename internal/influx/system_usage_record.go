@@ -9,16 +9,21 @@ import (
 )
 
 func GetSystemUsage() ([]*_type.ServerUsageRecord, error) {
+	return GetSystemUsageContext(context.Background())
+}
+
+func GetSystemUsageContext(ctx context.Context) ([]*_type.ServerUsageRecord, error) {
 	query := fmt.Sprintf(`from(bucket: "system_usage")
   |> range(start: 0)
   |> filter(fn: (r) => r._measurement == "system_usage")
   |> sort(columns:["_time"])`)
 
 	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
-	result, err := queryAPI.Query(context.Background(), query)
+	result, err := queryAPI.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = result.Close() }()
 
 	var history []*_type.ServerUsageRecord
 	statusMap := make(map[time.Time]*_type.ServerUsageRecord)

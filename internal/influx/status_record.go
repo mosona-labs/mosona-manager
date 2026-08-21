@@ -306,16 +306,21 @@ func GetServerStatusHistory(serverID int64, start, end time.Time, timeFrame stri
 }
 
 func GetAllServerRecordCount(bucket string) (int64, error) {
+	return GetAllServerRecordCountContext(context.Background(), bucket)
+}
+
+func GetAllServerRecordCountContext(ctx context.Context, bucket string) (int64, error) {
 	query := `from(bucket: "` + bucket + `")
   |> range(start: -365d)
   |> filter(fn: (r) => r._measurement == "server_status")
   |> count()`
 
 	queryAPI := Client.QueryAPI(config.Conf.InfluxDBOrg)
-	result, err := queryAPI.Query(context.Background(), query)
+	result, err := queryAPI.Query(ctx, query)
 	if err != nil {
 		return 0, err
 	}
+	defer func() { _ = result.Close() }()
 
 	var totalCount int64 = 0
 
@@ -333,14 +338,38 @@ func GetAllServerRecordCount(bucket string) (int64, error) {
 }
 
 func GetAllBucketAllServerRecordCount() (int64, error) {
-	var count int64 = 0
+	return GetAllBucketAllServerRecordCountContext(context.Background())
+}
+
+func GetAllBucketAllServerRecordCountContext(ctx context.Context) (int64, error) {
 	buckets := []string{"server_status_raw", "server_status_minute", "server_status_hourly", "server_status_daily"}
+	type bucketResult struct {
+		bucket string
+		count  int64
+		err    error
+	}
+
+	queryCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	results := make(chan bucketResult, len(buckets))
 	for _, bucket := range buckets {
-		bucketCount, err := GetAllServerRecordCount(bucket)
-		if err != nil {
-			return 0, err
+		go func() {
+			count, err := GetAllServerRecordCountContext(queryCtx, bucket)
+			results <- bucketResult{bucket: bucket, count: count, err: err}
+		}()
+	}
+
+	var count int64
+	for range buckets {
+		select {
+		case result := <-results:
+			if result.err != nil {
+				return 0, fmt.Errorf("count records in %s: %w", result.bucket, result.err)
+			}
+			count += result.count
+		case <-ctx.Done():
+			return 0, ctx.Err()
 		}
-		count += bucketCount
 	}
 	return count, nil
 }
