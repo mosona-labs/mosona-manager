@@ -1,5 +1,68 @@
 # Changelog
 
+## v0.1.14 - 2026-08-22
+
+This release reduces Hub load from live monitoring and alerting on larger
+fleets, replaces log offset pagination with cursor-based time-range queries,
+and hardens admin list search plus static-path joining.
+
+### Upgrade Notes
+
+- **Logs API no longer supports offset pagination.** `GET /api/v1/logs` and
+  `GET /api/admin/logs` reject `page` greater than 1 with HTTP 400 (`Offset
+  pagination is no longer supported`). Responses return `next_cursor` and
+  `has_more` instead of `total`. The bundled web UI is updated; third-party
+  clients must follow `next_cursor` (omit it for the newest page). `page=1`
+  remains accepted as an alias for the first page.
+- **Log queries default to the last 30 days.** Callers may pass RFC3339
+  `start` and `end` (maximum span 365 days, unchanged). Message search is
+  limited to a 30-day window; a longer range with `message` set returns 400.
+  Older points remain in InfluxDB untouched.
+
+### Added
+
+- Optional RFC3339 `start`/`end` filters on team and admin log list
+  endpoints, with cursor-based paging (`cursor`, `next_cursor`, `has_more`).
+
+### Performance
+
+- Share one monitor snapshot per team across SSE subscribers (refresh every
+  3s, 8s query timeout, 64 concurrent Influx loads) instead of querying
+  InfluxDB once per open dashboard.
+- Queue and batch server-status writes to InfluxDB (10k-point queue,
+  500-point batches, 1s flush), retry a failed batch once, drop the oldest
+  points on overflow, and drain the queue on shutdown alongside audit logs.
+- Batch alert observation queries (64 servers at a time, grouped by metric
+  and `for_duration`) and pre-aggregate windows instead of one Influx query
+  per server/rule.
+- Parallelize admin-dashboard Influx queries (record counts and system
+  usage) with a 15s context timeout.
+
+### Fixed
+
+- Reject parent path segments (`..`) in `SafeJoinUnderRoot`, including
+  backslash-separated paths, so static-file joins cannot walk via traversal
+  segments that previously cleaned back under the root.
+- Validate admin list pagination (`page`/`size`) against shared bounds
+  (default 1/20, max 100000/1000) and return 400 on invalid values instead
+  of coercing them.
+- Escape `LIKE` wildcards in admin user/team search, match numeric IDs
+  exactly, and list teams without requiring a member join so empty teams
+  appear in the admin list.
+
+### Web UI
+
+- Virtualize dashboard server cards and throttle SSE snapshot commits so
+  large fleets stay interactive while status updates stream.
+- Replace log page numbers with previous/next cursor paging and a time-range
+  selector (24h / 7d / 30d / 90d / 365d); message search clamps the range to
+  30 days.
+- Render agent-mode servers on the terminal page when SSH/OS fields are
+  absent instead of throwing on null address/username.
+- Correct monitor chart downsampling so longer ranges (7d / 30d / 180d /
+  365d) keep a sensible number of points instead of collapsing or
+  over-aggregating.
+
 ## v0.1.13 - 2026-08-17
 
 ### Fixed
