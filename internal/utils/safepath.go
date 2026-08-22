@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -11,6 +12,9 @@ func SafeJoinUnderRoot(root, requestPath string) (string, error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
 		return "", err
+	}
+	if containsParentPathSegment(requestPath) {
+		return "", fmt.Errorf("path escapes root")
 	}
 	cleaned := filepath.Clean("/" + strings.TrimPrefix(requestPath, "/"))
 	if cleaned == "/" || cleaned == "." {
@@ -27,4 +31,10 @@ func SafeJoinUnderRoot(root, requestPath string) (string, error) {
 		return "", fmt.Errorf("path escapes root")
 	}
 	return target, nil
+}
+
+func containsParentPathSegment(path string) bool {
+	return slices.Contains(strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	}), "..")
 }
