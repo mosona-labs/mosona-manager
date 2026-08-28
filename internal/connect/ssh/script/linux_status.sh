@@ -64,7 +64,7 @@ disk_space_task() {
 
   printf 'disks=[' > "$out"
 
-  df -B1 -x tmpfs -x devtmpfs -x squashfs -x overlay -x iso9660 -x efivarfs -x autofs 2>/dev/null \
+  { df -B1 -x tmpfs -x devtmpfs -x squashfs -x overlay -x iso9660 -x efivarfs -x autofs 2>/dev/null || true; } \
     | awk 'NR>1 && $6 !~ /^\/(boot|snap\/|sys|proc|dev|run)/ { print $2, $3, $6 }' \
     | while read -r total used mp; do
         if [ "$mp" != "/" ] && [ "$total" -lt "$min_size_bytes" ]; then
@@ -196,9 +196,10 @@ while true; do
 
   wait "$pid_cpu" "$pid_mem" "$pid_dspace" "$pid_net" "$pid_dio" "$pid_tcpudp"
 
-  (
-    cat "$cpu_f" "$mem_f" "$disk_space_f" "$net_f" "$diskio_f" "$tcp_udp_f"
-  ) | awk '
+  for result_f in "$cpu_f" "$mem_f" "$disk_space_f" "$net_f" "$diskio_f" "$tcp_udp_f"; do
+    cat "$result_f"
+    printf '\n'
+  done | awk '
     BEGIN { printf "{"; first=1 }
     /^[[:space:]]*$/ { next }
     {
