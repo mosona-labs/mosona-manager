@@ -33,6 +33,7 @@ type Client struct {
 	maxRetries    int
 	retryInterval time.Duration
 	maxRetryDelay time.Duration
+	pongWait      time.Duration
 	onReconnect   func()
 	ctx           context.Context
 	cancel        context.CancelFunc

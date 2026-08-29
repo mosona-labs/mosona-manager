@@ -3,9 +3,11 @@ package config
 import (
 	"crypto/ed25519"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mosona-manager/agent/runtime"
 	"mosona-manager/pkg/identity"
+	"os"
 	"path/filepath"
 )
 
@@ -54,9 +56,26 @@ func LoadPrivateKey() error {
 	return nil
 }
 
-// CreatePrivateKey atomically reserves the passive-agent key path and never overwrites an existing identity.
+// CreatePrivateKey atomically reserves the agent identity path and never overwrites an existing identity.
 func CreatePrivateKey(data []byte) error {
 	return createSecureFile(filepath.Join(runtime.InstallDir, "private_key.pem"), data, 0o600)
+}
+
+func LoadOrCreateActivePrivateKey() error {
+	if err := LoadPrivateKey(); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	privateKey, _, err := identity.GenerateEd25519KeyPair()
+	if err != nil {
+		return fmt.Errorf("generate active identity: %w", err)
+	}
+	if err = CreatePrivateKey([]byte(privateKey)); err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("create active identity: %w", err)
+	}
+	return LoadPrivateKey()
 }
 
 func LoadPublicKey() error {

@@ -16,6 +16,7 @@ import (
 	"mosona-manager/internal/notification"
 	"mosona-manager/internal/security/exportcrypto"
 	"mosona-manager/internal/utils/encrypt"
+	"mosona-manager/pkg/identity"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
@@ -111,6 +112,31 @@ func TestApplyTeamImportRejectsUnpinnedSSHBeforeTransaction(t *testing.T) {
 	}}}, false)
 	if !errors.Is(err, errInvalidTeamImport) || !strings.Contains(err.Error(), "requires explicit confirmation") {
 		t.Fatalf("expected invalid import host key error, got %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestApplyTeamImportRejectsInvalidAgentPublicKeyBeforeTransaction(t *testing.T) {
+	database, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	t.Cleanup(func() { db.Db = oldDB })
+
+	_, _, err = applyTeamImport(5, teamExportBundle{Servers: []teamExportServer{{
+		Type: 1,
+		Name: "broken-active",
+		Agent: &teamExportAgent{
+			PublicKey: "not a PEM key",
+		},
+	}}}, false)
+	if !errors.Is(err, errInvalidTeamImport) || !strings.Contains(err.Error(), "broken-active") {
+		t.Fatalf("expected invalid Agent public key error, got %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
@@ -363,6 +389,56 @@ func TestNormalizeImportedActiveServerPreservesRuntime(t *testing.T) {
 	}
 	if seen == nil || !seen.Equal(lastSeen) || lastIP != ip || version != "v1.2.3" {
 		t.Fatal("active agent runtime should be preserved")
+	}
+}
+
+func TestNormalizeImportedAgentProtocol(t *testing.T) {
+	tests := []struct {
+		name       string
+		serverType int16
+		agent      teamExportAgent
+		want       int16
+	}{
+		{name: "explicit legacy is preserved", serverType: 1, agent: teamExportAgent{ProtocolVersion: 1}, want: 1},
+		{name: "explicit v2", serverType: 1, agent: teamExportAgent{ProtocolVersion: 2}, want: 2},
+		{name: "pinned key overrides explicit legacy", serverType: 1, agent: teamExportAgent{ProtocolVersion: 1, PublicKey: "pinned"}, want: 2},
+		{name: "old unpaired active export", serverType: 1, agent: teamExportAgent{}, want: 1},
+		{name: "old pinned active export", serverType: 1, agent: teamExportAgent{PublicKey: "pinned"}, want: 2},
+		{name: "passive export", serverType: 2, agent: teamExportAgent{}, want: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := normalizeImportedAgentProtocol(tt.serverType, &tt.agent); got != tt.want {
+				t.Fatalf("normalizeImportedAgentProtocol() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeImportedAgentPublicKeys(t *testing.T) {
+	_, publicKey, err := identity.GenerateEd25519KeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	servers := []teamExportServer{
+		{Name: "pinned", Type: 1, Agent: &teamExportAgent{PublicKey: " \n" + publicKey + "\t", ProtocolVersion: 1}},
+		{Name: "unpaired", Type: 1, Agent: &teamExportAgent{PublicKey: " \n\t"}},
+	}
+	normalized, err := normalizeImportedAgentPublicKeys(servers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized[0].Agent.PublicKey != publicKey {
+		t.Fatal("valid imported public key was not canonicalized")
+	}
+	if got := normalizeImportedAgentProtocol(normalized[0].Type, normalized[0].Agent); got != 2 {
+		t.Fatalf("pinned protocol version = %d, want 2", got)
+	}
+	if normalized[1].Agent.PublicKey != "" {
+		t.Fatalf("blank imported public key = %q, want empty", normalized[1].Agent.PublicKey)
+	}
+	if servers[1].Agent.PublicKey == "" {
+		t.Fatal("normalization mutated the input bundle")
 	}
 }
 

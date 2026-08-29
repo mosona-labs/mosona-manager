@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
@@ -62,6 +63,21 @@ func GenerateEd25519KeyPair() (privateKeyStr, publicKeyStr string, err error) {
 	publicKeyStr = string(pem.EncodeToMemory(publicKeyBlock))
 
 	return privateKeyStr, publicKeyStr, nil
+}
+
+func EncodeEd25519PublicKeyPEM(publicKey ed25519.PublicKey) (string, error) {
+	if len(publicKey) != ed25519.PublicKeySize {
+		return "", fmt.Errorf("invalid Ed25519 public key length: got %d, want %d", len(publicKey), ed25519.PublicKeySize)
+	}
+	return string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: publicKey})), nil
+}
+
+func Ed25519Fingerprint(publicKey ed25519.PublicKey) (string, error) {
+	if len(publicKey) != ed25519.PublicKeySize {
+		return "", fmt.Errorf("invalid Ed25519 public key length: got %d, want %d", len(publicKey), ed25519.PublicKeySize)
+	}
+	digest := sha256.Sum256(publicKey)
+	return "SHA256:" + base64.RawStdEncoding.EncodeToString(digest[:]), nil
 }
 
 func SignHeaders(privateKey ed25519.PrivateKey, uuid string, ts int64, nonce string) (string, error) {

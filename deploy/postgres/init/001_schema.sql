@@ -131,6 +131,7 @@ CREATE TABLE "agents" (
   "last_version" varchar(64) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "public_key" text COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::text,
   "private_key" text COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::text,
+  "protocol_version" int2 NOT NULL DEFAULT 2,
   "host" varchar(255) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "port" int4 NOT NULL DEFAULT 0
 )
@@ -138,6 +139,7 @@ CREATE TABLE "agents" (
 ALTER TABLE "agents" OWNER TO CURRENT_USER;
 COMMENT ON COLUMN "agents"."status" IS '0 - not installed
 1 - installed';
+COMMENT ON COLUMN "agents"."protocol_version" IS 'Active Agent handshake protocol: 1 - legacy compatibility, 2 - mutually authenticated';
 
 -- ----------------------------
 -- Table structure for auth_identity
@@ -548,6 +550,8 @@ CREATE INDEX "IDX_AAU" ON "agents" USING btree (
 -- Primary Key structure for table agents
 -- ----------------------------
 ALTER TABLE "agents" ADD CONSTRAINT "agents_pkey" PRIMARY KEY ("server_id");
+ALTER TABLE "agents" ADD CONSTRAINT "agents_protocol_version_valid" CHECK ("protocol_version" IN (1, 2));
+ALTER TABLE "agents" ADD CONSTRAINT "agents_legacy_identity_unpinned" CHECK ("protocol_version" <> 1 OR btrim("public_key") = '');
 
 -- ----------------------------
 -- Uniques structure for table auth_identity

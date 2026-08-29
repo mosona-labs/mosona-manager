@@ -1,7 +1,6 @@
 package active
 
 import (
-	"crypto/ecdh"
 	"encoding/json"
 	"log"
 	"mosona-manager/agent/shellsession"
@@ -14,20 +13,12 @@ import (
 
 func handleTerminalWebSocket(
 	conn *websocket.Conn,
-	xHubPubKey *ecdh.PublicKey,
-	xAgentPrivKey *ecdh.PrivateKey,
-	hubNonce string,
-	agentNonce string,
+	sc *secureWS.SessionCrypto,
 ) {
 	defer func() {
 		_ = conn.Close()
 	}()
-
-	sc, err := secureWS.NewSessionCrypto(secureWS.RoleAgent, xHubPubKey, xAgentPrivKey, hubNonce, agentNonce)
-	if err != nil {
-		_ = conn.WriteMessage(websocket.CloseMessage, []byte("crypto init failed"))
-		return
-	}
+	writer := newWebSocketWriter(conn)
 
 	session, err := shellsession.Start()
 	if err != nil {
@@ -64,7 +55,7 @@ func handleTerminalWebSocket(
 					cleanup()
 					return
 				}
-				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+				if err := writer.writeMessage(websocket.BinaryMessage, data); err != nil {
 					cleanup()
 					return
 				}

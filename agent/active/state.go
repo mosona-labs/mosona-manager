@@ -1,10 +1,10 @@
 package active
 
 import (
-	"crypto/ecdh"
 	"log"
 	"mosona-manager/agent/config"
 	"mosona-manager/agent/telemetry"
+	agentTypes "mosona-manager/agent/types"
 	"mosona-manager/pkg/securews"
 	"time"
 
@@ -12,47 +12,76 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
+type stateMonitor interface {
+	Snapshot() (*agentTypes.Status, error)
+}
+
 func handleStateWebSocket(
 	conn *websocket.Conn,
-	xHubPubKey *ecdh.PublicKey,
-	xAgentPrivKey *ecdh.PrivateKey,
-	hubNonce string,
-	agentNonce string,
+	sc *secureWS.SessionCrypto,
 ) {
 	defer func() {
 		_ = conn.Close()
 	}()
+	writer := newWebSocketWriter(conn)
 
-	sc, err := secureWS.NewSessionCrypto(secureWS.RoleAgent, xHubPubKey, xAgentPrivKey, hubNonce, agentNonce)
-	if err != nil {
-		_ = conn.WriteMessage(websocket.CloseMessage, []byte("crypto init failed"))
+	readDone := make(chan struct{})
+	go func() {
+		defer close(readDone)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	if config.Current.NoMonitor {
+		<-readDone
 		return
 	}
+	runStateMonitorUntil(writer, sc, telemetry.NewMonitor(), readDone)
+}
 
-	// Monitoring loop
-	if !config.Current.NoMonitor {
-		monitor := telemetry.NewMonitor()
-		for {
-			start := time.Now()
+func runStateMonitor(conn *websocket.Conn, sc *secureWS.SessionCrypto, monitor stateMonitor) {
+	var writer *websocketWriter
+	if conn != nil {
+		writer = newWebSocketWriter(conn)
+	}
+	runStateMonitorUntil(writer, sc, monitor, nil)
+}
 
-			s, err := monitor.Snapshot()
-			if err != nil {
-				log.Fatalln("Failed to get status:", err)
-			}
-			data, err := msgpack.Marshal(s)
-			if err != nil {
-				log.Fatalln("Failed to marshal status:", err)
-			}
+func runStateMonitorUntil(writer *websocketWriter, sc *secureWS.SessionCrypto, monitor stateMonitor, done <-chan struct{}) {
+	for {
+		start := time.Now()
 
-			if frame, err := sc.Encrypt(data); err == nil {
-				if err := conn.WriteMessage(websocket.BinaryMessage, frame); err != nil {
-					return
-				}
-			}
+		s, err := monitor.Snapshot()
+		if err != nil {
+			log.Println("Failed to get status; closing monitoring connection:", err)
+			return
+		}
+		data, err := msgpack.Marshal(s)
+		if err != nil {
+			log.Println("Failed to marshal status; closing monitoring connection:", err)
+			return
+		}
 
-			sleepFor := 3*time.Second - time.Since(start)
-			if sleepFor > 0 {
-				time.Sleep(sleepFor)
+		frame, err := sc.Encrypt(data)
+		if err != nil {
+			log.Println("Failed to encrypt status; closing monitoring connection:", err)
+			return
+		}
+		if err = writer.writeMessage(websocket.BinaryMessage, frame); err != nil {
+			return
+		}
+
+		sleepFor := 3*time.Second - time.Since(start)
+		if sleepFor > 0 {
+			timer := time.NewTimer(sleepFor)
+			select {
+			case <-done:
+				timer.Stop()
+				return
+			case <-timer.C:
 			}
 		}
 	}

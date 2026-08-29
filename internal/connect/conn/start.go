@@ -14,6 +14,14 @@ import (
 	"time"
 )
 
+var (
+	connectActiveAgent            = active.Connect
+	activeConnectionRetryTimer    = time.After
+	logLegacyAgentUpgradeRequired = func(serverID int64) {
+		log.Printf("Active Agent for server %d is online via the legacy handshake; waiting for the Agent to update before authenticated pairing", serverID)
+	}
+)
+
 func ReconcileServer(serverId int64) error {
 	lock := lifecycleLock(serverId)
 	lock.Lock()
@@ -42,15 +50,33 @@ func reconcileServer(serverId int64) error {
 	}
 
 	if !allowMonitor {
-		stopServer(serverId)
-		return nil
+		if mode != 1 {
+			stopServer(serverId)
+			return nil
+		}
+		var publicKey string
+		if err := db.Db.QueryRow("SELECT public_key FROM agents WHERE server_id = $1", serverId).Scan(&publicKey); err != nil {
+			stopServer(serverId)
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
+			return err
+		}
+		if publicKey != "" {
+			stopServer(serverId)
+			return nil
+		}
 	}
 
 	switch mode {
 	case 0, 1:
 		stopInboundServer(serverId)
 		stopOutboundServer(serverId)
-		return startServer(serverId, mode)
+		err := startServer(serverId, mode, allowMonitor)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
 	case 2:
 		stopOutboundServer(serverId)
 		return nil
@@ -116,7 +142,7 @@ func startReconcileRetry(serverID int64) {
 	}()
 }
 
-func startServer(serverId int64, mode int16) error {
+func startServer(serverId int64, mode int16, allowMonitor bool) error {
 	switch mode {
 	case 0:
 		var host, user string
@@ -174,19 +200,21 @@ func startServer(serverId int64, mode int16) error {
 		entry := connectPool[serverId]
 		mu.Unlock()
 		go func() {
-			defer close(entry.done)
+			defer finishOutboundServer(serverId, entry)
 			_ = ssh.SSH(ctx, host, port, user, pwdStr, keyStr, keyPwdStr, trustedHostKey.String, trustLegacyHostKey, serverId, teamID)
 		}()
 	case 1:
 		var (
-			agentUid string
-			host     string
-			port     int
-			privKey  string
+			agentUid        string
+			host            string
+			port            int
+			privKey         string
+			publicKey       string
+			protocolVersion int16
 		)
 		if err := db.Db.QueryRow(
-			"SELECT agent_uid, host, port, private_key FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = $1", serverId,
-		).Scan(&agentUid, &host, &port, &privKey); err != nil {
+			"SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = $1", serverId,
+		).Scan(&agentUid, &host, &port, &privKey, &publicKey, &protocolVersion); err != nil {
 			return err
 		}
 
@@ -201,17 +229,35 @@ func startServer(serverId int64, mode int16) error {
 		mu.Unlock()
 
 		go func() {
-			defer close(entry.done)
+			defer finishOutboundServer(serverId, entry)
 			failures := 0
+			legacyUpgradeNoticed := false
 			for {
 				delay := retryDelay(failures, rand.Float64())
 				select {
 				case <-ctx.Done():
 					return
-				case <-time.After(delay):
+				case <-activeConnectionRetryTimer(delay):
 				}
 				startedAt := time.Now()
-				if err := active.Connect(ctx, host, port, privKey, agentUid, serverId); err != nil && ctx.Err() == nil {
+				err := connectActiveAgent(ctx, host, port, privKey, agentUid, publicKey, protocolVersion, serverId, allowMonitor)
+				if ctx.Err() != nil {
+					return
+				}
+				if errors.Is(err, active.ErrAgentIdentityMismatch) {
+					return
+				}
+				if errors.Is(err, active.ErrLegacyAgentRequiresUpgrade) && !legacyUpgradeNoticed {
+					logLegacyAgentUpgradeRequired(serverId)
+					legacyUpgradeNoticed = true
+				}
+				if currentErr := db.Db.QueryRow("SELECT public_key, protocol_version FROM agents WHERE server_id = $1", serverId).Scan(&publicKey, &protocolVersion); currentErr != nil {
+					log.Printf("Failed to reload Active Agent identity for server %d: %v", serverId, currentErr)
+				}
+				if err == nil && !allowMonitor {
+					return
+				}
+				if err != nil {
 					if time.Since(startedAt) >= time.Minute {
 						failures = 0
 					} else {

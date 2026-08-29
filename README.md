@@ -84,6 +84,10 @@ See [CHANGELOG.md](./CHANGELOG.md) for history of changes.
 
 See [PostgreSQL bloat recovery](./docs/postgres-bloat-recovery.md) when an old transaction has prevented VACUUM from reclaiming dead tuples.
 
+## Development
+
+See [Testing](./docs/testing.md) for required environment variables, race-test commands, and PostgreSQL migration test setup.
+
 ## Community
 
 - [Discord](https://discord.gg/gmWzrXFXsB)

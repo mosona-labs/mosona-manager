@@ -10,8 +10,12 @@ import (
 )
 
 const (
+	// DefaultPingInterval is the interval between WebSocket liveness probes.
 	DefaultPingInterval = 20 * time.Second
-	DefaultPingTimeout  = 10 * time.Second
+	// DefaultPingTimeout bounds a ping or pong control-frame write.
+	DefaultPingTimeout = 10 * time.Second
+	// DefaultPongWait is the maximum time a peer may remain unresponsive.
+	DefaultPongWait = 45 * time.Second
 )
 
 func SetSafePingHandler(conn *websocket.Conn, writeMu *sync.Mutex) {

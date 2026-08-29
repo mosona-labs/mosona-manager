@@ -7,7 +7,7 @@ import (
 )
 
 func Init() {
-	rows, err := db.Db.Query("SELECT id FROM servers WHERE type <> 2 AND allow_monitor = true")
+	rows, err := db.Db.Query("SELECT id FROM servers WHERE (type <> 2 AND allow_monitor = true) OR type = 1")
 	if err != nil {
 		log.Fatalln("Failed to load monitor servers:", err)
 	}

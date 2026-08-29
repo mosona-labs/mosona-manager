@@ -115,6 +115,15 @@ func (c *Client) dial(ctx context.Context) error {
 		return err
 	}
 	wsutil.SetSafePingHandler(conn, &c.writeMu)
+	c.mu.RLock()
+	pongWait := c.pongWait
+	c.mu.RUnlock()
+	if pongWait > 0 {
+		if err = setPongDeadline(conn, pongWait); err != nil {
+			_ = conn.Close()
+			return err
+		}
+	}
 
 	c.mu.Lock()
 	if c.closed || c.ctx != ctx || ctx.Err() != nil {
@@ -340,6 +349,48 @@ func (c *Client) ReadMessage() (int, []byte, error) {
 			return 0, nil, reconnectErr
 		}
 	}
+}
+
+func (c *Client) SetDeadline(deadline time.Time) error {
+	conn, err := c.connection()
+	if err != nil {
+		return err
+	}
+	if err = conn.SetReadDeadline(deadline); err != nil {
+		return err
+	}
+	c.writeMu.Lock()
+	err = conn.SetWriteDeadline(deadline)
+	c.writeMu.Unlock()
+	return err
+}
+
+// SetPongDeadline requires a pong within wait and extends the deadline for every pong.
+func (c *Client) SetPongDeadline(wait time.Duration) error {
+	if wait <= 0 {
+		return fmt.Errorf("pong wait must be positive")
+	}
+	conn, err := c.connection()
+	if err != nil {
+		return err
+	}
+	if err = setPongDeadline(conn, wait); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.pongWait = wait
+	c.mu.Unlock()
+	return nil
+}
+
+func setPongDeadline(conn *websocket.Conn, wait time.Duration) error {
+	if err := conn.SetReadDeadline(time.Now().Add(wait)); err != nil {
+		return err
+	}
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(wait))
+	})
+	return nil
 }
 
 func (c *Client) connection() (*websocket.Conn, error) {

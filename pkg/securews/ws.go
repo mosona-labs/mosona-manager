@@ -12,13 +12,17 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
+// Role identifies one endpoint of a secure WebSocket session.
 type Role int
 
 const (
+	// RoleHub configures session keys for the Hub endpoint.
 	RoleHub Role = iota
+	// RoleAgent configures session keys for the Agent endpoint.
 	RoleAgent
 )
 
+// SessionCrypto encrypts and decrypts strictly ordered session frames.
 type SessionCrypto struct {
 	role Role
 
@@ -66,6 +70,7 @@ func deriveSessionKeys(
 	return agentToHub, hubToAgent, nil
 }
 
+// NewSessionCrypto creates a legacy v1 session cipher.
 func NewSessionCrypto(
 	role Role,
 	xPeerPub *ecdh.PublicKey,
@@ -95,6 +100,42 @@ func NewSessionCrypto(
 	}, nil
 }
 
+// NewSessionCryptoV2 creates a transcript-bound v2 session cipher.
+func NewSessionCryptoV2(
+	role Role,
+	xPeerPub *ecdh.PublicKey,
+	xLocalPriv *ecdh.PrivateKey,
+	transcriptHash []byte,
+) (*SessionCrypto, error) {
+	shared, err := xLocalPriv.ECDH(xPeerPub)
+	if err != nil {
+		return nil, err
+	}
+	salt := sha256.Sum256(append([]byte("mosona-secure-ws-v2 salt\x00"), transcriptHash...))
+	okm := make([]byte, 64)
+	r := hkdf.New(sha256.New, shared, salt[:], []byte("mosona-secure-ws-v2 session keys"))
+	if _, err = io.ReadFull(r, okm); err != nil {
+		return nil, err
+	}
+	hubToAgent, agentToHub := okm[:32], okm[32:]
+	if role == RoleAgent {
+		hubToAgent, agentToHub = agentToHub, hubToAgent
+	}
+	return newSessionCrypto(role, hubToAgent, agentToHub)
+}
+
+func newSessionCrypto(role Role, txKey, rxKey []byte) (*SessionCrypto, error) {
+	aeadTX, err := chacha20poly1305.New(txKey)
+	if err != nil {
+		return nil, err
+	}
+	aeadRX, err := chacha20poly1305.New(rxKey)
+	if err != nil {
+		return nil, err
+	}
+	return &SessionCrypto{role: role, aeadTX: aeadTX, aeadRX: aeadRX}, nil
+}
+
 func makeNonce(role Role, seq uint64) []byte {
 	nonce := make([]byte, chacha20poly1305.NonceSize)
 	var tag byte
@@ -109,6 +150,7 @@ func makeNonce(role Role, seq uint64) []byte {
 	return nonce
 }
 
+// Encrypt encodes and encrypts the next outbound frame.
 func (sc *SessionCrypto) Encrypt(plain []byte) ([]byte, error) {
 	seq := sc.txSeq
 	sc.txSeq++
@@ -127,6 +169,7 @@ func (sc *SessionCrypto) Encrypt(plain []byte) ([]byte, error) {
 	return data, nil
 }
 
+// Decrypt authenticates and decrypts the next inbound frame.
 func (sc *SessionCrypto) Decrypt(bf []byte) ([]byte, error) {
 	var f SecureFrame
 	if err := msgpack.Unmarshal(bf, &f); err != nil {

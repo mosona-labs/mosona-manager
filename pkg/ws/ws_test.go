@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -206,5 +208,67 @@ func TestReadAndWriteAfterCloseReturnClientClosed(t *testing.T) {
 	}
 	if err := client.SendMessage(websocket.BinaryMessage, nil); !errors.Is(err, ErrClientClosed) {
 		t.Fatalf("SendMessage() error = %v, want ErrClientClosed", err)
+	}
+}
+
+func TestPongDeadlineExpiresWithoutPong(t *testing.T) {
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		time.Sleep(400 * time.Millisecond)
+	}))
+	defer server.Close()
+
+	client := NewClient()
+	client.SetReconnectConfig(0, 0)
+	if err := client.Connect(context.Background(), "ws"+strings.TrimPrefix(server.URL, "http")); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = client.Close() }()
+	if err := client.SetPongDeadline(100 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := client.ReadMessage(); err == nil {
+		t.Fatal("ReadMessage() succeeded without a pong")
+	}
+}
+
+func TestPongDeadlineExtendsOnPong(t *testing.T) {
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		for i := 0; i < 3; i++ {
+			time.Sleep(50 * time.Millisecond)
+			if err = conn.WriteControl(websocket.PongMessage, nil, time.Now().Add(time.Second)); err != nil {
+				return
+			}
+		}
+		_ = conn.WriteMessage(websocket.BinaryMessage, []byte("alive"))
+	}))
+	defer server.Close()
+
+	client := NewClient()
+	client.SetReconnectConfig(0, 0)
+	if err := client.Connect(context.Background(), "ws"+strings.TrimPrefix(server.URL, "http")); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = client.Close() }()
+	if err := client.SetPongDeadline(200 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	_, data, err := client.ReadMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "alive" {
+		t.Fatalf("message = %q, want alive", data)
 	}
 }

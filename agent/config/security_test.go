@@ -181,6 +181,25 @@ func TestLoadPrivateKeyRejectsSymlink(t *testing.T) {
 	}
 }
 
+func TestLoadOrCreateActivePrivateKeyPersistsIdentity(t *testing.T) {
+	dir := useTestInstallDir(t)
+	oldPrivateKey := PrivateKey
+	t.Cleanup(func() { PrivateKey = oldPrivateKey })
+
+	if err := LoadOrCreateActivePrivateKey(); err != nil {
+		t.Fatal(err)
+	}
+	first := append(ed25519.PrivateKey(nil), PrivateKey...)
+	assertMode(t, filepath.Join(dir, "private_key.pem"), 0o600)
+	PrivateKey = nil
+	if err := LoadOrCreateActivePrivateKey(); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(first, PrivateKey) {
+		t.Fatal("active identity changed after reload")
+	}
+}
+
 func TestLoadRejectsSymlinkInstallDirectory(t *testing.T) {
 	oldInstallDir := runtime.InstallDir
 	root := t.TempDir()

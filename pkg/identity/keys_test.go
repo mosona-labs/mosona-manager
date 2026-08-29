@@ -64,3 +64,25 @@ func TestVerifySignedHeadersRejectsInvalidPublicKeyLength(t *testing.T) {
 		t.Fatalf("VerifySignedHeaders() error = %v, want public key length error", err)
 	}
 }
+
+func TestEd25519PublicKeyEncodingAndFingerprint(t *testing.T) {
+	_, publicPEM, err := GenerateEd25519KeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicKey, err := ParseEd25519PublicKeyPEM([]byte(publicPEM))
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := EncodeEd25519PublicKeyPEM(publicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if encoded != publicPEM {
+		t.Fatal("public key encoding was not canonical")
+	}
+	fingerprint, err := Ed25519Fingerprint(publicKey)
+	if err != nil || !strings.HasPrefix(fingerprint, "SHA256:") {
+		t.Fatalf("fingerprint = %q, %v", fingerprint, err)
+	}
+}

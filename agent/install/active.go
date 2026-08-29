@@ -14,6 +14,9 @@ func Active(uid, publicKey, host string, port int, noMonitor, noTerminal bool) e
 	if err := prepareInstallDir(); err != nil {
 		return err
 	}
+	if err := initializeActiveIdentity(); err != nil {
+		return err
+	}
 
 	// Save public key
 	publicKeyFile, err := os.Create(
@@ -54,5 +57,12 @@ func Active(uid, publicKey, host string, port int, noMonitor, noTerminal bool) e
 		return err
 	}
 
+	return nil
+}
+
+func initializeActiveIdentity() error {
+	if err := config.LoadOrCreateActivePrivateKey(); err != nil {
+		return fmt.Errorf("initialize Active Agent identity: %w", err)
+	}
 	return nil
 }

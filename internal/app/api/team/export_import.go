@@ -19,6 +19,8 @@ import (
 	"mosona-manager/internal/siteaccess"
 	"mosona-manager/internal/utils"
 	"mosona-manager/internal/utils/encrypt"
+	"mosona-manager/pkg/identity"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -147,15 +149,16 @@ type teamExportSSH struct {
 }
 
 type teamExportAgent struct {
-	AgentUID    string     `json:"agent_uid" db:"agent_uid"`
-	Status      int16      `json:"status" db:"status"`
-	LastSeenAt  *time.Time `json:"last_seen_at,omitempty" db:"last_seen_at"`
-	LastIP      string     `json:"last_ip" db:"last_ip"`
-	LastVersion string     `json:"last_version" db:"last_version"`
-	PublicKey   string     `json:"public_key" db:"public_key"`
-	PrivateKey  string     `json:"private_key" db:"private_key"`
-	Host        string     `json:"host" db:"host"`
-	Port        int        `json:"port" db:"port"`
+	AgentUID        string     `json:"agent_uid" db:"agent_uid"`
+	Status          int16      `json:"status" db:"status"`
+	LastSeenAt      *time.Time `json:"last_seen_at,omitempty" db:"last_seen_at"`
+	LastIP          string     `json:"last_ip" db:"last_ip"`
+	LastVersion     string     `json:"last_version" db:"last_version"`
+	PublicKey       string     `json:"public_key" db:"public_key"`
+	PrivateKey      string     `json:"private_key" db:"private_key"`
+	ProtocolVersion int16      `json:"protocol_version,omitempty" db:"protocol_version"`
+	Host            string     `json:"host" db:"host"`
+	Port            int        `json:"port" db:"port"`
 }
 
 type teamExportEnrollToken struct {
@@ -493,7 +496,7 @@ func exportServerConnection(server *teamExportServer) error {
 	case 1, 2:
 		var agent teamExportAgent
 		err := db.Db.Get(&agent, `
-			SELECT agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, host, port
+			SELECT agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, protocol_version, host, port
 			FROM agents
 			WHERE server_id = $1
 		`, server.RefID)
@@ -525,6 +528,10 @@ func applyTeamImport(teamID int64, data teamExportBundle, trustLegacySSHHostKeys
 	}
 	if len(legacySSHServers) > 0 && !trustLegacySSHHostKeys {
 		return nil, nil, fmt.Errorf("%w: importing SSH servers without host keys requires explicit confirmation", errInvalidTeamImport)
+	}
+	data.Servers, err = normalizeImportedAgentPublicKeys(data.Servers)
+	if err != nil {
+		return nil, nil, err
 	}
 	notifications, err := notification.NormalizeEntries(context.Background(), data.Notifications)
 	if err != nil {
@@ -583,6 +590,32 @@ func applyTeamImport(teamID int64, data teamExportBundle, trustLegacySSHHostKeys
 	}
 
 	return oldServerIDs, newServers, nil
+}
+
+func normalizeImportedAgentPublicKeys(servers []teamExportServer) ([]teamExportServer, error) {
+	normalized := append([]teamExportServer(nil), servers...)
+	for i := range normalized {
+		if normalized[i].Agent == nil {
+			continue
+		}
+		agent := *normalized[i].Agent
+		raw := strings.TrimSpace(agent.PublicKey)
+		if raw == "" {
+			agent.PublicKey = ""
+			normalized[i].Agent = &agent
+			continue
+		}
+		publicKey, err := identity.ParseEd25519PublicKeyPEM([]byte(raw))
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid Agent public key for server %q: %v", errInvalidTeamImport, normalized[i].Name, err)
+		}
+		agent.PublicKey, err = identity.EncodeEd25519PublicKeyPEM(publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid Agent public key for server %q: %v", errInvalidTeamImport, normalized[i].Name, err)
+		}
+		normalized[i].Agent = &agent
+	}
+	return normalized, nil
 }
 
 func inspectImportedSSHHostKeys(servers []teamExportServer) ([]string, error) {
@@ -873,10 +906,10 @@ func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer
 		if server.Agent != nil {
 			lastSeenAt, lastIP, lastVersion := normalizeImportedAgentRuntime(server.Type, server.Agent)
 			if _, err := tx.Exec(
-				`INSERT INTO agents (server_id, agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, host, port)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+				`INSERT INTO agents (server_id, agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, protocol_version, host, port)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 				serverID, server.Agent.AgentUID, server.Agent.Status, lastSeenAt, lastIP,
-				lastVersion, server.Agent.PublicKey, server.Agent.PrivateKey, server.Agent.Host, server.Agent.Port,
+				lastVersion, server.Agent.PublicKey, server.Agent.PrivateKey, normalizeImportedAgentProtocol(server.Type, server.Agent), server.Agent.Host, server.Agent.Port,
 			); err != nil {
 				return err
 			}
@@ -891,6 +924,16 @@ func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer
 		}
 	}
 	return nil
+}
+
+func normalizeImportedAgentProtocol(serverType int16, agent *teamExportAgent) int16 {
+	if strings.TrimSpace(agent.PublicKey) != "" {
+		return 2
+	}
+	if serverType == 1 && (agent.ProtocolVersion == 0 || agent.ProtocolVersion == 1) {
+		return 1
+	}
+	return 2
 }
 
 func normalizeImportedAgentRuntime(serverType int16, agent *teamExportAgent) (*time.Time, string, string) {

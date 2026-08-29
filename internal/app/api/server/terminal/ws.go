@@ -82,7 +82,10 @@ func ws(c *echo.Context) error {
 		return terminalSSH(ctx, serverAuth, wsConn, tid, uid, serverId, c.RealIP(), c.Request().UserAgent())
 	case 1: // Active Agent
 		if err := active.ConnectShell(ctx, serverId, wsConn); err != nil {
-			return err
+			if message := activeTerminalErrorMessage(err); message != "" {
+				_ = wsConn.WriteMessage(websocket.TextMessage, []byte(message))
+			}
+			return wsConn.Close()
 		}
 		return nil
 	case 2: // Passive Agent
@@ -90,4 +93,14 @@ func ws(c *echo.Context) error {
 	}
 
 	return nil
+}
+
+func activeTerminalErrorMessage(err error) string {
+	if errors.Is(err, context.Canceled) {
+		return ""
+	}
+	if errors.Is(err, active.ErrAgentIdentityUnpaired) || errors.Is(err, active.ErrAgentIdentityMismatch) {
+		return "Active Agent identity verification failed. Reinstall or verify the Agent before opening a terminal.\n"
+	}
+	return "Unable to establish an authenticated Active Agent terminal.\n"
 }

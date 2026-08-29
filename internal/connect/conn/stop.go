@@ -34,6 +34,15 @@ func stopOutboundServer(serverId int64) {
 	}
 }
 
+func finishOutboundServer(serverID int64, entry *ServerEntry) {
+	mu.Lock()
+	if connectPool[serverID] == entry {
+		delete(connectPool, serverID)
+	}
+	close(entry.done)
+	mu.Unlock()
+}
+
 func stopInboundServer(serverId int64) {
 	mu.Lock()
 	stopInbound := inboundStop

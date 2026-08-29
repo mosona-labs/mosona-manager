@@ -4,12 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
+	"mosona-manager/internal/connect/active"
 	"mosona-manager/internal/db"
 )
 
@@ -30,9 +33,15 @@ func setupReconcileTest(t *testing.T) sqlmock.Sqlmock {
 	oldRetries := reconcileRetries
 	oldInboundStop := inboundStop
 	oldRetryTimer := retryTimer
+	oldConnectActiveAgent := connectActiveAgent
+	oldActiveConnectionRetryTimer := activeConnectionRetryTimer
+	oldLogLegacyAgentUpgradeRequired := logLegacyAgentUpgradeRequired
 	connectPool = make(map[int64]*ServerEntry)
 	reconcileRetries = make(map[int64]*reconcileRetry)
 	retryTimer = time.After
+	connectActiveAgent = active.Connect
+	activeConnectionRetryTimer = time.After
+	logLegacyAgentUpgradeRequired = oldLogLegacyAgentUpgradeRequired
 	inboundStop = nil
 	mu.Unlock()
 	retryMu.Unlock()
@@ -42,8 +51,10 @@ func setupReconcileTest(t *testing.T) sqlmock.Sqlmock {
 		lock.Lock()
 		retryMu.Lock()
 		mu.Lock()
+		entries := make([]*ServerEntry, 0, len(connectPool))
 		for _, entry := range connectPool {
 			entry.cancel()
+			entries = append(entries, entry)
 		}
 		retries := make([]*reconcileRetry, 0, len(reconcileRetries))
 		for _, retry := range reconcileRetries {
@@ -53,6 +64,11 @@ func setupReconcileTest(t *testing.T) sqlmock.Sqlmock {
 		mu.Unlock()
 		retryMu.Unlock()
 		lock.Unlock()
+		for _, entry := range entries {
+			if entry.done != nil {
+				<-entry.done
+			}
+		}
 		for _, retry := range retries {
 			<-retry.done
 		}
@@ -64,6 +80,9 @@ func setupReconcileTest(t *testing.T) sqlmock.Sqlmock {
 		reconcileRetries = oldRetries
 		inboundStop = oldInboundStop
 		retryTimer = oldRetryTimer
+		connectActiveAgent = oldConnectActiveAgent
+		activeConnectionRetryTimer = oldActiveConnectionRetryTimer
+		logLegacyAgentUpgradeRequired = oldLogLegacyAgentUpgradeRequired
 		mu.Unlock()
 		retryMu.Unlock()
 		lock.Unlock()
@@ -128,6 +147,9 @@ func TestReconcileDisabledServerStopsAllConnections(t *testing.T) {
 	mock.ExpectQuery(`SELECT type, allow_monitor FROM servers WHERE id = \$1`).
 		WithArgs(int64(91)).
 		WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(1, false))
+	mock.ExpectQuery(`SELECT public_key FROM agents WHERE server_id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"public_key"}).AddRow("pinned-key"))
 
 	if err := ReconcileServer(91); err != nil {
 		t.Fatal(err)
@@ -137,6 +159,30 @@ func TestReconcileDisabledServerStopsAllConnections(t *testing.T) {
 	defer stoppedMu.Unlock()
 	if len(*stopped) != 1 || (*stopped)[0] != 91 {
 		t.Fatalf("inbound stops = %v, want [91]", *stopped)
+	}
+}
+
+func TestReconcileUnpairedActiveServerStartsPairingWhenMonitoringDisabled(t *testing.T) {
+	mock := setupReconcileTest(t)
+	mock.ExpectQuery(`SELECT type, allow_monitor FROM servers WHERE id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(1, false))
+	mock.ExpectQuery(`SELECT public_key FROM agents WHERE server_id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"public_key"}).AddRow(""))
+	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
+			AddRow("agent-uid", "127.0.0.1", 10000, "not-read-before-retry", "", 1))
+
+	if err := ReconcileServer(91); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	_, exists := connectPool[91]
+	mu.Unlock()
+	if !exists {
+		t.Fatal("unpaired Active Agent did not register a pairing task")
 	}
 }
 
@@ -156,6 +202,41 @@ func TestReconcileDeletedServerStopsAllConnections(t *testing.T) {
 	defer stoppedMu.Unlock()
 	if len(*stopped) != 1 {
 		t.Fatalf("inbound stops = %v, want one", *stopped)
+	}
+}
+
+func TestReconcileMissingActiveAgentStopsWithoutRetry(t *testing.T) {
+	for _, allowMonitor := range []bool{false, true} {
+		t.Run(fmt.Sprintf("allow_monitor=%t", allowMonitor), func(t *testing.T) {
+			mock := setupReconcileTest(t)
+			ctx := addTestOutbound(91)
+			stopped, stoppedMu := setTestInboundStopper()
+			mock.ExpectQuery(`SELECT type, allow_monitor FROM servers WHERE id = \$1`).
+				WithArgs(int64(91)).
+				WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(1, allowMonitor))
+			if allowMonitor {
+				mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
+					WithArgs(int64(91)).
+					WillReturnError(sql.ErrNoRows)
+			} else {
+				mock.ExpectQuery(`SELECT public_key FROM agents WHERE server_id = \$1`).
+					WithArgs(int64(91)).
+					WillReturnError(sql.ErrNoRows)
+			}
+
+			if err := ReconcileServer(91); err != nil {
+				t.Fatal(err)
+			}
+			assertOutboundStopped(t, 91, ctx)
+			if retry := testRetry(91); retry != nil {
+				t.Fatal("missing Active Agent scheduled a reconciliation retry")
+			}
+			stoppedMu.Lock()
+			defer stoppedMu.Unlock()
+			if len(*stopped) != 1 {
+				t.Fatalf("inbound stops = %v, want one", *stopped)
+			}
+		})
 	}
 }
 
@@ -203,7 +284,7 @@ func TestReconcileStartFailureDoesNotRetainOldConnection(t *testing.T) {
 		WithArgs(int64(91)).
 		WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(1, true))
 	want := errors.New("invalid agent configuration")
-	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
+	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
 		WithArgs(int64(91)).
 		WillReturnError(want)
 
@@ -319,10 +400,10 @@ func TestReconcileActiveServerRegistersConnection(t *testing.T) {
 	mock.ExpectQuery(`SELECT type, allow_monitor FROM servers WHERE id = \$1`).
 		WithArgs(int64(91)).
 		WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(1, true))
-	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
+	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
 		WithArgs(int64(91)).
-		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key"}).
-			AddRow("agent-uid", "127.0.0.1", 10000, "invalid-but-not-read-until-connect"))
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
+			AddRow("agent-uid", "127.0.0.1", 10000, "invalid-but-not-read-until-connect", "public-key", 2))
 
 	if err := ReconcileServer(91); err != nil {
 		t.Fatal(err)
@@ -340,6 +421,183 @@ func TestReconcileActiveServerRegistersConnection(t *testing.T) {
 	}
 	if len(*stopped) != 1 {
 		t.Fatalf("inbound stops = %v, want one", *stopped)
+	}
+}
+
+func TestActiveIdentityMismatchStopsConnectionWorker(t *testing.T) {
+	mock := setupReconcileTest(t)
+	mock.ExpectQuery(`SELECT type, allow_monitor FROM servers WHERE id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(1, true))
+	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
+			AddRow("agent-uid", "127.0.0.1", 10000, "hub-private-key", "pinned-agent-key", 2))
+
+	retry := make(chan time.Time, 1)
+	activeConnectionRetryTimer = func(time.Duration) <-chan time.Time { return retry }
+	var calls atomic.Int32
+	connectActiveAgent = func(
+		context.Context, string, int, string, string, string, int16, int64, bool,
+	) error {
+		calls.Add(1)
+		return fmt.Errorf("handshake failed: %w", active.ErrAgentIdentityMismatch)
+	}
+
+	if err := ReconcileServer(91); err != nil {
+		t.Fatal(err)
+	}
+	entry := currentTestEntry(t, 91)
+	retry <- time.Now()
+	select {
+	case <-entry.done:
+	case <-time.After(time.Second):
+		t.Fatal("identity mismatch worker did not stop")
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("Active connect calls = %d, want 1", got)
+	}
+	mu.Lock()
+	_, exists := connectPool[91]
+	mu.Unlock()
+	if exists {
+		t.Fatal("identity mismatch left a stale connectPool entry")
+	}
+}
+
+func TestPairingSuccessRemovesConnectionWorker(t *testing.T) {
+	mock := setupReconcileTest(t)
+	mock.ExpectQuery(`SELECT type, allow_monitor FROM servers WHERE id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(1, false))
+	mock.ExpectQuery(`SELECT public_key FROM agents WHERE server_id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"public_key"}).AddRow(""))
+	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
+			AddRow("agent-uid", "127.0.0.1", 10000, "hub-private-key", "", 1))
+	mock.ExpectQuery(`SELECT public_key, protocol_version FROM agents WHERE server_id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"public_key", "protocol_version"}).AddRow("pinned-key", 2))
+	retry := make(chan time.Time, 1)
+	activeConnectionRetryTimer = func(time.Duration) <-chan time.Time { return retry }
+	connectActiveAgent = func(context.Context, string, int, string, string, string, int16, int64, bool) error {
+		return nil
+	}
+
+	if err := ReconcileServer(91); err != nil {
+		t.Fatal(err)
+	}
+	entry := currentTestEntry(t, 91)
+	retry <- time.Now()
+	waitTestEntry(t, entry)
+	assertNoTestEntry(t, 91)
+}
+
+func TestLegacyUpgradeNoticeLoggedOnceWhilePairingRetries(t *testing.T) {
+	mock := setupReconcileTest(t)
+	mock.ExpectQuery(`SELECT type, allow_monitor FROM servers WHERE id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(1, false))
+	mock.ExpectQuery(`SELECT public_key FROM agents WHERE server_id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"public_key"}).AddRow(""))
+	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
+			AddRow("agent-uid", "127.0.0.1", 10000, "hub-private-key", "", 1))
+	mock.ExpectQuery(`SELECT public_key, protocol_version FROM agents WHERE server_id = \$1`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"public_key", "protocol_version"}).AddRow("", 1))
+
+	activeConnectionRetryTimer = immediateRetryTimer
+	secondCall := make(chan struct{})
+	var calls atomic.Int32
+	connectActiveAgent = func(ctx context.Context, _ string, _ int, _ string, _ string, _ string, _ int16, _ int64, _ bool) error {
+		if calls.Add(1) == 1 {
+			return active.ErrLegacyAgentRequiresUpgrade
+		}
+		close(secondCall)
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	var notices atomic.Int32
+	logLegacyAgentUpgradeRequired = func(int64) { notices.Add(1) }
+
+	if err := ReconcileServer(91); err != nil {
+		t.Fatal(err)
+	}
+	entry := currentTestEntry(t, 91)
+	select {
+	case <-secondCall:
+	case <-time.After(time.Second):
+		t.Fatal("pairing worker did not retry after legacy upgrade sentinel")
+	}
+	entry.cancel()
+	waitTestEntry(t, entry)
+	if got := notices.Load(); got != 1 {
+		t.Fatalf("legacy upgrade notices = %d, want 1", got)
+	}
+	assertNoTestEntry(t, 91)
+}
+
+func TestFinishedWorkerDoesNotRemoveReplacementEntry(t *testing.T) {
+	setupReconcileTest(t)
+	oldEntry := &ServerEntry{cancel: func() {}, done: make(chan struct{})}
+	newEntry := &ServerEntry{cancel: func() {}, done: make(chan struct{})}
+	mu.Lock()
+	connectPool[91] = newEntry
+	mu.Unlock()
+
+	finishOutboundServer(91, oldEntry)
+	select {
+	case <-oldEntry.done:
+	default:
+		t.Fatal("finished worker did not close its done channel")
+	}
+	mu.Lock()
+	got := connectPool[91]
+	mu.Unlock()
+	if got != newEntry {
+		t.Fatal("finished worker removed its replacement entry")
+	}
+	finishOutboundServer(91, newEntry)
+}
+
+func immediateRetryTimer(time.Duration) <-chan time.Time {
+	ready := make(chan time.Time, 1)
+	ready <- time.Now()
+	return ready
+}
+
+func currentTestEntry(t *testing.T, serverID int64) *ServerEntry {
+	t.Helper()
+	mu.Lock()
+	defer mu.Unlock()
+	entry := connectPool[serverID]
+	if entry == nil {
+		t.Fatal("connection worker was not registered")
+	}
+	return entry
+}
+
+func waitTestEntry(t *testing.T, entry *ServerEntry) {
+	t.Helper()
+	select {
+	case <-entry.done:
+	case <-time.After(time.Second):
+		t.Fatal("connection worker did not stop")
+	}
+}
+
+func assertNoTestEntry(t *testing.T, serverID int64) {
+	t.Helper()
+	mu.Lock()
+	_, exists := connectPool[serverID]
+	mu.Unlock()
+	if exists {
+		t.Fatal("finished worker left a stale connectPool entry")
 	}
 }
 
