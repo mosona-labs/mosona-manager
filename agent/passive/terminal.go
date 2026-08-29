@@ -2,18 +2,19 @@ package passive
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"mosona-manager/agent/shellsession"
 	pbTypes "mosona-manager/pkg/types"
 	"mosona-manager/pkg/ws"
+	"net/http"
+	"net/url"
 	"sync"
 
 	"github.com/gorilla/websocket"
 )
 
 func terminal(sessionID string) {
-	client, err := connectHub(fmt.Sprintf("/api/agent/terminal/%s", sessionID))
+	client, err := connectTerminalHub(sessionID)
 	if err != nil {
 		log.Printf("Failed to connect terminal session %s: %v", sessionID, err)
 		return
@@ -85,4 +86,24 @@ func terminal(sessionID string) {
 	}()
 
 	<-done
+}
+
+func connectTerminalHub(sessionID string) (*ws.Client, error) {
+	return connectTerminalHubWith(sessionID, connectHubWithSession)
+}
+
+func connectTerminalHubWith(
+	sessionID string,
+	connect func(path, sessionID string) (*ws.Client, error),
+) (*ws.Client, error) {
+	client, err := connect("/api/agent/terminal", sessionID)
+	if err == nil {
+		return client, nil
+	}
+	if !ws.IsHandshakeStatus(err, http.StatusNotFound, http.StatusMethodNotAllowed) {
+		return nil, err
+	}
+
+	legacyPath := "/api/agent/terminal/" + url.PathEscape(sessionID)
+	return connect(legacyPath, sessionID)
 }

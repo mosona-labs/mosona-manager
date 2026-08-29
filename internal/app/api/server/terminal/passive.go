@@ -11,7 +11,11 @@ import (
 )
 
 func terminalPassive(ctx context.Context, serverId int64, wsConn *websocket.Conn) error {
-	id, _ := uuid.NewUUID()
+	id, err := uuid.NewRandom()
+	if err != nil {
+		_ = wsConn.WriteMessage(websocket.TextMessage, []byte("Failed to create a secure terminal session.\n"))
+		return wsConn.Close()
+	}
 
 	ma, ok := connection.MainGet(serverId)
 	if !ok {
@@ -19,8 +23,8 @@ func terminalPassive(ctx context.Context, serverId int64, wsConn *websocket.Conn
 		return wsConn.Close()
 	}
 
-	done := connection.UserSet(id.String(), wsConn)
-	defer connection.UserRemove(id.String())
+	done, remove := connection.UserSet(id.String(), serverId, wsConn)
+	defer remove()
 
 	d, _ := msgpack.Marshal(pbTypes.Msg{
 		Code: "terminal",
@@ -32,7 +36,8 @@ func terminalPassive(ctx context.Context, serverId int64, wsConn *websocket.Conn
 	}
 	select {
 	case <-ctx.Done():
-		connection.UserRemove(id.String())
+		remove()
+		_ = wsConn.Close()
 	case <-done:
 	}
 	return nil

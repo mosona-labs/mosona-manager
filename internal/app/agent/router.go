@@ -10,6 +10,8 @@ import (
 func Router(e *echo.Group) {
 	passiveAuth := middleware.PassiveAuthWithLookup(db.GetPassiveAgentPublicKey)
 	passiveMonitoringAuth := middleware.PassiveAuthWithLookup(db.GetPassiveMonitoringAgentPublicKey)
+	passiveTerminalAuth := middleware.PassiveAuthWithLookup(db.GetPassiveTerminalAgentPublicKey)
+
 	e.POST("/enroll", enroll)
 
 	e.GET("/update/latest", updateLatest)
@@ -17,5 +19,6 @@ func Router(e *echo.Group) {
 
 	e.POST("/info", passiveInfo, passiveMonitoringAuth)
 	e.GET("/ws", passiveWS, passiveMonitoringAuth)
-	e.GET("/terminal/:session_id", terminal, passiveAuth)
+	e.GET("/terminal", terminal, passiveTerminalAuth)
+	e.GET("/terminal/:session_id", terminal, passiveTerminalAuth)
 }

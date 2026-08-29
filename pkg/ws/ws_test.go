@@ -37,6 +37,26 @@ func TestReconnectDelayBackoffAndCap(t *testing.T) {
 	}
 }
 
+func TestDialWebSocketPreservesHandshakeStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	_, err := dialWebSocket(
+		context.Background(),
+		"ws"+strings.TrimPrefix(server.URL, "http"),
+		nil,
+		"",
+	)
+	if !IsHandshakeStatus(err, http.StatusNotFound) {
+		t.Fatalf("dial error = %v, want handshake status 404", err)
+	}
+	if !errors.Is(err, websocket.ErrBadHandshake) {
+		t.Fatalf("dial error = %v, want websocket.ErrBadHandshake", err)
+	}
+}
+
 func TestCloseCancelsInitialConnectAndPermanentlyClosesClient(t *testing.T) {
 	client := NewClient()
 	started := make(chan struct{})
@@ -195,6 +215,27 @@ func TestReconnectExhaustionIsTerminal(t *testing.T) {
 	}
 	if got := dials.Load(); got != 1 {
 		t.Fatalf("dial calls after exhaustion = %d, want 1", got)
+	}
+}
+
+func TestZeroReconnectConfigDisablesReconnect(t *testing.T) {
+	client := NewClient()
+	client.SetReconnectConfig(0, 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	client.ctx = ctx
+	client.cancel = cancel
+	var dials atomic.Int32
+	client.dialContext = func(context.Context, string, http.Header, string) (*websocket.Conn, error) {
+		dials.Add(1)
+		return nil, errors.New("unexpected dial")
+	}
+
+	if err := client.reconnect(nil); !errors.Is(err, ErrReconnectExhausted) {
+		t.Fatalf("reconnect() error = %v, want ErrReconnectExhausted", err)
+	}
+	if got := dials.Load(); got != 0 {
+		t.Fatalf("dial calls = %d, want 0", got)
 	}
 }
 

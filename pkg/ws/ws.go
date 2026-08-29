@@ -158,8 +158,16 @@ func dialWebSocket(ctx context.Context, url string, header http.Header, ipPrefer
 	}
 	conn, response, err := dialer.DialContext(ctx, url, header)
 	if err != nil {
-		if response != nil && response.Body != nil {
-			_ = response.Body.Close()
+		if response != nil {
+			handshakeErr := &HandshakeError{
+				StatusCode: response.StatusCode,
+				Status:     response.Status,
+				Err:        err,
+			}
+			if response.Body != nil {
+				_ = response.Body.Close()
+			}
+			return nil, handshakeErr
 		}
 		return nil, err
 	}

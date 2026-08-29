@@ -15,19 +15,29 @@ import (
 )
 
 func connectHub(path string) (*ws.Client, error) {
+	return connectHubWithSession(path, "")
+}
+
+func connectHubWithSession(path, sessionID string) (*ws.Client, error) {
 	client := ws.NewClient()
 	if err := setAuthHeaders(client); err != nil {
 		return nil, err
+	}
+	if sessionID != "" {
+		client.SetHeader("X-Agent-Terminal-Session", sessionID)
+		client.SetReconnectConfig(0, 0)
 	}
 	client.SetHeader("User-Agent", "mosona-manager-agent/"+runtime.Version)
 	if err := client.SetIPPreference(config.Current.IPPreference); err != nil {
 		return nil, err
 	}
 
-	client.SetReconnectBackoff(-1, 5*time.Second, time.Minute)
-	client.OnReconnect(reconnectAuthCallback(func() error {
-		return setAuthHeaders(client)
-	}))
+	if sessionID == "" {
+		client.SetReconnectBackoff(-1, 5*time.Second, time.Minute)
+		client.OnReconnect(reconnectAuthCallback(func() error {
+			return setAuthHeaders(client)
+		}))
+	}
 
 	url := strings.Replace(
 		strings.Replace(

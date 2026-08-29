@@ -68,6 +68,14 @@ func enroll(c *echo.Context) error {
 		})
 	}
 
+	agentUID, err := uuid.NewRandom()
+	if err != nil {
+		return c.JSON(500, _type.H{
+			Code: "error",
+			Msg:  "Failed to generate agent identity",
+		})
+	}
+
 	tx, err := db.Db.Begin()
 	if err != nil {
 		return c.JSON(500, _type.H{
@@ -77,7 +85,6 @@ func enroll(c *echo.Context) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	agentUID, _ := uuid.NewUUID()
 	if _, err = tx.Exec(
 		"INSERT INTO agents (server_id, agent_uid, status, last_ip, last_version, public_key) VALUES ($1, $2, $3, $4, $5, $6)",
 		serverId, agentUID.String(), 1, c.RealIP(), version, publicKey,

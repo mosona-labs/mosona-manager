@@ -32,6 +32,21 @@ func TestGetPassiveAgentPublicKeyKeepsNonMonitoringRoutesAvailable(t *testing.T)
 	}
 }
 
+func TestGetPassiveTerminalAgentPublicKeyRequiresTerminalAndInstalledAgent(t *testing.T) {
+	mock := setUserConfigMockDB(t)
+	mock.ExpectQuery(`SELECT server_id, public_key FROM agents a JOIN servers s ON a.server_id = s.id WHERE s.type = 2 AND agent_uid = \$1 AND s.allow_terminal = true AND a.status = 1`).
+		WithArgs("agent-uid").
+		WillReturnRows(sqlmock.NewRows([]string{"server_id", "public_key"}).AddRow(91, "public-key"))
+
+	serverID, publicKey, err := GetPassiveTerminalAgentPublicKey("agent-uid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if serverID != 91 || publicKey != "public-key" {
+		t.Fatalf("lookup = (%d, %q), want (91, public-key)", serverID, publicKey)
+	}
+}
+
 func TestIsPassiveServerMonitoringEnabled(t *testing.T) {
 	mock := setUserConfigMockDB(t)
 	mock.ExpectQuery(`SELECT type = 2 AND allow_monitor FROM servers WHERE id = \$1`).

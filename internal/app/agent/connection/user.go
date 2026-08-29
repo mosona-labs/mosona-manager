@@ -8,68 +8,91 @@ import (
 )
 
 type sessionInfo struct {
-	conn  *websocket.Conn
-	timer *time.Timer
-	done  chan struct{}
-	once  sync.Once
+	serverID int64
+	conn     *websocket.Conn
+	timer    sessionTimer
+	done     chan struct{}
+	once     sync.Once
 }
+
+type sessionTimer interface {
+	Stop() bool
+}
+
+type sessionTimerFactory func(time.Duration, func()) sessionTimer
 
 var (
 	sessionConnections = make(map[string]*sessionInfo)
-	sessionMu          sync.RWMutex
+	sessionMu          sync.Mutex
 )
 
 const sessionTimeout = 30 * time.Second
 
-func UserSet(sessionID string, conn *websocket.Conn) <-chan struct{} {
-	sessionMu.Lock()
-	defer sessionMu.Unlock()
-
-	if oldInfo, exists := sessionConnections[sessionID]; exists && oldInfo.timer != nil {
-		oldInfo.timer.Stop()
-	}
-
-	timer := time.AfterFunc(sessionTimeout, func() {
-		UserRemove(sessionID)
+func UserSet(sessionID string, serverID int64, conn *websocket.Conn) (<-chan struct{}, func()) {
+	return userSet(sessionID, serverID, conn, func(timeout time.Duration, callback func()) sessionTimer {
+		return time.AfterFunc(timeout, callback)
 	})
-
-	sessionConnections[sessionID] = &sessionInfo{
-		conn:  conn,
-		timer: timer,
-		done:  make(chan struct{}),
-	}
-	return sessionConnections[sessionID].done
 }
 
-func UserGet(sessionID string) (*websocket.Conn, bool) {
-	sessionMu.Lock()
-	defer sessionMu.Unlock()
-
-	info, ok := sessionConnections[sessionID]
-	if !ok {
-		return nil, false
+func userSet(sessionID string, serverID int64, conn *websocket.Conn, newTimer sessionTimerFactory) (<-chan struct{}, func()) {
+	info := &sessionInfo{
+		serverID: serverID,
+		conn:     conn,
+		done:     make(chan struct{}),
 	}
 
+	sessionMu.Lock()
+	oldInfo := sessionConnections[sessionID]
+	sessionConnections[sessionID] = info
+	info.timer = newTimer(sessionTimeout, func() {
+		removeUserSession(sessionID, info)
+	})
+	sessionMu.Unlock()
+
+	if oldInfo != nil {
+		closeUserSession(oldInfo)
+	}
+	return info.done, func() { removeUserSession(sessionID, info) }
+}
+
+func UserTake(sessionID string, serverID int64) (*websocket.Conn, func(), bool) {
+	sessionMu.Lock()
+	info, ok := sessionConnections[sessionID]
+	if !ok || info.serverID != serverID {
+		sessionMu.Unlock()
+		return nil, nil, false
+	}
+
+	delete(sessionConnections, sessionID)
 	if info.timer != nil {
 		info.timer.Stop()
 	}
+	sessionMu.Unlock()
 
-	return info.conn, true
+	return info.conn, func() { closeUserSession(info) }, true
 }
 
-func UserRemove(sessionID string) {
+func removeUserSession(sessionID string, expected *sessionInfo) {
 	sessionMu.Lock()
-	defer sessionMu.Unlock()
+	info, exists := sessionConnections[sessionID]
+	if !exists || info != expected {
+		sessionMu.Unlock()
+		return
+	}
+	delete(sessionConnections, sessionID)
+	sessionMu.Unlock()
 
-	if info, exists := sessionConnections[sessionID]; exists {
+	closeUserSession(info)
+}
+
+func closeUserSession(info *sessionInfo) {
+	info.once.Do(func() {
 		if info.timer != nil {
 			info.timer.Stop()
 		}
 		if info.conn != nil {
 			_ = info.conn.Close()
 		}
-		info.once.Do(func() { close(info.done) })
-	}
-
-	delete(sessionConnections, sessionID)
+		close(info.done)
+	})
 }

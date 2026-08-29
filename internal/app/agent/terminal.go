@@ -13,7 +13,11 @@ import (
 )
 
 func terminal(c *echo.Context) error {
-	sessionID := c.Param("session_id")
+	sessionID := c.Request().Header.Get("X-Agent-Terminal-Session")
+	if sessionID == "" {
+		sessionID = c.Param("session_id")
+	}
+	serverID := c.Get("server_id").(int64)
 
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -27,11 +31,14 @@ func terminal(c *echo.Context) error {
 		return err
 	}
 
-	userConn, ok := connection.UserGet(sessionID)
+	userConn, finish, ok := connection.UserTake(sessionID, serverID)
 	if !ok || userConn == nil {
+		if ok {
+			finish()
+		}
 		_ = ws.WriteMessage(websocket.TextMessage, []byte("Terminal session not found or has expired.\n"))
 		_ = ws.Close()
-		return err
+		return nil
 	}
 
 	var once sync.Once
@@ -43,7 +50,7 @@ func terminal(c *echo.Context) error {
 		once.Do(func() {
 			close(done)
 			_ = ws.Close()
-			connection.UserRemove(sessionID)
+			finish()
 		})
 	}
 	wsutil.StartPing(c.Request().Context(), ws, &wsWriteMu, "passive terminal agent websocket ping")
