@@ -34,6 +34,9 @@ func loginEvent(
 			}
 			teamIDs = append(teamIDs, teamID)
 		}
+		if err := rows.Err(); err != nil {
+			log.Println(err)
+		}
 
 		for _, teamID := range teamIDs {
 			influx.LogAdd(

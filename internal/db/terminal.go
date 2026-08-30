@@ -52,8 +52,11 @@ func ListTerminals(teamId int64) ([]_type.Terminal, error) {
 		}
 		servers = append(servers, server)
 	}
+	if err = rows.Err(); err != nil {
+		return servers, err
+	}
 
-	return servers, err
+	return servers, nil
 }
 
 func GetTerminalInfo(teamId, serverId int64) (_type.TerminalDetail, error) {

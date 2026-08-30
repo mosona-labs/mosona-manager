@@ -31,4 +31,7 @@ func Init() {
 			}
 		}(serverId)
 	}
+	if err := rows.Err(); err != nil {
+		log.Fatalln("Failed to load monitor servers:", err)
+	}
 }

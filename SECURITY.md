@@ -33,13 +33,13 @@ We kindly ask reporters to follow responsible disclosure principles and give us 
 
 ## Encryption Key Backup
 
-Mosona Manager encrypts stored SSH credentials with a local master key. Docker Compose stores it at `cfg/key` inside the persistent `app_data` volume. Manual deployments should set `MOSONA_ENCRYPTION_KEY_PATH` to an absolute path on persistent storage; existing `./cfg/key` installations are detected automatically.
+Mosona Manager encrypts stored SSH credentials and Hub-held Active Agent long-term private keys with a local master key. Ciphertexts use an authenticated, versioned envelope bound to the database record and field; an Active Agent private key cannot be moved to another Server record. Docker Compose stores the master key at `cfg/key` inside the persistent `app_data` volume. Manual deployments should set `MOSONA_ENCRYPTION_KEY_PATH` to an absolute path on persistent storage; existing `./cfg/key` installations are detected automatically.
 
 Back up the key together with PostgreSQL and keep the backup access-restricted. Restore the same key before starting against a restored database, with its directory and file set to `0700` and `0600`. If encrypted credentials exist but the key is missing, unreadable, or invalid, startup intentionally fails instead of generating a replacement. There is currently no automatic key rotation; a rotation must re-encrypt all stored credentials as one coordinated operation.
 
 ## Agent Key Storage
 
-Run each Mosona Agent under a dedicated operating-system service account. The Agent install directory and passive-agent private key are restricted to `0700` and `0600` on Unix; startup rejects symlinks, non-regular key files, and files owned by another user. Existing installations with the expected owner are upgraded in place to the restricted modes. Back up `private_key.pem` only to access-restricted storage and reinstall the Agent if the key may have been exposed.
+Run each Mosona Agent under a dedicated operating-system service account. Unlike the Hub-held Active Agent private key described above, the Passive Agent identity key is stored locally in the Agent install directory. The directory and `private_key.pem` are restricted to `0700` and `0600` on Unix; startup rejects symlinks, non-regular key files, and files owned by another user. Existing installations with the expected owner are upgraded in place to the restricted modes. Back up `private_key.pem` only to access-restricted storage and reinstall the Agent if the key may have been exposed.
 
 ## Disclosure Policy
 

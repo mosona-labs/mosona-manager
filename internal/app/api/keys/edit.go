@@ -62,6 +62,9 @@ func edit(c *echo.Context) error {
 				fmt.Println("Failed to restart server connection:", reconcileErr)
 			}
 		}
+		if err := rows.Err(); err != nil {
+			fmt.Println("Failed to list servers for key reconcile:", err)
+		}
 	}()
 
 	return c.JSON(200, _type.H{

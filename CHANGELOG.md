@@ -1,69 +1,98 @@
 # Changelog
 
-## v0.1.15 - 2026-08-28
+## v0.1.15 (Unreleased)
 
-This release fixes a critical authentication gap in the Active Agent
-terminal handshake: the agent's key-exchange reply is now signed with
-its long-term Ed25519 identity key and pinned by the Hub, so a
-man-in-the-middle can no longer impersonate an agent terminal.
+This release authenticates the Active Agent terminal handshake (protocol v2:
+the reply is signed with the agent's Ed25519 identity key and pinned by the
+Hub, so a man-in-the-middle can no longer impersonate an agent terminal) and
+hardens Passive terminal sessions (bound to their server, claimed atomically,
+session IDs moved out of URLs).
 
 ### Upgrade Notes
 
-- **Authenticated Active Agent handshake (protocol v2).** The Agent signs
-  its key-exchange reply over the full handshake transcript (both ephemeral
-  X25519 keys, both nonces, HTTP auth headers, agent UID, and request
-  path); the Hub verifies the signature against the pinned agent public key
-  and derives session keys bound to the transcript. First contact uses
-  trust-on-first-use: compare the agent fingerprint printed in the agent
-  log at startup with the fingerprint recorded in the Hub security audit
-  log before relying on the connection.
-- **Existing agents keep working during the upgrade window.** A database
-  migration adds `agents.protocol_version`: rows already pinned move to
-  v2, unpinned rows stay on v1 and may use the legacy handshake until the
-  agent is upgraded and paired. The legacy path is scheduled for removal
-  before v0.1.17 — upgrade agents to close the residual T-01 window.
-- **New and reinstalled servers require the new Agent binary.** They
-  default to protocol v2 and fail closed against pre-v2 agents.
-- **Identity mismatch stops reconnection.** If a pinned key no longer
-  matches (for example after an agent reinstall), the Hub stops retrying
-  and records a high-severity audit event; reinstall the server to re-pair.
-- **Servers with monitoring disabled now pair in the background.** Unpaired
-  Active Agent servers run a persistent pairing worker (up to one attempt
-  per minute per server) so they become ready before a terminal is opened.
+- **No downgrade path.** A startup migration encrypts existing
+  `agents.private_key` values with the master key (Agents need no reinstall
+  or re-pairing) and adds `agents.protocol_version` and
+  `servers.public_visible`. Back up PostgreSQL and `cfg/key` together; an
+  older Hub run against the migrated database fails every Active Agent
+  connection and terminal.
+- **Upgrade Active Agents before v0.1.17.** Pinned agents move to protocol
+  v2; unpinned ones keep the legacy handshake until upgraded and paired,
+  and that legacy path is removed before v0.1.17 (close the residual
+  man-in-the-middle window). New and reinstalled servers require the new
+  Agent binary, default to v2, and fail closed against pre-v2 agents.
+- **First contact is trust-on-first-use.** Compare the agent fingerprint
+  printed in the agent log with the one recorded in the Hub security audit
+  log before relying on the connection. If a pinned key later stops
+  matching (e.g. after an agent reinstall), the Hub stops retrying, records
+  a high-severity audit event, and the server must be reinstalled to
+  re-pair. Unpaired Active Agent servers pair in the background (about one
+  attempt per minute) so a terminal is ready when opened.
+- **Upgrade Passive Agents before v0.1.17.** Current Agents send the
+  terminal session ID in `X-Agent-Terminal-Session`; the legacy
+  `/api/agent/terminal/:session_id` route remains available through
+  v0.1.16. New Passive Agents fall back to it on older Hubs, so Hub and
+  Agent upgrade order is independent — legacy Hubs still log the session
+  ID until upgraded.
+- **Passive terminal disconnects end the session.** Session IDs are
+  single-use and are not retried; the browser reconnect (automatic or via
+  Reconnect) opens a new PTY. Scrollback is kept; remote programs are not
+  resumed.
+- **`servers.public_visible` defaults to visible.** The public status page
+  filters on it; editing a server without sending the field (older UIs,
+  still-open dashboards, third-party clients) keeps the stored value —
+  only an explicit `false` hides a server.
 
 ### Security
 
-- Sign and verify the Active Agent `KTAgent` handshake reply, pin the agent
-  identity key with an atomic compare-and-set, bind session keys to the
-  handshake transcript, and confirm the handshake with mutually verified
-  finished messages.
-- Apply a 15-second deadline to the whole handshake and fail closed on any
-  verification error; once pinned to v2, an agent cannot be downgraded to
-  the legacy handshake.
+- Encrypt Active Agent long-term private keys at rest with the versioned
+  AES-GCM envelope bound to the Server record; runtime connections and
+  exports reject plaintext or ciphertext copied from another Server.
+- Enforce uniqueness for non-empty Agent UIDs so an authenticated Passive
+  Agent identity resolves to exactly one Server; upgrades fail closed on
+  duplicates, and team imports preflight conflicts with a Server-specific
+  409 instead of an opaque database error.
+- Identify the affected Server or shared SSH Key when a team export hits an
+  unreadable credential: exports skip unreadable Servers and Servers that
+  depend on a skipped Key by default and record them in the response and
+  encrypted bundle; `skip_unreadable_servers: false` requests a strict,
+  all-or-nothing export.
+- Bind Passive terminal sessions to their target server, consume them
+  atomically on first claim, generate identifiers as random UUID v4, and
+  require terminal-enabled installed Agents, preventing cross-team or
+  repeated claims; keep session identifiers out of URLs on the new
+  endpoint, reducing reverse-proxy and WAF log exposure.
+- Sign and verify the Active Agent handshake reply over the full transcript,
+  pin the identity key with an atomic compare-and-set, bind session keys to
+  the transcript, confirm with mutually verified finished messages, apply a
+  15-second deadline, fail closed on any verification error, and refuse
+  downgrade to the legacy handshake once pinned to v2.
 - Validate agent `public_key` values (PEM format and Ed25519 key length)
-  during team import, normalizing and re-encoding them before they reach
-  the database.
+  during team import, normalizing and re-encoding them before storage.
 
 ### Fixed
 
+- Use random UUID v4 identities and fail closed if generation fails during
+  Passive Agent enrollment or Active Server creation, instead of risking a
+  predictable or all-zero Agent identity.
 - Stop the Agent process from exiting via `log.Fatalln` when a status
   snapshot or encode fails on an authenticated connection; close the
-  connection instead.
-- Reconnect the Active Agent monitor when a frame fails decryption instead
-  of silently desynchronizing the stream sequence.
-- Remove finished connection workers from the pool when they exit so
-  stopped or mismatched servers leave no stale entries.
-- Stop retry loops when the agent row is missing instead of logging an
-  error every minute (applies to SSH servers as well).
-- Reuse the existing agent identity when rerunning the installer instead of
-  failing on the existing key file.
+  connection instead, and reconnect the monitor when a frame fails
+  decryption instead of silently desynchronizing the stream.
+- Remove finished connection workers from the pool so stopped or mismatched
+  servers leave no stale entries, stop retry loops when the agent row is
+  missing instead of logging an error every minute (SSH servers included),
+  and reuse the existing agent identity when rerunning the installer.
 
 ### Added
 
-- `protocol_version` field in team export/import bundles, with backward
-  compatibility for archives produced by older versions. Imports preserve an
-  explicit legacy version for unpinned Active Agents during the upgrade window;
-  Agents with a pinned identity are always imported as v2.
+- Optional per-server `public_visible` flag (default visible) that hides a
+  server from the public status page only — team dashboards, monitoring,
+  and terminals are untouched. Set it on add/edit; team export/import
+  bundles carry it, and older bundles without the field import as visible.
+- `protocol_version` field in team export/import bundles, backward
+  compatible with older archives: unpinned Active Agents keep an explicit
+  legacy version during the upgrade window, pinned identities import as v2.
 - `docs/testing.md` describing the environment variables needed to run the
   test suite.
 
