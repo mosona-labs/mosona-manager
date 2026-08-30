@@ -6,13 +6,32 @@ CPU_INTERVAL="${CPU_INTERVAL:-1}"
 NET_INTERVAL="${NET_INTERVAL:-3}"
 DISK_IO_INTERVAL="${DISK_IO_INTERVAL:-1.0}"
 SECTOR_SIZE="${SECTOR_SIZE:-512}"
+DISK_SPACE_TIMEOUT="${DISK_SPACE_TIMEOUT:-10}"
+
+case "$DISK_SPACE_TIMEOUT" in
+  ''|*[!0-9]*) DISK_SPACE_TIMEOUT=10 ;;
+esac
+if (( DISK_SPACE_TIMEOUT <= 0 )); then
+  DISK_SPACE_TIMEOUT=10
+fi
 
 if [ -d /dev/shm ] && mkdir -p /dev/shm 2>/dev/null; then
   tmpdir="$(mktemp -d -p /dev/shm)"
 else
   tmpdir="$(mktemp -d)"
 fi
-trap 'status=$?; rm -rf "$tmpdir"; exit "$status"' EXIT
+pid_dspace=""
+dspace_failure_noticed=0
+cleanup() {
+  local status=$?
+  trap - EXIT
+  if [ -n "${pid_dspace:-}" ] && kill -0 "$pid_dspace" 2>/dev/null; then
+    kill "$pid_dspace" 2>/dev/null || true
+  fi
+  rm -rf "$tmpdir"
+  exit "$status"
+}
+trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -57,30 +76,91 @@ mem_task() {
 }
 
 # Disk space task (multi-disk)
+run_disk_df() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$DISK_SPACE_TIMEOUT" df -P -B1 -x tmpfs -x devtmpfs -x squashfs -x overlay -x iso9660 -x efivarfs -x autofs
+  else
+    df -P -B1 -x tmpfs -x devtmpfs -x squashfs -x overlay -x iso9660 -x efivarfs -x autofs
+  fi
+}
+
+json_escape() {
+  local value="$1"
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  value=${value//$'\t'/\\t}
+  value=${value//$'\r'/\\r}
+  value=${value//$'\n'/\\n}
+  printf '%s' "$value"
+}
+
 disk_space_task() {
   local out="$1"
+  local next="${out}.next.${BASHPID}"
   local min_size_bytes=$((5 * 1024 * 1024 * 1024))
   local first=1
+  local total_gb used_gb mp escaped_mp
 
-  printf 'disks=[' > "$out"
+  printf 'disks=[' > "$next"
 
-  { df -B1 -x tmpfs -x devtmpfs -x squashfs -x overlay -x iso9660 -x efivarfs -x autofs 2>/dev/null || true; } \
-    | awk 'NR>1 && $6 !~ /^\/(boot|snap\/|sys|proc|dev|run)/ { print $2, $3, $6 }' \
-    | while read -r total used mp; do
-        if [ "$mp" != "/" ] && [ "$total" -lt "$min_size_bytes" ]; then
-          continue
-        fi
-        total_gb=$(awk -v t="$total" 'BEGIN{printf "%.2f", t/1024/1024/1024}')
-        used_gb=$(awk -v u="$used" 'BEGIN{printf "%.2f", u/1024/1024/1024}')
+  if ! run_disk_df 2>/dev/null \
+    | awk -v min="$min_size_bytes" '
+        NR > 1 && NF >= 6 && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ {
+          total = $2
+          used = $3
+          mp = $6
+          for (i = 7; i <= NF; i++) mp = mp " " $i
+          if (mp ~ /^\/(boot|snap\/|sys|proc|dev|run)/) next
+          if (mp != "/" && total < min) next
+          printf "%.2f\t%.2f\t%s\n", total/1024/1024/1024, used/1024/1024/1024, mp
+        }' \
+    | while IFS=$'\t' read -r total_gb used_gb mp; do
+        escaped_mp=$(json_escape "$mp")
         if [ "$first" -eq 1 ]; then
           first=0
         else
-          printf ',' >> "$out"
+          printf ',' >> "$next"
         fi
-        printf '{"mp":"%s","total_gb":%s,"used_gb":%s}' "$mp" "$total_gb" "$used_gb" >> "$out"
-      done
+        printf '{"mp":"%s","total_gb":%s,"used_gb":%s}' "$escaped_mp" "$total_gb" "$used_gb" >> "$next"
+      done; then
+    rm -f "$next"
+    return 1
+  fi
 
-  printf ']\n' >> "$out"
+  if ! printf ']\n' >> "$next" || ! mv -f "$next" "$out"; then
+    rm -f "$next"
+    return 1
+  fi
+}
+
+refresh_disk_space_task() {
+  local out="$1"
+  local done="${out}.done"
+
+  if [ -n "$pid_dspace" ]; then
+    if [ ! -f "$done" ]; then
+      return 0
+    fi
+    if ! wait "$pid_dspace"; then
+      if [ "$dspace_failure_noticed" -eq 0 ]; then
+        printf '%s\n' "disk_space_task: collection failed; preserving the previous disk sample" >&2
+        dspace_failure_noticed=1
+      fi
+    else
+      dspace_failure_noticed=0
+    fi
+    rm -f "$done"
+    pid_dspace=""
+  fi
+
+  rm -f "$done"
+  (
+    status=0
+    disk_space_task "$out" || status=$?
+    printf '%d\n' "$status" > "$done"
+    exit "$status"
+  ) &
+  pid_dspace=$!
 }
 
 # NET task
@@ -177,24 +257,30 @@ tcp_udp_task() {
   } > "$out"
 }
 
-while true; do
-  cpu_f="$tmpdir/cpu"
-  mem_f="$tmpdir/mem"
-  disk_space_f="$tmpdir/dspace"
-  net_f="$tmpdir/net"
-  diskio_f="$tmpdir/dio"
-  tcp_udp_f="$tmpdir/tcpudp"
+cpu_f="$tmpdir/cpu"
+mem_f="$tmpdir/mem"
+disk_space_f="$tmpdir/dspace"
+net_f="$tmpdir/net"
+diskio_f="$tmpdir/dio"
+tcp_udp_f="$tmpdir/tcpudp"
 
-  : > "$cpu_f" "$mem_f" "$disk_space_f" "$net_f" "$diskio_f" "$tcp_udp_f"
+printf 'disks=[]\n' > "$disk_space_f"
+
+while true; do
+  : > "$cpu_f" "$mem_f" "$net_f" "$diskio_f" "$tcp_udp_f"
 
   cpu_task "$cpu_f" & pid_cpu=$!
   mem_task "$mem_f" & pid_mem=$!
-  disk_space_task "$disk_space_f" & pid_dspace=$!
+  refresh_disk_space_task "$disk_space_f"
   net_task "$net_f" & pid_net=$!
   disk_io_task "$diskio_f" & pid_dio=$!
   tcp_udp_task "$tcp_udp_f" & pid_tcpudp=$!
 
-  wait "$pid_cpu" "$pid_mem" "$pid_dspace" "$pid_net" "$pid_dio" "$pid_tcpudp"
+  wait "$pid_cpu" || true
+  wait "$pid_mem" || true
+  wait "$pid_net" || true
+  wait "$pid_dio" || true
+  wait "$pid_tcpudp" || true
 
   for result_f in "$cpu_f" "$mem_f" "$disk_space_f" "$net_f" "$diskio_f" "$tcp_udp_f"; do
     cat "$result_f"
