@@ -25,6 +25,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v5"
+	"github.com/lib/pq"
 	"github.com/pquerna/otp/totp"
 )
 
@@ -33,9 +34,60 @@ const teamExportVersion = 1
 var errInvalidTeamImport = errors.New("invalid team import")
 
 type teamExportAuthRequest struct {
-	TOTPCode       string `json:"totp_code"`
-	ExportPassword string `json:"export_password"`
+	TOTPCode              string `json:"totp_code"`
+	ExportPassword        string `json:"export_password"`
+	SkipUnreadableServers *bool  `json:"skip_unreadable_servers"`
 }
+
+func (r teamExportAuthRequest) shouldSkipUnreadableServers() bool {
+	return r.SkipUnreadableServers == nil || *r.SkipUnreadableServers
+}
+
+type teamExportSkippedServer struct {
+	ServerID   int64  `json:"server_id"`
+	ServerName string `json:"server_name"`
+	Credential string `json:"credential"`
+}
+
+type teamExportSkippedKey struct {
+	KeyID      int64  `json:"key_id"`
+	KeyName    string `json:"key_name"`
+	Credential string `json:"credential"`
+}
+
+type teamExportResponse struct {
+	Code           string                    `json:"code"`
+	Msg            string                    `json:"msg"`
+	Data           any                       `json:"data"`
+	SkippedServers []teamExportSkippedServer `json:"skipped_servers,omitempty"`
+	SkippedKeys    []teamExportSkippedKey    `json:"skipped_keys,omitempty"`
+}
+
+type teamExportCredentialError struct {
+	ServerID   int64
+	ServerName string
+	Credential string
+	Err        error
+}
+
+func (e *teamExportCredentialError) Error() string {
+	return fmt.Sprintf("decrypt %s for server %d (%q): %v", e.Credential, e.ServerID, e.ServerName, e.Err)
+}
+
+func (e *teamExportCredentialError) Unwrap() error { return e.Err }
+
+type teamExportKeyCredentialError struct {
+	KeyID      int64
+	KeyName    string
+	Credential string
+	Err        error
+}
+
+func (e *teamExportKeyCredentialError) Error() string {
+	return fmt.Sprintf("decrypt %s for key %d (%q): %v", e.Credential, e.KeyID, e.KeyName, e.Err)
+}
+
+func (e *teamExportKeyCredentialError) Unwrap() error { return e.Err }
 
 type teamImportRequest struct {
 	TOTPCode               string                      `json:"totp_code"`
@@ -45,16 +97,35 @@ type teamImportRequest struct {
 	TrustLegacySSHHostKeys bool                        `json:"trust_legacy_ssh_host_keys"`
 }
 
+type teamImportAgentUIDConflict struct {
+	ServerName            string `json:"server_name"`
+	AgentUID              string `json:"agent_uid"`
+	ConflictSource        string `json:"conflict_source"`
+	ConflictingServerName string `json:"conflicting_server_name,omitempty"`
+	Err                   error  `json:"-"`
+}
+
+func (e *teamImportAgentUIDConflict) Error() string {
+	if e.ConflictingServerName != "" {
+		return fmt.Sprintf("Agent UID %q is used by both imported Servers %q and %q", e.AgentUID, e.ConflictingServerName, e.ServerName)
+	}
+	return fmt.Sprintf("Agent UID %q for imported Server %q is already in use", e.AgentUID, e.ServerName)
+}
+
+func (e *teamImportAgentUIDConflict) Unwrap() error { return e.Err }
+
 type teamExportBundle struct {
-	Version       int                      `json:"version"`
-	ExportedAt    time.Time                `json:"exported_at"`
-	Team          teamExportTeam           `json:"team"`
-	Categories    []teamExportCategory     `json:"categories"`
-	Keys          []teamExportKey          `json:"keys"`
-	TeamAlerts    []teamExportAlert        `json:"team_alerts"`
-	Notifications []_type.TeamNotification `json:"notifications"`
-	PublicPage    *teamExportPublicPage    `json:"public_page,omitempty"`
-	Servers       []teamExportServer       `json:"servers"`
+	Version        int                       `json:"version"`
+	ExportedAt     time.Time                 `json:"exported_at"`
+	SkippedServers []teamExportSkippedServer `json:"skipped_servers,omitempty"`
+	SkippedKeys    []teamExportSkippedKey    `json:"skipped_keys,omitempty"`
+	Team           teamExportTeam            `json:"team"`
+	Categories     []teamExportCategory      `json:"categories"`
+	Keys           []teamExportKey           `json:"keys"`
+	TeamAlerts     []teamExportAlert         `json:"team_alerts"`
+	Notifications  []_type.TeamNotification  `json:"notifications"`
+	PublicPage     *teamExportPublicPage     `json:"public_page,omitempty"`
+	Servers        []teamExportServer        `json:"servers"`
 }
 
 type teamExportTeam struct {
@@ -155,7 +226,7 @@ type teamExportAgent struct {
 	LastIP          string     `json:"last_ip" db:"last_ip"`
 	LastVersion     string     `json:"last_version" db:"last_version"`
 	PublicKey       string     `json:"public_key" db:"public_key"`
-	PrivateKey      string     `json:"private_key" db:"private_key"`
+	PrivateKey      string     `json:"private_key"`
 	ProtocolVersion int16      `json:"protocol_version,omitempty" db:"protocol_version"`
 	Host            string     `json:"host" db:"host"`
 	Port            int        `json:"port" db:"port"`
@@ -182,20 +253,62 @@ func exportTeam(c *echo.Context) error {
 		return err
 	}
 
-	data, err := buildTeamExport(tid)
+	data, skippedServers, err := buildTeamExport(tid, req.shouldSkipUnreadableServers())
 	if err != nil {
+		var credentialErr *teamExportCredentialError
+		if errors.As(err, &credentialErr) {
+			return unreadableServerCredentialConflict(c, credentialErr)
+		}
+		var keyCredentialErr *teamExportKeyCredentialError
+		if errors.As(err, &keyCredentialErr) {
+			return unreadableKeyCredentialConflict(c, keyCredentialErr)
+		}
 		return utils.ErrorHandler(c, err, "Failed to export team data")
 	}
 	encrypted, err := exportcrypto.EncryptJSON(req.ExportPassword, data)
 	if err != nil {
 		return c.JSON(400, _type.H{Code: "invalid", Msg: err.Error()})
 	}
-	influx.LogAdd(tid, uid, "team", "Export Team Configuration (encrypted)", c.RealIP(), c.Request().UserAgent(), "high")
+	auditMessage := "Export Team Configuration (encrypted)"
+	if len(skippedServers) > 0 || len(data.SkippedKeys) > 0 {
+		auditMessage = fmt.Sprintf("Export Team Configuration (encrypted; skipped %d unreadable Servers and %d unreadable Keys)", len(skippedServers), len(data.SkippedKeys))
+	}
+	influx.LogAdd(tid, uid, "team", auditMessage, c.RealIP(), c.Request().UserAgent(), "high")
 
-	return c.JSON(200, _type.H{
-		Code: "ok",
-		Msg:  "Team data exported",
-		Data: encrypted,
+	msg := "Team data exported"
+	if len(skippedServers) > 0 || len(data.SkippedKeys) > 0 {
+		msg = "Team data exported with unreadable credentials skipped"
+	}
+	return c.JSON(200, teamExportResponse{
+		Code:           "ok",
+		Msg:            msg,
+		Data:           encrypted,
+		SkippedServers: skippedServers,
+		SkippedKeys:    data.SkippedKeys,
+	})
+}
+
+func unreadableServerCredentialConflict(c *echo.Context, err *teamExportCredentialError) error {
+	return c.JSON(409, _type.H{
+		Code: "unreadable_server_credential",
+		Msg:  "A Server credential cannot be decrypted; repair it or retry while skipping unreadable Servers",
+		Data: teamExportSkippedServer{
+			ServerID:   err.ServerID,
+			ServerName: err.ServerName,
+			Credential: err.Credential,
+		},
+	})
+}
+
+func unreadableKeyCredentialConflict(c *echo.Context, err *teamExportKeyCredentialError) error {
+	return c.JSON(409, _type.H{
+		Code: "unreadable_key_credential",
+		Msg:  "An SSH Key credential cannot be decrypted; repair it or retry while skipping unreadable credentials",
+		Data: teamExportSkippedKey{
+			KeyID:      err.KeyID,
+			KeyName:    err.KeyName,
+			Credential: err.Credential,
+		},
 	})
 }
 
@@ -230,6 +343,10 @@ func importTeam(c *echo.Context) error {
 
 	oldServers, newServers, err := applyTeamImport(tid, bundle, req.TrustLegacySSHHostKeys)
 	if err != nil {
+		var agentUIDConflict *teamImportAgentUIDConflict
+		if errors.As(err, &agentUIDConflict) {
+			return agentUIDConflictResponse(c, agentUIDConflict)
+		}
 		if errors.Is(err, notification.ErrInvalidConfiguration) || errors.Is(err, errInvalidTeamImport) {
 			return c.JSON(400, _type.H{Code: "invalid", Msg: err.Error()})
 		}
@@ -263,6 +380,14 @@ func importTeam(c *echo.Context) error {
 	return c.JSON(200, _type.H{
 		Code: "ok",
 		Msg:  "Team data imported",
+	})
+}
+
+func agentUIDConflictResponse(c *echo.Context, conflict *teamImportAgentUIDConflict) error {
+	return c.JSON(409, _type.H{
+		Code: "agent_uid_conflict",
+		Msg:  "An imported Server Agent UID is already in use",
+		Data: conflict,
 	})
 }
 
@@ -341,38 +466,41 @@ func requireTOTPCode(c *echo.Context, code string) error {
 	return nil
 }
 
-func buildTeamExport(teamID int64) (teamExportBundle, error) {
+func buildTeamExport(teamID int64, skipUnreadableServers bool) (teamExportBundle, []teamExportSkippedServer, error) {
 	data := teamExportBundle{
 		Version:    teamExportVersion,
 		ExportedAt: time.Now().UTC(),
 	}
 
 	if err := db.Db.Get(&data.Team, "SELECT name, description, color, image FROM teams WHERE id = $1", teamID); err != nil {
-		return data, err
+		return data, nil, err
 	}
 	if err := db.Db.Select(&data.Categories, "SELECT id AS ref_id, name, sort FROM categories WHERE team = $1 ORDER BY sort, id", teamID); err != nil {
-		return data, err
+		return data, nil, err
 	}
-	if err := exportKeys(teamID, &data); err != nil {
-		return data, err
+	unreadableKeyIDs, err := exportKeys(teamID, &data, skipUnreadableServers)
+	if err != nil {
+		return data, nil, err
 	}
 	if err := db.Db.Select(&data.TeamAlerts, "SELECT item, threshold, for_duration FROM team_alerts WHERE team_id = $1 ORDER BY item", teamID); err != nil {
-		return data, err
+		return data, nil, err
 	}
 	if err := db.Db.Select(&data.Notifications, "SELECT module, target FROM teams_notifications WHERE team_id = $1 ORDER BY id", teamID); err != nil {
-		return data, err
+		return data, nil, err
 	}
 	if err := exportPublicPage(teamID, &data); err != nil {
-		return data, err
+		return data, nil, err
 	}
-	if err := exportServers(teamID, &data); err != nil {
-		return data, err
+	skippedServers, err := exportServers(teamID, &data, skipUnreadableServers, unreadableKeyIDs)
+	if err != nil {
+		return data, nil, err
 	}
+	data.SkippedServers = skippedServers
 
-	return data, nil
+	return data, skippedServers, nil
 }
 
-func exportKeys(teamID int64, data *teamExportBundle) error {
+func exportKeys(teamID int64, data *teamExportBundle, skipUnreadable bool) (map[int64]struct{}, error) {
 	type keyRow struct {
 		RefID     int64     `db:"ref_id"`
 		Name      string    `db:"name"`
@@ -383,13 +511,24 @@ func exportKeys(teamID int64, data *teamExportBundle) error {
 	}
 	var rows []keyRow
 	if err := db.Db.Select(&rows, "SELECT id AS ref_id, name, content, password, created_at, updated_at FROM keys WHERE team_id = $1 ORDER BY id", teamID); err != nil {
-		return err
+		return nil, err
 	}
 
+	unreadableKeyIDs := make(map[int64]struct{})
 	for _, row := range rows {
 		content, err := encrypt.Decrypt(row.Content, encrypt.Key, encrypt.KeyContentContext(row.RefID))
 		if err != nil {
-			return err
+			credentialErr := &teamExportKeyCredentialError{
+				KeyID: row.RefID, KeyName: row.Name, Credential: "ssh_key_content", Err: err,
+			}
+			if !skipUnreadable {
+				return nil, credentialErr
+			}
+			data.SkippedKeys = append(data.SkippedKeys, teamExportSkippedKey{
+				KeyID: row.RefID, KeyName: row.Name, Credential: credentialErr.Credential,
+			})
+			unreadableKeyIDs[row.RefID] = struct{}{}
+			continue
 		}
 		key := teamExportKey{
 			RefID:     row.RefID,
@@ -401,14 +540,24 @@ func exportKeys(teamID int64, data *teamExportBundle) error {
 		if len(row.Password) > 0 {
 			password, err := encrypt.Decrypt(row.Password, encrypt.Key, encrypt.KeyPasswordContext(row.RefID))
 			if err != nil {
-				return err
+				credentialErr := &teamExportKeyCredentialError{
+					KeyID: row.RefID, KeyName: row.Name, Credential: "ssh_key_password", Err: err,
+				}
+				if !skipUnreadable {
+					return nil, credentialErr
+				}
+				data.SkippedKeys = append(data.SkippedKeys, teamExportSkippedKey{
+					KeyID: row.RefID, KeyName: row.Name, Credential: credentialErr.Credential,
+				})
+				unreadableKeyIDs[row.RefID] = struct{}{}
+				continue
 			}
 			value := string(password)
 			key.Password = &value
 		}
 		data.Keys = append(data.Keys, key)
 	}
-	return nil
+	return unreadableKeyIDs, nil
 }
 
 func exportPublicPage(teamID int64, data *teamExportBundle) error {
@@ -424,35 +573,55 @@ func exportPublicPage(teamID int64, data *teamExportBundle) error {
 	return nil
 }
 
-func exportServers(teamID int64, data *teamExportBundle) error {
+func exportServers(teamID int64, data *teamExportBundle, skipUnreadableServers bool, unreadableKeyIDs map[int64]struct{}) ([]teamExportSkippedServer, error) {
 	if err := db.Db.Select(&data.Servers, `
 		SELECT id AS ref_id, category AS category_ref, type, name, allow_monitor, allow_terminal, weight
 		FROM servers
 		WHERE team_id = $1
 		ORDER BY id
 	`, teamID); err != nil {
-		return err
+		return nil, err
 	}
 
-	for i := range data.Servers {
-		server := &data.Servers[i]
+	servers := data.Servers
+	data.Servers = make([]teamExportServer, 0, len(servers))
+	var skippedServers []teamExportSkippedServer
+	for i := range servers {
+		server := &servers[i]
 		if err := db.Db.Get(&server.Info, `
 			SELECT os, county, area, open_time, note, provider, cycle, start_time, end_time, amount,
 			       auto_renew, bandwidth, traffic, traffic_type, note_public, online
 			FROM server_info
 			WHERE sid = $1
 		`, server.RefID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return err
+			return nil, err
 		}
 		if err := db.Db.Get(&server.AdvancedInfo, `
 			SELECT hostname, cpu_name, core_c, core_t, kernel, ip, arch
 			FROM server_info_adv
 			WHERE sid = $1
 		`, server.RefID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return err
+			return nil, err
 		}
 		if err := exportServerConnection(server); err != nil {
-			return err
+			var credentialErr *teamExportCredentialError
+			if !skipUnreadableServers || !errors.As(err, &credentialErr) {
+				return nil, err
+			}
+			skippedServers = append(skippedServers, teamExportSkippedServer{
+				ServerID:   credentialErr.ServerID,
+				ServerName: credentialErr.ServerName,
+				Credential: credentialErr.Credential,
+			})
+			continue
+		}
+		if server.SSH != nil {
+			if _, unavailable := unreadableKeyIDs[server.SSH.KeyRef]; unavailable {
+				skippedServers = append(skippedServers, teamExportSkippedServer{
+					ServerID: server.RefID, ServerName: server.Name, Credential: "ssh_key",
+				})
+				continue
+			}
 		}
 		if err := db.Db.Select(&server.Alerts, `
 			SELECT item, threshold, for_duration
@@ -460,10 +629,11 @@ func exportServers(teamID int64, data *teamExportBundle) error {
 			WHERE server_id = $1
 			ORDER BY item
 		`, server.RefID); err != nil {
-			return err
+			return nil, err
 		}
+		data.Servers = append(data.Servers, *server)
 	}
-	return nil
+	return skippedServers, nil
 }
 
 func exportServerConnection(server *teamExportServer) error {
@@ -483,7 +653,9 @@ func exportServerConnection(server *teamExportServer) error {
 		}
 		password, err := encrypt.Decrypt(row.Password, encrypt.Key, encrypt.SSHPasswordContext(server.RefID))
 		if err != nil {
-			return err
+			return &teamExportCredentialError{
+				ServerID: server.RefID, ServerName: server.Name, Credential: "ssh_password", Err: err,
+			}
 		}
 		server.SSH = &teamExportSSH{
 			Address:  row.Address,
@@ -495,12 +667,25 @@ func exportServerConnection(server *teamExportServer) error {
 		}
 	case 1, 2:
 		var agent teamExportAgent
-		err := db.Db.Get(&agent, `
+		var privateKeyEncrypted []byte
+		err := db.Db.QueryRow(`
 			SELECT agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, protocol_version, host, port
 			FROM agents
 			WHERE server_id = $1
-		`, server.RefID)
+		`, server.RefID).Scan(
+			&agent.AgentUID, &agent.Status, &agent.LastSeenAt, &agent.LastIP, &agent.LastVersion,
+			&agent.PublicKey, &privateKeyEncrypted, &agent.ProtocolVersion, &agent.Host, &agent.Port,
+		)
 		if err == nil {
+			if server.Type == 1 {
+				privateKey, decryptErr := encrypt.Decrypt(privateKeyEncrypted, encrypt.Key, encrypt.AgentPrivateKeyContext(server.RefID))
+				if decryptErr != nil {
+					return &teamExportCredentialError{
+						ServerID: server.RefID, ServerName: server.Name, Credential: "active_agent_private_key", Err: decryptErr,
+					}
+				}
+				agent.PrivateKey = string(privateKey)
+			}
 			server.Agent = &agent
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return err
@@ -529,7 +714,7 @@ func applyTeamImport(teamID int64, data teamExportBundle, trustLegacySSHHostKeys
 	if len(legacySSHServers) > 0 && !trustLegacySSHHostKeys {
 		return nil, nil, fmt.Errorf("%w: importing SSH servers without host keys requires explicit confirmation", errInvalidTeamImport)
 	}
-	data.Servers, err = normalizeImportedAgentPublicKeys(data.Servers)
+	data.Servers, err = normalizeImportedAgentKeys(data.Servers)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -538,6 +723,9 @@ func applyTeamImport(teamID int64, data teamExportBundle, trustLegacySSHHostKeys
 		return nil, nil, err
 	}
 	data.Notifications = notifications
+	if err = preflightImportedAgentUIDs(teamID, data.Servers); err != nil {
+		return nil, nil, err
+	}
 
 	tx, err := db.Db.Beginx()
 	if err != nil {
@@ -592,13 +780,23 @@ func applyTeamImport(teamID int64, data teamExportBundle, trustLegacySSHHostKeys
 	return oldServerIDs, newServers, nil
 }
 
-func normalizeImportedAgentPublicKeys(servers []teamExportServer) ([]teamExportServer, error) {
+func normalizeImportedAgentKeys(servers []teamExportServer) ([]teamExportServer, error) {
 	normalized := append([]teamExportServer(nil), servers...)
 	for i := range normalized {
 		if normalized[i].Agent == nil {
 			continue
 		}
 		agent := *normalized[i].Agent
+		agent.AgentUID = strings.TrimSpace(agent.AgentUID)
+		if normalized[i].Type == 1 {
+			privateKey := strings.TrimSpace(agent.PrivateKey) + "\n"
+			if _, err := identity.ParseEd25519PrivateKeyPEM([]byte(privateKey)); err != nil {
+				return nil, fmt.Errorf("%w: invalid Agent private key for server %q: %v", errInvalidTeamImport, normalized[i].Name, err)
+			}
+			agent.PrivateKey = privateKey
+		} else if normalized[i].Type == 2 {
+			agent.PrivateKey = ""
+		}
 		raw := strings.TrimSpace(agent.PublicKey)
 		if raw == "" {
 			agent.PublicKey = ""
@@ -616,6 +814,54 @@ func normalizeImportedAgentPublicKeys(servers []teamExportServer) ([]teamExportS
 		normalized[i].Agent = &agent
 	}
 	return normalized, nil
+}
+
+func preflightImportedAgentUIDs(teamID int64, servers []teamExportServer) error {
+	serverNamesByUID := make(map[string]string)
+	for _, server := range servers {
+		if server.Agent == nil || server.Agent.AgentUID == "" {
+			continue
+		}
+		agentUID := server.Agent.AgentUID
+		if firstServerName, exists := serverNamesByUID[agentUID]; exists {
+			return &teamImportAgentUIDConflict{
+				ServerName:            server.Name,
+				AgentUID:              agentUID,
+				ConflictSource:        "bundle",
+				ConflictingServerName: firstServerName,
+			}
+		}
+		serverNamesByUID[agentUID] = server.Name
+	}
+	if len(serverNamesByUID) == 0 {
+		return nil
+	}
+
+	agentUIDs := make([]string, 0, len(serverNamesByUID))
+	for agentUID := range serverNamesByUID {
+		agentUIDs = append(agentUIDs, agentUID)
+	}
+	var conflictingUID string
+	err := db.Db.Get(&conflictingUID, `
+		SELECT btrim(a.agent_uid)
+		FROM agents a
+		JOIN servers s ON s.id = a.server_id
+		WHERE btrim(a.agent_uid) = ANY($1)
+		  AND s.team_id <> $2
+		ORDER BY a.server_id
+		LIMIT 1
+	`, pq.Array(agentUIDs), teamID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return &teamImportAgentUIDConflict{
+		ServerName:     serverNamesByUID[conflictingUID],
+		AgentUID:       conflictingUID,
+		ConflictSource: "database",
+	}
 }
 
 func inspectImportedSSHHostKeys(servers []teamExportServer) ([]string, error) {
@@ -905,12 +1151,26 @@ func importServerConnection(tx *sqlx.Tx, serverID int64, server teamExportServer
 	case 1, 2:
 		if server.Agent != nil {
 			lastSeenAt, lastIP, lastVersion := normalizeImportedAgentRuntime(server.Type, server.Agent)
+			privateKey := []byte{}
+			if server.Type == 1 {
+				var err error
+				privateKey, err = encrypt.Encrypt([]byte(server.Agent.PrivateKey), encrypt.Key, encrypt.AgentPrivateKeyContext(serverID))
+				if err != nil {
+					return err
+				}
+			}
 			if _, err := tx.Exec(
 				`INSERT INTO agents (server_id, agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, protocol_version, host, port)
 				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 				serverID, server.Agent.AgentUID, server.Agent.Status, lastSeenAt, lastIP,
-				lastVersion, server.Agent.PublicKey, server.Agent.PrivateKey, normalizeImportedAgentProtocol(server.Type, server.Agent), server.Agent.Host, server.Agent.Port,
+				lastVersion, server.Agent.PublicKey, privateKey, normalizeImportedAgentProtocol(server.Type, server.Agent), server.Agent.Host, server.Agent.Port,
 			); err != nil {
+				var pqErr *pq.Error
+				if errors.As(err, &pqErr) && pqErr.Code == "23505" && strings.EqualFold(pqErr.Constraint, "IDX_AAU") {
+					return &teamImportAgentUIDConflict{
+						ServerName: server.Name, AgentUID: server.Agent.AgentUID, ConflictSource: "database", Err: err,
+					}
+				}
 				return err
 			}
 		}

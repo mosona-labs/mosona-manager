@@ -1,6 +1,7 @@
 package aserver
 
 import (
+	"bytes"
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
@@ -11,12 +12,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/jmoiron/sqlx"
-	"github.com/labstack/echo/v5"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/utils"
+	"mosona-manager/internal/utils/encrypt"
+	"mosona-manager/pkg/identity"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/jmoiron/sqlx"
+	"github.com/labstack/echo/v5"
 )
 
 func setupReinstallTest(t *testing.T) sqlmock.Sqlmock {
@@ -27,6 +31,8 @@ func setupReinstallTest(t *testing.T) sqlmock.Sqlmock {
 	}
 	oldDB := db.Db
 	db.Db = sqlx.NewDb(database, "sqlmock")
+	oldEncryptionKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
 	oldStopServer := reinstallStopServer
 	oldReconcileServer := reinstallReconcileServer
 	reinstallStopServer = func(int64) {}
@@ -39,6 +45,7 @@ func setupReinstallTest(t *testing.T) sqlmock.Sqlmock {
 	t.Cleanup(func() {
 		config.ReplaceDynamicConf(oldDynamicConf)
 		db.Db = oldDB
+		encrypt.Key = oldEncryptionKey
 		reinstallStopServer = oldStopServer
 		reinstallReconcileServer = oldReconcileServer
 		_ = database.Close()
@@ -153,7 +160,7 @@ func TestReinstallActiveReplacesAgentStateAtomically(t *testing.T) {
 		WithArgs(int64(91)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO agents (server_id, agent_uid, status, host, port, private_key) VALUES ($1, $2, $3, $4, $5, $6)")).
-		WithArgs(int64(91), sqlmock.AnyArg(), 0, "agent.example.com", 443, sqlmock.AnyArg()).
+		WithArgs(int64(91), sqlmock.AnyArg(), 0, "agent.example.com", 443, encryptedAgentPrivateKeyMatcher{serverID: 91}).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -232,7 +239,7 @@ func TestReinstallActiveInsertFailureRollsBackWithoutStoppingConnections(t *test
 		WithArgs(int64(91)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO agents (server_id, agent_uid, status, host, port, private_key) VALUES ($1, $2, $3, $4, $5, $6)")).
-		WithArgs(int64(91), sqlmock.AnyArg(), 0, "agent.example.com", 443, sqlmock.AnyArg()).
+		WithArgs(int64(91), sqlmock.AnyArg(), 0, "agent.example.com", 443, encryptedAgentPrivateKeyMatcher{serverID: 91}).
 		WillReturnError(errors.New("duplicate key value"))
 	mock.ExpectRollback()
 
@@ -332,6 +339,23 @@ func responseData(t *testing.T, body []byte) map[string]string {
 
 type capturedString struct {
 	target *string
+}
+
+type encryptedAgentPrivateKeyMatcher struct {
+	serverID int64
+}
+
+func (matcher encryptedAgentPrivateKeyMatcher) Match(value driver.Value) bool {
+	ciphertext, ok := value.([]byte)
+	if !ok || !encrypt.IsCurrentCiphertext(ciphertext) {
+		return false
+	}
+	plaintext, err := encrypt.Decrypt(ciphertext, encrypt.Key, encrypt.AgentPrivateKeyContext(matcher.serverID))
+	if err != nil {
+		return false
+	}
+	_, err = identity.ParseEd25519PrivateKeyPEM(plaintext)
+	return err == nil
 }
 
 func (capture capturedString) Match(value driver.Value) bool {

@@ -1,6 +1,7 @@
 package conn
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"mosona-manager/internal/connect/active"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils/encrypt"
 )
 
 func setupReconcileTest(t *testing.T) sqlmock.Sqlmock {
@@ -24,6 +26,8 @@ func setupReconcileTest(t *testing.T) sqlmock.Sqlmock {
 	}
 	oldDB := db.Db
 	db.Db = sqlx.NewDb(database, "sqlmock")
+	oldEncryptionKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
 
 	lock := lifecycleLock(91)
 	lock.Lock()
@@ -87,12 +91,22 @@ func setupReconcileTest(t *testing.T) sqlmock.Sqlmock {
 		retryMu.Unlock()
 		lock.Unlock()
 		db.Db = oldDB
+		encrypt.Key = oldEncryptionKey
 		_ = database.Close()
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Errorf("unmet SQL expectations: %v", err)
 		}
 	})
 	return mock
+}
+
+func testEncryptedAgentPrivateKey(t *testing.T, serverID int64, plaintext string) []byte {
+	t.Helper()
+	ciphertext, err := encrypt.Encrypt([]byte(plaintext), encrypt.Key, encrypt.AgentPrivateKeyContext(serverID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ciphertext
 }
 
 func testRetry(serverID int64) *reconcileRetry {
@@ -173,7 +187,7 @@ func TestReconcileUnpairedActiveServerStartsPairingWhenMonitoringDisabled(t *tes
 	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
 		WithArgs(int64(91)).
 		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
-			AddRow("agent-uid", "127.0.0.1", 10000, "not-read-before-retry", "", 1))
+			AddRow("agent-uid", "127.0.0.1", 10000, testEncryptedAgentPrivateKey(t, 91, "not-read-before-retry"), "", 1))
 
 	if err := ReconcileServer(91); err != nil {
 		t.Fatal(err)
@@ -297,6 +311,39 @@ func TestReconcileStartFailureDoesNotRetainOldConnection(t *testing.T) {
 	}
 }
 
+func TestReconcileActiveServerRejectsUnprotectedOrSwappedPrivateKey(t *testing.T) {
+	tests := []struct {
+		name       string
+		privateKey []byte
+	}{
+		{name: "plaintext", privateKey: []byte("plaintext-private-key")},
+		{name: "different server context", privateKey: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := setupReconcileTest(t)
+			privateKey := tt.privateKey
+			if privateKey == nil {
+				privateKey = testEncryptedAgentPrivateKey(t, 92, "private-key")
+			}
+			mock.ExpectQuery(`SELECT type, allow_monitor FROM servers WHERE id = \$1`).
+				WithArgs(int64(91)).
+				WillReturnRows(sqlmock.NewRows([]string{"type", "allow_monitor"}).AddRow(1, true))
+			mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
+				WithArgs(int64(91)).
+				WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
+					AddRow("agent-uid", "127.0.0.1", 10000, privateKey, "", 2))
+
+			if err := ReconcileServer(91); err == nil {
+				t.Fatal("ReconcileServer accepted an unprotected or record-swapped Agent private key")
+			}
+			if retry := testRetry(91); retry == nil {
+				t.Fatal("decryption failure did not schedule reconciliation retry")
+			}
+		})
+	}
+}
+
 func TestStopServerCancelsPendingReconciliation(t *testing.T) {
 	mock := setupReconcileTest(t)
 	ctx := addTestOutbound(91)
@@ -403,7 +450,7 @@ func TestReconcileActiveServerRegistersConnection(t *testing.T) {
 	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
 		WithArgs(int64(91)).
 		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
-			AddRow("agent-uid", "127.0.0.1", 10000, "invalid-but-not-read-until-connect", "public-key", 2))
+			AddRow("agent-uid", "127.0.0.1", 10000, testEncryptedAgentPrivateKey(t, 91, "invalid-but-not-read-until-connect"), "public-key", 2))
 
 	if err := ReconcileServer(91); err != nil {
 		t.Fatal(err)
@@ -432,7 +479,7 @@ func TestActiveIdentityMismatchStopsConnectionWorker(t *testing.T) {
 	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
 		WithArgs(int64(91)).
 		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
-			AddRow("agent-uid", "127.0.0.1", 10000, "hub-private-key", "pinned-agent-key", 2))
+			AddRow("agent-uid", "127.0.0.1", 10000, testEncryptedAgentPrivateKey(t, 91, "hub-private-key"), "pinned-agent-key", 2))
 
 	retry := make(chan time.Time, 1)
 	activeConnectionRetryTimer = func(time.Duration) <-chan time.Time { return retry }
@@ -476,7 +523,7 @@ func TestPairingSuccessRemovesConnectionWorker(t *testing.T) {
 	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
 		WithArgs(int64(91)).
 		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
-			AddRow("agent-uid", "127.0.0.1", 10000, "hub-private-key", "", 1))
+			AddRow("agent-uid", "127.0.0.1", 10000, testEncryptedAgentPrivateKey(t, 91, "hub-private-key"), "", 1))
 	mock.ExpectQuery(`SELECT public_key, protocol_version FROM agents WHERE server_id = \$1`).
 		WithArgs(int64(91)).
 		WillReturnRows(sqlmock.NewRows([]string{"public_key", "protocol_version"}).AddRow("pinned-key", 2))
@@ -506,7 +553,7 @@ func TestLegacyUpgradeNoticeLoggedOnceWhilePairingRetries(t *testing.T) {
 	mock.ExpectQuery(`SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = \$1`).
 		WithArgs(int64(91)).
 		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "host", "port", "private_key", "public_key", "protocol_version"}).
-			AddRow("agent-uid", "127.0.0.1", 10000, "hub-private-key", "", 1))
+			AddRow("agent-uid", "127.0.0.1", 10000, testEncryptedAgentPrivateKey(t, 91, "hub-private-key"), "", 1))
 	mock.ExpectQuery(`SELECT public_key, protocol_version FROM agents WHERE server_id = \$1`).
 		WithArgs(int64(91)).
 		WillReturnRows(sqlmock.NewRows([]string{"public_key", "protocol_version"}).AddRow("", 1))

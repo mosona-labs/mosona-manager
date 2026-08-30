@@ -17,6 +17,14 @@ const (
 
 var envelopeMagic = []byte("MSNENC01")
 
+// EnvelopeMagic returns the prefix shared by every versioned ciphertext
+// envelope. Callers outside the package use it to recognize envelopes without
+// decrypting them (for example the database probe in HasEncryptedCredentials),
+// so detection can never drift from Decrypt.
+func EnvelopeMagic() string {
+	return string(envelopeMagic)
+}
+
 func KeyContentContext(keyID int64) string {
 	return "keys/" + strconv.FormatInt(keyID, 10) + "/content"
 }
@@ -27,6 +35,10 @@ func KeyPasswordContext(keyID int64) string {
 
 func SSHPasswordContext(serverID int64) string {
 	return "ssh/" + strconv.FormatInt(serverID, 10) + "/password"
+}
+
+func AgentPrivateKeyContext(serverID int64) string {
+	return "agents/" + strconv.FormatInt(serverID, 10) + "/private_key"
 }
 
 func GenerateKey(length int) ([]byte, error) {

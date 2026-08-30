@@ -18,6 +18,11 @@ type encryptedSSHRow struct {
 	Password []byte `db:"password"`
 }
 
+type agentPrivateKeyRow struct {
+	ServerID   int64  `db:"server_id"`
+	PrivateKey []byte `db:"private_key"`
+}
+
 type CredentialMigrationFailure struct {
 	Table    string
 	RecordID int64
@@ -38,7 +43,8 @@ func (e *ciphertextMigrationError) Error() string { return e.operation + ": " + 
 func (e *ciphertextMigrationError) Unwrap() error { return e.err }
 
 // MigrateEncryptedCredentials atomically upgrades legacy AES-CBC credentials
-// after the master key has been loaded and before application workers start.
+// and plaintext Agent keys after the master key has been loaded and before
+// application workers start.
 func MigrateEncryptedCredentials() (CredentialMigrationReport, error) {
 	var report CredentialMigrationReport
 	tx, err := Db.Beginx()
@@ -106,10 +112,51 @@ func MigrateEncryptedCredentials() (CredentialMigrationReport, error) {
 		}
 	}
 
+	var agentRows []agentPrivateKeyRow
+	if err = tx.Select(&agentRows, "SELECT server_id, private_key FROM agents ORDER BY server_id FOR UPDATE"); err != nil {
+		return report, fmt.Errorf("load Agent private keys for migration: %w", err)
+	}
+	for _, row := range agentRows {
+		privateKey, changed, err := migrateAgentPrivateKey(row.PrivateKey, row.ServerID)
+		if err != nil {
+			if !isCiphertextDecryptionError(err) {
+				return report, fmt.Errorf("migrate Agent private key for server %d: %w", row.ServerID, err)
+			}
+			report.Failures = append(report.Failures, CredentialMigrationFailure{
+				Table: "agents", RecordID: row.ServerID, Field: "private_key", Err: err,
+			})
+			continue
+		}
+		if !changed {
+			continue
+		}
+		if _, err = tx.Exec("UPDATE agents SET private_key = $1 WHERE server_id = $2", privateKey, row.ServerID); err != nil {
+			return report, fmt.Errorf("update migrated Agent private key for server %d: %w", row.ServerID, err)
+		}
+	}
+
 	if err = tx.Commit(); err != nil {
 		return report, fmt.Errorf("commit credential encryption migration: %w", err)
 	}
 	return report, nil
+}
+
+func migrateAgentPrivateKey(privateKey []byte, serverID int64) ([]byte, bool, error) {
+	if len(privateKey) == 0 {
+		return privateKey, false, nil
+	}
+	context := encrypt.AgentPrivateKeyContext(serverID)
+	if encrypt.IsVersionedCiphertext(privateKey) {
+		if _, err := encrypt.Decrypt(privateKey, encrypt.Key, context); err != nil {
+			return nil, false, &ciphertextMigrationError{operation: "decrypt current Agent private key", err: err}
+		}
+		return privateKey, false, nil
+	}
+	migrated, err := encrypt.Encrypt(privateKey, encrypt.Key, context)
+	if err != nil {
+		return nil, false, err
+	}
+	return migrated, true, nil
 }
 
 func migrateCiphertext(ciphertext []byte, context string) ([]byte, bool, error) {

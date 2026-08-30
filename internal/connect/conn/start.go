@@ -205,18 +205,23 @@ func startServer(serverId int64, mode int16, allowMonitor bool) error {
 		}()
 	case 1:
 		var (
-			agentUid        string
-			host            string
-			port            int
-			privKey         string
-			publicKey       string
-			protocolVersion int16
+			agentUid         string
+			host             string
+			port             int
+			privKeyEncrypted []byte
+			publicKey        string
+			protocolVersion  int16
 		)
 		if err := db.Db.QueryRow(
 			"SELECT agent_uid, host, port, private_key, public_key, protocol_version FROM servers s JOIN agents a ON s.id = a.server_id WHERE s.id = $1", serverId,
-		).Scan(&agentUid, &host, &port, &privKey, &publicKey, &protocolVersion); err != nil {
+		).Scan(&agentUid, &host, &port, &privKeyEncrypted, &publicKey, &protocolVersion); err != nil {
 			return err
 		}
+		privKey, err := encrypt.Decrypt(privKeyEncrypted, encrypt.Key, encrypt.AgentPrivateKeyContext(serverId))
+		if err != nil {
+			return err
+		}
+		privKeyPEM := string(privKey)
 
 		stopOutboundServer(serverId)
 		mu.Lock()
@@ -240,7 +245,7 @@ func startServer(serverId int64, mode int16, allowMonitor bool) error {
 				case <-activeConnectionRetryTimer(delay):
 				}
 				startedAt := time.Now()
-				err := connectActiveAgent(ctx, host, port, privKey, agentUid, publicKey, protocolVersion, serverId, allowMonitor)
+				err := connectActiveAgent(ctx, host, port, privKeyPEM, agentUid, publicKey, protocolVersion, serverId, allowMonitor)
 				if ctx.Err() != nil {
 					return
 				}

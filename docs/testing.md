@@ -33,7 +33,14 @@ export ACTIVE_AGENT_PROTOCOL_TEST_DATABASE_URL='postgres://mm:mm@127.0.0.1:55432
 go test ./internal/db -run TestActiveAgentProtocolMigrationPostgres -count=1
 ```
 
-The test creates only temporary tables and executes the migration twice to verify idempotency. Other optional PostgreSQL migration and tenant tests use these variables:
+The test creates only temporary tables and executes the migration twice to verify idempotency. The Active Agent private key migration test follows the same pattern and uses:
+
+```sh
+export AGENT_PRIVATE_KEY_TEST_DATABASE_URL='postgres://mm:mm@127.0.0.1:55432/mm_db?sslmode=disable'
+go test ./internal/db -run TestActiveAgentPrivateKeyMigrationPostgres -count=1
+```
+
+Other optional PostgreSQL migration and tenant tests use these variables:
 
 - `SSH_HOST_KEY_TEST_DATABASE_URL`
 - `SERVER_CATEGORY_TEST_DATABASE_URL`

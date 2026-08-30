@@ -351,7 +351,7 @@ func TestConnectShellNeverFallsBackAfterConcurrentTOFUMismatch(t *testing.T) {
 	mock := setupIdentityTest(t)
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT private_key, agent_uid, host, port, public_key, protocol_version FROM agents WHERE server_id = $1")).
 		WithArgs(int64(91)).WillReturnRows(sqlmock.NewRows([]string{"private_key", "agent_uid", "host", "port", "public_key", "protocol_version"}).
-		AddRow(privateKeyPEM, "agent-uid", host, port, "", 1))
+		AddRow(testEncryptedAgentPrivateKey(t, 91, privateKeyPEM), "agent-uid", host, port, "", 1))
 	mock.ExpectExec("UPDATE agents SET public_key").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT public_key FROM agents WHERE server_id = $1")).
 		WithArgs(int64(91)).WillReturnRows(sqlmock.NewRows([]string{"public_key"}).AddRow(winnerPEM))
@@ -363,6 +363,31 @@ func TestConnectShellNeverFallsBackAfterConcurrentTOFUMismatch(t *testing.T) {
 	}
 	if got := legacyTerminalRequests.Load(); got != 0 {
 		t.Fatalf("legacy terminal requests = %d, want 0", got)
+	}
+}
+
+func TestConnectShellRejectsUnprotectedOrSwappedPrivateKey(t *testing.T) {
+	tests := []struct {
+		name       string
+		privateKey func(*testing.T) []byte
+	}{
+		{name: "plaintext", privateKey: func(*testing.T) []byte { return []byte("plaintext-private-key") }},
+		{name: "different server context", privateKey: func(t *testing.T) []byte {
+			return testEncryptedAgentPrivateKey(t, 92, "private-key")
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := setupIdentityTest(t)
+			mock.ExpectQuery(regexp.QuoteMeta("SELECT private_key, agent_uid, host, port, public_key, protocol_version FROM agents WHERE server_id = $1")).
+				WithArgs(int64(91)).
+				WillReturnRows(sqlmock.NewRows([]string{"private_key", "agent_uid", "host", "port", "public_key", "protocol_version"}).
+					AddRow(tt.privateKey(t), "agent-uid", "127.0.0.1", 10000, "", 2))
+
+			if err := ConnectShell(context.Background(), 91, nil); err == nil {
+				t.Fatal("ConnectShell accepted an unprotected or record-swapped Agent private key")
+			}
+		})
 	}
 }
 

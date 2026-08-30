@@ -21,6 +21,13 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
+var (
+	addNewAgentUUID       = uuid.NewRandom
+	addRemoveServerStatus = influx.RemoveServerStatus
+	addReconcileServer    = conn.ReconcileServer
+	addLogAdd             = influx.LogAdd
+)
+
 func add(c *echo.Context) error {
 	tid, _ := c.Get("tid").(int64)
 	uid, _ := c.Get("uid").(int64)
@@ -103,7 +110,7 @@ func add(c *echo.Context) error {
 		validation, err := validateSSHConnectionForAdd(tid, address, port, username, password, keyID, c.FormValue("host_key"))
 		if err != nil {
 			if errors.Is(err, connectSSH.ErrHostKeyChangedDuringValidation) {
-				influx.LogAdd(
+				addLogAdd(
 					tid, uid, "security", "Blocked SSH host key change while validating new Server: "+name,
 					c.RealIP(), c.Request().UserAgent(), "high",
 				)
@@ -186,17 +193,24 @@ func add(c *echo.Context) error {
 			"id": serverId,
 		}
 	case 1: // Agent (active)
-		agentUUID, _ := uuid.NewUUID()
+		agentUUID, err := addNewAgentUUID()
+		if err != nil {
+			return utils.ErrorHandler(c, err, "Agent ID generation error")
+		}
 		privateKey, publicKey, err := identity.GenerateEd25519KeyPair()
 		if err != nil {
 			return utils.ErrorHandler(c, err, "Key generation error")
+		}
+		privateKeyEncrypted, err := encrypt.Encrypt([]byte(privateKey), encrypt.Key, encrypt.AgentPrivateKeyContext(serverId))
+		if err != nil {
+			return utils.ErrorHandler(c, err, "Encryption error")
 		}
 
 		address := c.FormValue("address")
 		port, _ := strconv.Atoi(c.FormValue("port"))
 		if _, err = tx.Exec(
 			"INSERT INTO agents (server_id, agent_uid, status, host, port, private_key) VALUES ($1, $2, $3, $4, $5, $6)",
-			serverId, agentUUID.String(), 0, address, port, privateKey,
+			serverId, agentUUID.String(), 0, address, port, privateKeyEncrypted,
 		); err != nil {
 			_ = tx.Rollback()
 			return utils.ErrorHandler(c, err, "Database error")
@@ -252,18 +266,18 @@ func add(c *echo.Context) error {
 		return utils.ErrorHandler(c, err, "Database error")
 	}
 
-	if err = influx.RemoveServerStatus(serverId); err != nil {
-		if reconcileErr := conn.ReconcileServer(serverId); reconcileErr != nil {
+	if err = addRemoveServerStatus(serverId); err != nil {
+		if reconcileErr := addReconcileServer(serverId); reconcileErr != nil {
 			log.Println("Failed to reconcile new server connection:", reconcileErr)
 		}
 		return utils.ErrorHandler(c, err, "Failed to clear server status from InfluxDB")
 	}
-	if reconcileErr := conn.ReconcileServer(serverId); reconcileErr != nil {
+	if reconcileErr := addReconcileServer(serverId); reconcileErr != nil {
 		log.Println("Failed to reconcile new server connection:", reconcileErr)
 	}
 
 	// Log action
-	influx.LogAdd(
+	addLogAdd(
 		tid, uid, "server", "Create Server: "+name+" (ID"+strconv.FormatInt(serverId, 10)+")",
 		c.RealIP(), c.Request().UserAgent(), "medium",
 	)

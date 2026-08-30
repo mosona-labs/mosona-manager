@@ -1,8 +1,10 @@
 package ateam
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -21,6 +23,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v5"
+	"github.com/lib/pq"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -127,17 +130,161 @@ func TestApplyTeamImportRejectsInvalidAgentPublicKeyBeforeTransaction(t *testing
 	oldDB := db.Db
 	db.Db = sqlx.NewDb(database, "sqlmock")
 	t.Cleanup(func() { db.Db = oldDB })
+	privateKey, _, err := identity.GenerateEd25519KeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	_, _, err = applyTeamImport(5, teamExportBundle{Servers: []teamExportServer{{
 		Type: 1,
 		Name: "broken-active",
 		Agent: &teamExportAgent{
-			PublicKey: "not a PEM key",
+			PrivateKey: privateKey,
+			PublicKey:  "not a PEM key",
 		},
 	}}}, false)
 	if !errors.Is(err, errInvalidTeamImport) || !strings.Contains(err.Error(), "broken-active") {
 		t.Fatalf("expected invalid Agent public key error, got %v", err)
 	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestApplyTeamImportRejectsInvalidAgentPrivateKeyBeforeTransaction(t *testing.T) {
+	database, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	t.Cleanup(func() { db.Db = oldDB })
+
+	_, _, err = applyTeamImport(5, teamExportBundle{Servers: []teamExportServer{{
+		Type: 1,
+		Name: "broken-active",
+		Agent: &teamExportAgent{
+			PrivateKey: "not a PEM key",
+		},
+	}}}, false)
+	if !errors.Is(err, errInvalidTeamImport) || !strings.Contains(err.Error(), "invalid Agent private key") {
+		t.Fatalf("expected invalid Agent private key error, got %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPreflightImportedAgentUIDsRejectsDuplicateBundle(t *testing.T) {
+	err := preflightImportedAgentUIDs(5, []teamExportServer{
+		{Name: "first", Type: 2, Agent: &teamExportAgent{AgentUID: "duplicate-uid"}},
+		{Name: "second", Type: 2, Agent: &teamExportAgent{AgentUID: "duplicate-uid"}},
+	})
+	var conflict *teamImportAgentUIDConflict
+	if !errors.As(err, &conflict) {
+		t.Fatalf("error = %T %v, want teamImportAgentUIDConflict", err, err)
+	}
+	if conflict.ServerName != "second" || conflict.ConflictingServerName != "first" || conflict.AgentUID != "duplicate-uid" || conflict.ConflictSource != "bundle" {
+		t.Fatalf("conflict = %#v", conflict)
+	}
+}
+
+func TestPreflightImportedAgentUIDsFindsCrossTeamConflict(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	t.Cleanup(func() { db.Db = oldDB })
+	mock.ExpectQuery(`SELECT btrim\(a.agent_uid\).*s.team_id <> \$2`).
+		WithArgs(sqlmock.AnyArg(), int64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid"}).AddRow("existing-uid"))
+
+	err = preflightImportedAgentUIDs(5, []teamExportServer{{
+		Name: "imported-active", Type: 2, Agent: &teamExportAgent{AgentUID: "existing-uid"},
+	}})
+	var conflict *teamImportAgentUIDConflict
+	if !errors.As(err, &conflict) {
+		t.Fatalf("error = %T %v, want teamImportAgentUIDConflict", err, err)
+	}
+	if conflict.ServerName != "imported-active" || conflict.AgentUID != "existing-uid" || conflict.ConflictSource != "database" {
+		t.Fatalf("conflict = %#v", conflict)
+	}
+}
+
+func TestPreflightImportedAgentUIDsAllowsCurrentTeamIdentity(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	t.Cleanup(func() { db.Db = oldDB })
+	mock.ExpectQuery(`SELECT btrim\(a.agent_uid\).*s.team_id <> \$2`).
+		WithArgs(sqlmock.AnyArg(), int64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid"}))
+
+	if err = preflightImportedAgentUIDs(5, []teamExportServer{{
+		Name: "same-team", Type: 2, Agent: &teamExportAgent{AgentUID: "same-team-uid"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAgentUIDConflictResponseIdentifiesImportedServer(t *testing.T) {
+	e := echo.New()
+	e.GET("/conflict", func(c *echo.Context) error {
+		return agentUIDConflictResponse(c, &teamImportAgentUIDConflict{
+			ServerName: "imported-active", AgentUID: "existing-uid", ConflictSource: "database",
+		})
+	})
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/conflict", nil))
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	for _, fragment := range []string{
+		`"code":"agent_uid_conflict"`,
+		`"server_name":"imported-active"`,
+		`"agent_uid":"existing-uid"`,
+		`"conflict_source":"database"`,
+	} {
+		if !strings.Contains(recorder.Body.String(), fragment) {
+			t.Fatalf("response does not contain %q: %s", fragment, recorder.Body.String())
+		}
+	}
+}
+
+func TestImportServerConnectionMapsConcurrentAgentUIDConflict(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	mock.ExpectBegin()
+	tx, err := sqlx.NewDb(database, "sqlmock").Beginx()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectExec(`INSERT INTO agents .*private_key`).
+		WillReturnError(&pq.Error{Code: "23505", Constraint: "IDX_AAU"})
+	mock.ExpectRollback()
+
+	err = importServerConnection(tx, 91, teamExportServer{
+		Name: "racing-passive", Type: 2, Agent: &teamExportAgent{AgentUID: "racing-uid"},
+	}, nil, false)
+	var conflict *teamImportAgentUIDConflict
+	if !errors.As(err, &conflict) {
+		t.Fatalf("error = %T %v, want teamImportAgentUIDConflict", err, err)
+	}
+	if conflict.ServerName != "racing-passive" || conflict.AgentUID != "racing-uid" || conflict.ConflictSource != "database" {
+		t.Fatalf("conflict = %#v", conflict)
+	}
+	_ = tx.Rollback()
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
 	}
@@ -275,6 +422,380 @@ func TestConfirmedLegacyImportTrustsSSHHostKey(t *testing.T) {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestImportActiveAgentEncryptsPrivateKeyForNewServer(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	mock.ExpectBegin()
+	tx, err := sqlx.NewDb(database, "sqlmock").Beginx()
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateKey, _, err := identity.GenerateEd25519KeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
+	t.Cleanup(func() { encrypt.Key = oldKey })
+
+	mock.ExpectExec(`INSERT INTO agents .*private_key`).
+		WithArgs(
+			int64(91), "agent-uid", int16(0), sqlmock.AnyArg(), "", "", "",
+			agentPrivateKeyCiphertextMatcher{serverID: 91, plaintext: []byte(privateKey)},
+			int16(1), "agent.example.com", 443,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectRollback()
+
+	err = importServerConnection(tx, 91, teamExportServer{
+		Type: 1,
+		Name: "active",
+		Agent: &teamExportAgent{
+			AgentUID:   "agent-uid",
+			PrivateKey: privateKey,
+			Host:       "agent.example.com",
+			Port:       443,
+		},
+	}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = tx.Rollback()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExportActiveAgentDecryptsPrivateKey(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	oldKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
+	t.Cleanup(func() {
+		db.Db = oldDB
+		encrypt.Key = oldKey
+	})
+	privateKey, _, err := identity.GenerateEd25519KeyPair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ciphertext, err := encrypt.Encrypt([]byte(privateKey), encrypt.Key, encrypt.AgentPrivateKeyContext(91))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectQuery(`SELECT agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, protocol_version, host, port`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "status", "last_seen_at", "last_ip", "last_version", "public_key", "private_key", "protocol_version", "host", "port"}).
+			AddRow("agent-uid", int16(1), nil, "", "", "", ciphertext, int16(2), "agent.example.com", 443))
+	mock.ExpectQuery(`SELECT token_hash, is_revoked, created_at FROM enroll_tokens`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"token_hash", "is_revoked", "created_at"}))
+
+	server := &teamExportServer{Type: 1, RefID: 91}
+	if err = exportServerConnection(server); err != nil {
+		t.Fatal(err)
+	}
+	if server.Agent == nil || server.Agent.PrivateKey != privateKey {
+		t.Fatal("Active Agent export did not restore the private PEM")
+	}
+}
+
+func TestExportActiveAgentRejectsSwappedPrivateKey(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	oldKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
+	t.Cleanup(func() {
+		db.Db = oldDB
+		encrypt.Key = oldKey
+	})
+	ciphertext, err := encrypt.Encrypt([]byte("private-key"), encrypt.Key, encrypt.AgentPrivateKeyContext(92))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectQuery(`SELECT agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, protocol_version, host, port`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "status", "last_seen_at", "last_ip", "last_version", "public_key", "private_key", "protocol_version", "host", "port"}).
+			AddRow("agent-uid", int16(1), nil, "", "", "", ciphertext, int16(2), "agent.example.com", 443))
+
+	server := &teamExportServer{Type: 1, RefID: 91, Name: "broken-active"}
+	err = exportServerConnection(server)
+	if err == nil {
+		t.Fatal("export accepted an Agent private key bound to another Server")
+	}
+	var credentialErr *teamExportCredentialError
+	if !errors.As(err, &credentialErr) {
+		t.Fatalf("error = %T %v, want teamExportCredentialError", err, err)
+	}
+	if credentialErr.ServerID != 91 || credentialErr.ServerName != "broken-active" || credentialErr.Credential != "active_agent_private_key" {
+		t.Fatalf("credential error = %#v", credentialErr)
+	}
+}
+
+func TestUnreadableServerCredentialConflictIdentifiesServer(t *testing.T) {
+	e := echo.New()
+	e.GET("/conflict", func(c *echo.Context) error {
+		return unreadableServerCredentialConflict(c, &teamExportCredentialError{
+			ServerID:   91,
+			ServerName: "broken-active",
+			Credential: "active_agent_private_key",
+			Err:        errors.New("authentication failed"),
+		})
+	})
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/conflict", nil))
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	for _, fragment := range []string{
+		`"code":"unreadable_server_credential"`,
+		`"server_id":91`,
+		`"server_name":"broken-active"`,
+		`"credential":"active_agent_private_key"`,
+	} {
+		if !strings.Contains(recorder.Body.String(), fragment) {
+			t.Fatalf("response does not contain %q: %s", fragment, recorder.Body.String())
+		}
+	}
+}
+
+func TestUnreadableKeyCredentialConflictIdentifiesKey(t *testing.T) {
+	e := echo.New()
+	e.GET("/conflict", func(c *echo.Context) error {
+		return unreadableKeyCredentialConflict(c, &teamExportKeyCredentialError{
+			KeyID:      44,
+			KeyName:    "production-key",
+			Credential: "ssh_key_content",
+			Err:        errors.New("authentication failed"),
+		})
+	})
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/conflict", nil))
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	for _, fragment := range []string{
+		`"code":"unreadable_key_credential"`,
+		`"key_id":44`,
+		`"key_name":"production-key"`,
+		`"credential":"ssh_key_content"`,
+	} {
+		if !strings.Contains(recorder.Body.String(), fragment) {
+			t.Fatalf("response does not contain %q: %s", fragment, recorder.Body.String())
+		}
+	}
+}
+
+func TestExportKeysCanSkipUnreadableCredential(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	oldKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
+	t.Cleanup(func() {
+		db.Db = oldDB
+		encrypt.Key = oldKey
+	})
+
+	healthyContent, err := encrypt.Encrypt([]byte("healthy-private-key"), encrypt.Key, encrypt.KeyContentContext(45))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	mock.ExpectQuery(`SELECT id AS ref_id, name, content, password, created_at, updated_at FROM keys`).
+		WithArgs(int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"ref_id", "name", "content", "password", "created_at", "updated_at"}).
+			AddRow(int64(44), "broken-key", []byte("plaintext-key"), nil, now, now).
+			AddRow(int64(45), "healthy-key", healthyContent, nil, now, now))
+
+	var data teamExportBundle
+	unreadable, err := exportKeys(7, &data, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := unreadable[44]; !ok || len(unreadable) != 1 {
+		t.Fatalf("unreadable Key IDs = %#v", unreadable)
+	}
+	if len(data.SkippedKeys) != 1 || data.SkippedKeys[0].KeyID != 44 || data.SkippedKeys[0].KeyName != "broken-key" || data.SkippedKeys[0].Credential != "ssh_key_content" {
+		t.Fatalf("skipped Keys = %#v", data.SkippedKeys)
+	}
+	if len(data.Keys) != 1 || data.Keys[0].RefID != 45 || data.Keys[0].Content != "healthy-private-key" {
+		t.Fatalf("exported Keys = %#v", data.Keys)
+	}
+}
+
+func TestExportKeysStrictModeIdentifiesUnreadableCredential(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	oldKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
+	t.Cleanup(func() {
+		db.Db = oldDB
+		encrypt.Key = oldKey
+	})
+
+	now := time.Now()
+	mock.ExpectQuery(`SELECT id AS ref_id, name, content, password, created_at, updated_at FROM keys`).
+		WithArgs(int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"ref_id", "name", "content", "password", "created_at", "updated_at"}).
+			AddRow(int64(44), "broken-key", []byte("plaintext-key"), nil, now, now))
+
+	var data teamExportBundle
+	_, err = exportKeys(7, &data, false)
+	var credentialErr *teamExportKeyCredentialError
+	if !errors.As(err, &credentialErr) {
+		t.Fatalf("error = %T %v, want teamExportKeyCredentialError", err, err)
+	}
+	if credentialErr.KeyID != 44 || credentialErr.KeyName != "broken-key" || credentialErr.Credential != "ssh_key_content" {
+		t.Fatalf("credential error = %#v", credentialErr)
+	}
+}
+
+func TestTeamExportUnreadableServerPolicyDefaultsToSkip(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{name: "omitted", raw: `{}`, want: true},
+		{name: "explicit skip", raw: `{"skip_unreadable_servers":true}`, want: true},
+		{name: "strict export", raw: `{"skip_unreadable_servers":false}`, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var request teamExportAuthRequest
+			if err := json.Unmarshal([]byte(tt.raw), &request); err != nil {
+				t.Fatal(err)
+			}
+			if got := request.shouldSkipUnreadableServers(); got != tt.want {
+				t.Fatalf("shouldSkipUnreadableServers() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExportServersCanSkipUnreadableCredential(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	oldKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
+	t.Cleanup(func() {
+		db.Db = oldDB
+		encrypt.Key = oldKey
+	})
+
+	mock.ExpectQuery(`SELECT id AS ref_id, category AS category_ref, type, name, allow_monitor, allow_terminal, weight`).
+		WithArgs(int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"ref_id", "category_ref", "type", "name", "allow_monitor", "allow_terminal", "weight"}).
+			AddRow(int64(91), int64(1), int16(1), "broken-active", true, true, 0).
+			AddRow(int64(92), int64(1), int16(2), "healthy-passive", true, true, 0))
+	expectEmptyExportServerInfo(mock, 91)
+	mock.ExpectQuery(`SELECT agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, protocol_version, host, port`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "status", "last_seen_at", "last_ip", "last_version", "public_key", "private_key", "protocol_version", "host", "port"}).
+			AddRow("agent-uid", int16(1), nil, "", "", "", []byte("plaintext-key"), int16(2), "agent.example.com", 443))
+	expectEmptyExportServerInfo(mock, 92)
+	mock.ExpectQuery(`SELECT agent_uid, status, last_seen_at, last_ip, last_version, public_key, private_key, protocol_version, host, port`).
+		WithArgs(int64(92)).
+		WillReturnRows(sqlmock.NewRows([]string{"agent_uid", "status", "last_seen_at", "last_ip", "last_version", "public_key", "private_key", "protocol_version", "host", "port"}))
+	mock.ExpectQuery(`SELECT token_hash, is_revoked, created_at FROM enroll_tokens`).
+		WithArgs(int64(92)).
+		WillReturnRows(sqlmock.NewRows([]string{"token_hash", "is_revoked", "created_at"}))
+	mock.ExpectQuery(`SELECT item, threshold, for_duration`).
+		WithArgs(int64(92)).
+		WillReturnRows(sqlmock.NewRows([]string{"item", "threshold", "for_duration"}))
+
+	var data teamExportBundle
+	skipped, err := exportServers(7, &data, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(skipped) != 1 || skipped[0].ServerID != 91 || skipped[0].ServerName != "broken-active" || skipped[0].Credential != "active_agent_private_key" {
+		t.Fatalf("skipped Servers = %#v", skipped)
+	}
+	if len(data.Servers) != 1 || data.Servers[0].RefID != 92 {
+		t.Fatalf("exported Servers = %#v, want only Server 92", data.Servers)
+	}
+}
+
+func TestExportServersSkipsServerDependingOnUnreadableKey(t *testing.T) {
+	database, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	oldDB := db.Db
+	db.Db = sqlx.NewDb(database, "sqlmock")
+	oldKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
+	t.Cleanup(func() {
+		db.Db = oldDB
+		encrypt.Key = oldKey
+	})
+
+	password, err := encrypt.Encrypt([]byte("ssh-password"), encrypt.Key, encrypt.SSHPasswordContext(91))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectQuery(`SELECT id AS ref_id, category AS category_ref, type, name, allow_monitor, allow_terminal, weight`).
+		WithArgs(int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"ref_id", "category_ref", "type", "name", "allow_monitor", "allow_terminal", "weight"}).
+			AddRow(int64(91), int64(1), int16(0), "dependent-ssh", true, true, 0))
+	expectEmptyExportServerInfo(mock, 91)
+	mock.ExpectQuery(`SELECT address, port, username, key_id AS key_ref, password`).
+		WithArgs(int64(91)).
+		WillReturnRows(sqlmock.NewRows([]string{"address", "port", "username", "key_ref", "password", "host_key"}).
+			AddRow("ssh.example.com", 22, "root", int64(44), password, ""))
+
+	var data teamExportBundle
+	skipped, err := exportServers(7, &data, true, map[int64]struct{}{44: {}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(skipped) != 1 || skipped[0].ServerID != 91 || skipped[0].ServerName != "dependent-ssh" || skipped[0].Credential != "ssh_key" {
+		t.Fatalf("skipped Servers = %#v", skipped)
+	}
+	if len(data.Servers) != 0 {
+		t.Fatalf("exported Servers = %#v, want none", data.Servers)
+	}
+}
+
+func expectEmptyExportServerInfo(mock sqlmock.Sqlmock, serverID int64) {
+	mock.ExpectQuery(`SELECT os, county, area, open_time, note, provider, cycle, start_time, end_time, amount,`).
+		WithArgs(int64(serverID)).
+		WillReturnRows(sqlmock.NewRows([]string{"os", "county", "area", "open_time", "note", "provider", "cycle", "start_time", "end_time", "amount", "auto_renew", "bandwidth", "traffic", "traffic_type", "note_public", "online"}))
+	mock.ExpectQuery(`SELECT hostname, cpu_name, core_c, core_t, kernel, ip, arch`).
+		WithArgs(int64(serverID)).
+		WillReturnRows(sqlmock.NewRows([]string{"hostname", "cpu_name", "core_c", "core_t", "kernel", "ip", "arch"}))
 }
 
 func TestInspectImportedSSHHostKeysReturnsLegacyServers(t *testing.T) {
@@ -415,16 +936,17 @@ func TestNormalizeImportedAgentProtocol(t *testing.T) {
 	}
 }
 
-func TestNormalizeImportedAgentPublicKeys(t *testing.T) {
-	_, publicKey, err := identity.GenerateEd25519KeyPair()
+func TestNormalizeImportedAgentKeys(t *testing.T) {
+	privateKey, publicKey, err := identity.GenerateEd25519KeyPair()
 	if err != nil {
 		t.Fatal(err)
 	}
 	servers := []teamExportServer{
-		{Name: "pinned", Type: 1, Agent: &teamExportAgent{PublicKey: " \n" + publicKey + "\t", ProtocolVersion: 1}},
-		{Name: "unpaired", Type: 1, Agent: &teamExportAgent{PublicKey: " \n\t"}},
+		{Name: "pinned", Type: 1, Agent: &teamExportAgent{PrivateKey: " \n" + privateKey + "\t", PublicKey: " \n" + publicKey + "\t", ProtocolVersion: 1}},
+		{Name: "unpaired", Type: 1, Agent: &teamExportAgent{PrivateKey: privateKey, PublicKey: " \n\t"}},
+		{Name: "passive", Type: 2, Agent: &teamExportAgent{PrivateKey: privateKey}},
 	}
-	normalized, err := normalizeImportedAgentPublicKeys(servers)
+	normalized, err := normalizeImportedAgentKeys(servers)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -437,9 +959,29 @@ func TestNormalizeImportedAgentPublicKeys(t *testing.T) {
 	if normalized[1].Agent.PublicKey != "" {
 		t.Fatalf("blank imported public key = %q, want empty", normalized[1].Agent.PublicKey)
 	}
+	if normalized[0].Agent.PrivateKey != privateKey {
+		t.Fatal("valid imported private key was not normalized")
+	}
+	if normalized[2].Agent.PrivateKey != "" {
+		t.Fatal("Passive Agent import retained a private key")
+	}
 	if servers[1].Agent.PublicKey == "" {
 		t.Fatal("normalization mutated the input bundle")
 	}
+}
+
+type agentPrivateKeyCiphertextMatcher struct {
+	serverID  int64
+	plaintext []byte
+}
+
+func (matcher agentPrivateKeyCiphertextMatcher) Match(value driver.Value) bool {
+	ciphertext, ok := value.([]byte)
+	if !ok || bytes.Contains(ciphertext, []byte("BEGIN PRIVATE KEY")) {
+		return false
+	}
+	plaintext, err := encrypt.Decrypt(ciphertext, encrypt.Key, encrypt.AgentPrivateKeyContext(matcher.serverID))
+	return err == nil && bytes.Equal(plaintext, matcher.plaintext)
 }
 
 func TestDecodeTeamImportBundlePlaintextIgnoresPassword(t *testing.T) {

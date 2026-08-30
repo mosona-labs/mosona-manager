@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils/encrypt"
 	"mosona-manager/pkg/identity"
 	secureWS "mosona-manager/pkg/securews"
 	"mosona-manager/pkg/ws"
@@ -17,15 +18,15 @@ import (
 
 func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) error {
 	var (
-		privKey,
 		agentUid,
 		host,
 		publicKey string
-		port            int
-		protocolVersion int16
+		privKeyEncrypted []byte
+		port             int
+		protocolVersion  int16
 	)
 	if err := db.Db.QueryRow("SELECT private_key, agent_uid, host, port, public_key, protocol_version FROM agents WHERE server_id = $1", serverId).Scan(
-		&privKey,
+		&privKeyEncrypted,
 		&agentUid,
 		&host,
 		&port,
@@ -34,8 +35,12 @@ func ConnectShell(ctx context.Context, serverId int64, wsConn *websocket.Conn) e
 	); err != nil {
 		return err
 	}
+	privKey, err := encrypt.Decrypt(privKeyEncrypted, encrypt.Key, encrypt.AgentPrivateKeyContext(serverId))
+	if err != nil {
+		return err
+	}
 
-	privateKey, err := identity.ParseEd25519PrivateKeyPEM([]byte(privKey))
+	privateKey, err := identity.ParseEd25519PrivateKeyPEM(privKey)
 	if err != nil {
 		return err
 	}

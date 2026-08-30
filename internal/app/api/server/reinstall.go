@@ -11,6 +11,7 @@ import (
 	"mosona-manager/internal/db"
 	"mosona-manager/internal/influx"
 	"mosona-manager/internal/utils"
+	"mosona-manager/internal/utils/encrypt"
 	"mosona-manager/pkg/identity"
 	"strconv"
 	"strings"
@@ -105,10 +106,14 @@ func reinstall(c *echo.Context) error {
 		if err != nil {
 			return utils.ErrorHandler(c, err, "Key generation error")
 		}
+		privateKeyEncrypted, err := encrypt.Encrypt([]byte(privateKey), encrypt.Key, encrypt.AgentPrivateKeyContext(id))
+		if err != nil {
+			return utils.ErrorHandler(c, err, "Encryption error")
+		}
 
 		if _, err = tx.ExecContext(ctx,
 			"INSERT INTO agents (server_id, agent_uid, status, host, port, private_key) VALUES ($1, $2, $3, $4, $5, $6)",
-			id, agentUUID.String(), 0, address, port, privateKey,
+			id, agentUUID.String(), 0, address, port, privateKeyEncrypted,
 		); err != nil {
 			return utils.ErrorHandler(c, err, "Database error")
 		}

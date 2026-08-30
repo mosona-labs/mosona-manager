@@ -130,7 +130,7 @@ CREATE TABLE "agents" (
   "last_ip" varchar(64) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "last_version" varchar(64) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "public_key" text COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::text,
-  "private_key" text COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::text,
+  "private_key" bytea NOT NULL DEFAULT ''::bytea,
   "protocol_version" int2 NOT NULL DEFAULT 2,
   "host" varchar(255) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "port" int4 NOT NULL DEFAULT 0
@@ -542,9 +542,9 @@ ALTER TABLE "users_config" OWNER TO CURRENT_USER;
 -- ----------------------------
 -- Indexes structure for table agents
 -- ----------------------------
-CREATE INDEX "IDX_AAU" ON "agents" USING btree (
+CREATE UNIQUE INDEX "IDX_AAU" ON "agents" USING btree (
   "agent_uid" COLLATE "pg_catalog"."default" "pg_catalog"."bpchar_ops" ASC NULLS LAST
-);
+) WHERE "agent_uid" <> '';
 
 -- ----------------------------
 -- Primary Key structure for table agents

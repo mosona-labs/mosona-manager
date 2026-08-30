@@ -10,6 +10,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
 	"mosona-manager/internal/db"
+	"mosona-manager/internal/utils/encrypt"
 	"mosona-manager/pkg/identity"
 )
 
@@ -21,14 +22,26 @@ func setupIdentityTest(t *testing.T) sqlmock.Sqlmock {
 	}
 	oldDB := db.Db
 	db.Db = sqlx.NewDb(database, "sqlmock")
+	oldEncryptionKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
 	t.Cleanup(func() {
 		db.Db = oldDB
+		encrypt.Key = oldEncryptionKey
 		_ = database.Close()
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Error(err)
 		}
 	})
 	return mock
+}
+
+func testEncryptedAgentPrivateKey(t *testing.T, serverID int64, plaintext string) []byte {
+	t.Helper()
+	ciphertext, err := encrypt.Encrypt([]byte(plaintext), encrypt.Key, encrypt.AgentPrivateKeyContext(serverID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ciphertext
 }
 
 func testPublicKeyPEM(t *testing.T) string {

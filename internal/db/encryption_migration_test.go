@@ -50,6 +50,7 @@ func TestMigrateEncryptedCredentialsCommitsLegacyRows(t *testing.T) {
 			context:   encrypt.SSHPasswordContext(9),
 		}, int64(9)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	expectNoAgentPrivateKeys(mock)
 	mock.ExpectCommit()
 
 	report, err := MigrateEncryptedCredentials()
@@ -79,6 +80,7 @@ func TestMigrateEncryptedCredentialsSkipsCurrentAndEmptyRows(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
 		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}).
 			AddRow(int64(9), []byte{}))
+	expectNoAgentPrivateKeys(mock)
 	mock.ExpectCommit()
 
 	report, err := MigrateEncryptedCredentials()
@@ -102,6 +104,7 @@ func TestMigrateEncryptedCredentialsReportsInvalidCiphertextAndCommits(t *testin
 			AddRow(int64(7), []byte("invalid"), nil))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
 		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}))
+	expectNoAgentPrivateKeys(mock)
 	mock.ExpectCommit()
 
 	report, err := MigrateEncryptedCredentials()
@@ -185,6 +188,7 @@ func TestMigrateEncryptedCredentialsReturnsCommitError(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "content", "password"}))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
 		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}))
+	expectNoAgentPrivateKeys(mock)
 	mock.ExpectCommit().WillReturnError(want)
 
 	_, err := MigrateEncryptedCredentials()
@@ -211,6 +215,7 @@ func TestMigrateEncryptedCredentialsCommitsEarlierUpdateAndReportsBadSSHRow(t *t
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
 		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}).
 			AddRow(int64(9), []byte("invalid")))
+	expectNoAgentPrivateKeys(mock)
 	mock.ExpectCommit()
 
 	report, err := MigrateEncryptedCredentials()
@@ -242,6 +247,7 @@ func TestMigrateEncryptedCredentialsMigratesHealthyFieldBesideBadField(t *testin
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
 		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}))
+	expectNoAgentPrivateKeys(mock)
 	mock.ExpectCommit()
 
 	report, err := MigrateEncryptedCredentials()
@@ -250,6 +256,78 @@ func TestMigrateEncryptedCredentialsMigratesHealthyFieldBesideBadField(t *testin
 	}
 	if len(report.Failures) != 1 || report.Failures[0].Field != "content" {
 		t.Fatalf("failures = %#v", report.Failures)
+	}
+}
+
+func TestMigrateEncryptedCredentialsEncryptsPlaintextAgentKeys(t *testing.T) {
+	mock := setEncryptionMigrationMockDB(t)
+	key := bytes.Repeat([]byte{0x42}, 32)
+	previousKey := encrypt.Key
+	encrypt.Key = key
+	t.Cleanup(func() { encrypt.Key = previousKey })
+
+	current, err := encrypt.Encrypt([]byte("current-key"), key, encrypt.AgentPrivateKeyContext(8))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongContext, err := encrypt.Encrypt([]byte("swapped-key"), key, encrypt.AgentPrivateKeyContext(99))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, content, password FROM keys ORDER BY id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "content", "password"}))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, private_key FROM agents ORDER BY server_id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"server_id", "private_key"}).
+			AddRow(int64(7), []byte("plaintext-pem")).
+			AddRow(int64(8), current).
+			AddRow(int64(9), []byte{}).
+			AddRow(int64(10), wrongContext))
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE agents SET private_key = $1 WHERE server_id = $2")).
+		WithArgs(authenticatedCiphertextMatcher{
+			plaintext: []byte("plaintext-pem"),
+			context:   encrypt.AgentPrivateKeyContext(7),
+		}, int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	report, err := MigrateEncryptedCredentials()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Failures) != 1 {
+		t.Fatalf("failures = %#v, want one", report.Failures)
+	}
+	failure := report.Failures[0]
+	if failure.Table != "agents" || failure.RecordID != 10 || failure.Field != "private_key" {
+		t.Fatalf("failure = %#v", failure)
+	}
+}
+
+func TestMigrateEncryptedCredentialsRollsBackOnAgentUpdateError(t *testing.T) {
+	mock := setEncryptionMigrationMockDB(t)
+	previousKey := encrypt.Key
+	encrypt.Key = bytes.Repeat([]byte{0x42}, 32)
+	t.Cleanup(func() { encrypt.Key = previousKey })
+	want := errors.New("update Agent key failed")
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, content, password FROM keys ORDER BY id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "content", "password"}))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, password FROM ssh ORDER BY server_id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"server_id", "password"}))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, private_key FROM agents ORDER BY server_id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"server_id", "private_key"}).AddRow(int64(7), []byte("plaintext-pem")))
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE agents SET private_key = $1 WHERE server_id = $2")).
+		WithArgs(sqlmock.AnyArg(), int64(7)).WillReturnError(want)
+	mock.ExpectRollback()
+
+	_, err := MigrateEncryptedCredentials()
+	if !errors.Is(err, want) {
+		t.Fatalf("error = %v, want %v", err, want)
 	}
 }
 
@@ -269,6 +347,11 @@ func setEncryptionMigrationMockDB(t *testing.T) sqlmock.Sqlmock {
 		}
 	})
 	return mock
+}
+
+func expectNoAgentPrivateKeys(mock sqlmock.Sqlmock) {
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT server_id, private_key FROM agents ORDER BY server_id FOR UPDATE")).
+		WillReturnRows(sqlmock.NewRows([]string{"server_id", "private_key"}))
 }
 
 func legacyCiphertextForMigrationTest(t *testing.T, plaintext, key []byte) []byte {
