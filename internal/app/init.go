@@ -53,7 +53,7 @@ var (
 )
 
 func Start() {
-	e := echo.New()
+	e := echo.NewWithConfig(echo.Config{NoGroupAutoRegister404Routes: true})
 	e.Logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 	configureClientIPExtractor(e)
 
