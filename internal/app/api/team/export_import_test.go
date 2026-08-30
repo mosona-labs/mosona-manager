@@ -713,7 +713,7 @@ func TestExportServersCanSkipUnreadableCredential(t *testing.T) {
 		encrypt.Key = oldKey
 	})
 
-	mock.ExpectQuery(`SELECT id AS ref_id, category AS category_ref, type, name, allow_monitor, allow_terminal, weight`).
+	mock.ExpectQuery(`SELECT id AS ref_id, category AS category_ref, type, name, allow_monitor, allow_terminal, public_visible, weight`).
 		WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"ref_id", "category_ref", "type", "name", "allow_monitor", "allow_terminal", "weight"}).
 			AddRow(int64(91), int64(1), int16(1), "broken-active", true, true, 0).
@@ -766,7 +766,7 @@ func TestExportServersSkipsServerDependingOnUnreadableKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mock.ExpectQuery(`SELECT id AS ref_id, category AS category_ref, type, name, allow_monitor, allow_terminal, weight`).
+	mock.ExpectQuery(`SELECT id AS ref_id, category AS category_ref, type, name, allow_monitor, allow_terminal, public_visible, weight`).
 		WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"ref_id", "category_ref", "type", "name", "allow_monitor", "allow_terminal", "weight"}).
 			AddRow(int64(91), int64(1), int16(0), "dependent-ssh", true, true, 0))

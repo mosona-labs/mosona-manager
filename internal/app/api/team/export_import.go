@@ -172,6 +172,7 @@ type teamExportServer struct {
 	Name          string                  `json:"name" db:"name"`
 	AllowMonitor  bool                    `json:"allow_monitor" db:"allow_monitor"`
 	AllowTerminal bool                    `json:"allow_terminal" db:"allow_terminal"`
+	PublicVisible *bool                   `json:"public_visible,omitempty" db:"public_visible"`
 	Weight        int                     `json:"weight" db:"weight"`
 	Info          teamExportServerInfo    `json:"info"`
 	AdvancedInfo  teamExportServerInfoAdv `json:"advanced_info"`
@@ -575,7 +576,7 @@ func exportPublicPage(teamID int64, data *teamExportBundle) error {
 
 func exportServers(teamID int64, data *teamExportBundle, skipUnreadableServers bool, unreadableKeyIDs map[int64]struct{}) ([]teamExportSkippedServer, error) {
 	if err := db.Db.Select(&data.Servers, `
-		SELECT id AS ref_id, category AS category_ref, type, name, allow_monitor, allow_terminal, weight
+		SELECT id AS ref_id, category AS category_ref, type, name, allow_monitor, allow_terminal, public_visible, weight
 		FROM servers
 		WHERE team_id = $1
 		ORDER BY id
@@ -1048,10 +1049,11 @@ func importServers(tx *sqlx.Tx, teamID int64, servers []teamExportServer, catego
 		}
 
 		var newServerID int64
+		publicVisible := server.PublicVisible == nil || *server.PublicVisible
 		if err := tx.QueryRow(
-			`INSERT INTO servers (team_id, name, type, category, allow_monitor, allow_terminal, weight)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-			teamID, server.Name, server.Type, categoryID, server.AllowMonitor, server.AllowTerminal, server.Weight,
+			`INSERT INTO servers (team_id, name, type, category, allow_monitor, allow_terminal, public_visible, weight)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+			teamID, server.Name, server.Type, categoryID, server.AllowMonitor, server.AllowTerminal, publicVisible, server.Weight,
 		).Scan(&newServerID); err != nil {
 			return nil, err
 		}

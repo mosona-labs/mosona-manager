@@ -383,6 +383,7 @@ CACHE 1
   "name" varchar(255) COLLATE "pg_catalog"."default" NOT NULL,
   "allow_monitor" bool NOT NULL,
   "allow_terminal" bool NOT NULL,
+  "public_visible" bool NOT NULL DEFAULT true,
   "weight" int4 NOT NULL DEFAULT 0,
   "category" int8 NOT NULL,
   "type" int2 NOT NULL,

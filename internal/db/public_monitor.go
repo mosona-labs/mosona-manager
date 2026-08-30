@@ -27,8 +27,9 @@ func ListPublicMonitoredServersContext(ctx context.Context, teamID int64) ([]_ty
 		LeftJoin("server_info i ON s.id = i.sid").
 		LeftJoin("server_info_adv ia ON s.id = ia.sid").
 		Where(squirrel.Eq{
-			"s.team_id":       teamID,
-			"s.allow_monitor": true,
+			"s.team_id":        teamID,
+			"s.allow_monitor":  true,
+			"s.public_visible": true,
 		}).
 		OrderBy("s.weight DESC, s.id DESC")
 

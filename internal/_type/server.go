@@ -75,6 +75,7 @@ type ServerFullType struct {
 	Name          string     `json:"name" db:"name"`
 	AllowMonitor  bool       `json:"allow_monitor" db:"allow_monitor"`
 	AllowTerminal bool       `json:"allow_terminal" db:"allow_terminal"`
+	PublicVisible *bool      `json:"public_visible" db:"public_visible"`
 	Weight        int        `json:"weight" db:"weight"`
 	Note          *string    `json:"note" db:"note"`
 	Provider      *string    `json:"provider" db:"provider"`

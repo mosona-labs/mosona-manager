@@ -19,7 +19,7 @@ func GetServerInfo(teamId, serverId int64) (_type.ServerFullType, error) {
 	err := Db.Get(
 		&data,
 		`SELECT 
-    		s.id, s.name, s.type, s.allow_monitor, s.allow_terminal,
+    		s.id, s.name, s.type, s.allow_monitor, s.allow_terminal, s.public_visible,
     		s.weight, s.category,
     		i.note, i.provider, i.cycle, i.start_time, i.end_time, i.amount, i.auto_renew, 
     		i.bandwidth, i.traffic, i.traffic_type, i.note_public
@@ -88,8 +88,11 @@ func EditServer(teamId, serverId int64, typ int16, data *_type.ServerFullType) e
 		Set("allow_monitor", data.AllowMonitor).
 		Set("allow_terminal", data.AllowTerminal).
 		Set("weight", data.Weight).
-		Set("category", data.Category).
-		Where(squirrel.Eq{"id": serverId, "team_id": teamId})
+		Set("category", data.Category)
+	if data.PublicVisible != nil {
+		qb = qb.Set("public_visible", *data.PublicVisible)
+	}
+	qb = qb.Where(squirrel.Eq{"id": serverId, "team_id": teamId})
 	query, args, err := qb.ToSql()
 	if err != nil {
 		_ = tx.Rollback()

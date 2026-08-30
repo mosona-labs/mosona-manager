@@ -37,6 +37,7 @@ func add(c *echo.Context) error {
 	categoryId, _ := strconv.ParseInt(c.FormValue("category_id"), 10, 64)
 	allowMonitor := c.FormValue("allow_monitor") == "true"
 	allowTerminal := c.FormValue("allow_terminal") == "true"
+	publicVisible := c.FormValue("public_visible") != "false"
 
 	if tid == 0 || name == "" || categoryId == 0 {
 		return c.JSON(400, _type.H{
@@ -136,8 +137,8 @@ func add(c *echo.Context) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 	var serverId int64
-	if err = tx.QueryRow(`INSERT INTO servers (team_id, name, type, category, allow_monitor, allow_terminal, weight) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-		tid, name, mode, categoryId, allowMonitor, allowTerminal, weight,
+	if err = tx.QueryRow(`INSERT INTO servers (team_id, name, type, category, allow_monitor, allow_terminal, public_visible, weight) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+		tid, name, mode, categoryId, allowMonitor, allowTerminal, publicVisible, weight,
 	).Scan(&serverId); err != nil {
 		_ = tx.Rollback()
 		return utils.ErrorHandler(c, err, "Database error")

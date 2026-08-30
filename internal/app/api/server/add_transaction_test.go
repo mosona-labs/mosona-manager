@@ -74,8 +74,8 @@ func TestAddActiveEncryptsPrivateKeyAndUsesRandomUUID(t *testing.T) {
 		WithArgs(int64(7), int64(3)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "sort"}).AddRow(int64(3), "default", 0))
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO servers (team_id, name, type, category, allow_monitor, allow_terminal, weight) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id")).
-		WithArgs(int64(7), "active", 1, int64(3), true, true, 0).
+	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO servers (team_id, name, type, category, allow_monitor, allow_terminal, public_visible, weight) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id")).
+		WithArgs(int64(7), "active", 1, int64(3), true, true, true, 0).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(91)))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO server_info (sid, note, provider, cycle, start_time, end_time, amount, auto_renew, bandwidth, traffic, traffic_type, note_public) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)")).
 		WithArgs(int64(91), "", "", 0, sqlmock.AnyArg(), sqlmock.AnyArg(), "", false, "", "", 0, "").
@@ -116,8 +116,8 @@ func TestAddActiveRollsBackWhenRandomUUIDGenerationFails(t *testing.T) {
 		WithArgs(int64(7), int64(3)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "sort"}).AddRow(int64(3), "default", 0))
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO servers (team_id, name, type, category, allow_monitor, allow_terminal, weight) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id")).
-		WithArgs(int64(7), "active", 1, int64(3), false, false, 0).
+	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO servers (team_id, name, type, category, allow_monitor, allow_terminal, public_visible, weight) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id")).
+		WithArgs(int64(7), "active", 1, int64(3), false, false, true, 0).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(91)))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO server_info (sid, note, provider, cycle, start_time, end_time, amount, auto_renew, bandwidth, traffic, traffic_type, note_public) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)")).
 		WithArgs(int64(91), "", "", 0, sqlmock.AnyArg(), sqlmock.AnyArg(), "", false, "", "", 0, "").
