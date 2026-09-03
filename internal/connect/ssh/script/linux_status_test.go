@@ -76,6 +76,37 @@ func TestDiskSpaceTaskPreservesCompleteCacheWhenDFFails(t *testing.T) {
 	}
 }
 
+func TestDiskSpaceTaskUsesValidRowsWhenDFPartiallyFails(t *testing.T) {
+	binDir := t.TempDir()
+	writeTestCommand(t, binDir, "timeout", "shift\nexec \"$@\"")
+	writeTestCommand(t, binDir, "df", `
+printf '%s\n' 'df: /tmp/com.freerdp.client.cliprdr.1844137: Transport endpoint is not connected' >&2
+printf '%s\n' 'Filesystem 1-blocks Used Available Capacity Mounted on'
+printf '%s\n' '/dev/sda2 252786221056 150812557312 91586772992 63% /'
+printf '%s\n' '/dev/sda1 794296320 9199616 785096704 2% /boot/efi'
+exit 1
+`)
+
+	out := filepath.Join(t.TempDir(), "disks")
+	runDiskTask(t, binDir, out, false)
+
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "disks=")
+	if !ok {
+		t.Fatalf("disk output = %q", data)
+	}
+	var disks []diskMetric
+	if err = json.Unmarshal([]byte(value), &disks); err != nil {
+		t.Fatalf("invalid disk JSON %q: %v", value, err)
+	}
+	if len(disks) != 1 || disks[0].MountPoint != "/" {
+		t.Fatalf("disks = %#v, want the valid root filesystem", disks)
+	}
+}
+
 func TestDiskSpaceTaskPreservesCompleteCacheWhenAwkFails(t *testing.T) {
 	binDir := t.TempDir()
 	writeTestCommand(t, binDir, "timeout", "shift\nexec \"$@\"")

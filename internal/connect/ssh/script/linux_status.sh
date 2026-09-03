@@ -97,14 +97,20 @@ json_escape() {
 disk_space_task() {
   local out="$1"
   local next="${out}.next.${BASHPID}"
+  local raw="${out}.df.${BASHPID}"
+  local records="${out}.records.${BASHPID}"
   local min_size_bytes=$((5 * 1024 * 1024 * 1024))
   local first=1
+  local df_status=0
   local total_gb used_gb mp escaped_mp
 
-  printf 'disks=[' > "$next"
+  if run_disk_df > "$raw" 2>/dev/null; then
+    df_status=0
+  else
+    df_status=$?
+  fi
 
-  if ! run_disk_df 2>/dev/null \
-    | awk -v min="$min_size_bytes" '
+  if ! awk -v min="$min_size_bytes" '
         NR > 1 && NF >= 6 && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ {
           total = $2
           used = $3
@@ -113,24 +119,33 @@ disk_space_task() {
           if (mp ~ /^\/(boot|snap\/|sys|proc|dev|run)/) next
           if (mp != "/" && total < min) next
           printf "%.2f\t%.2f\t%s\n", total/1024/1024/1024, used/1024/1024/1024, mp
-        }' \
-    | while IFS=$'\t' read -r total_gb used_gb mp; do
-        escaped_mp=$(json_escape "$mp")
-        if [ "$first" -eq 1 ]; then
-          first=0
-        else
-          printf ',' >> "$next"
-        fi
-        printf '{"mp":"%s","total_gb":%s,"used_gb":%s}' "$escaped_mp" "$total_gb" "$used_gb" >> "$next"
-      done; then
-    rm -f "$next"
+        }' "$raw" > "$records"; then
+    rm -f "$next" "$raw" "$records"
     return 1
   fi
 
-  if ! printf ']\n' >> "$next" || ! mv -f "$next" "$out"; then
-    rm -f "$next"
+  if { [ "$df_status" -ne 0 ] && [ ! -s "$records" ]; } \
+    || [ "$df_status" -eq 124 ] || [ "$df_status" -eq 137 ]; then
+    rm -f "$next" "$raw" "$records"
     return 1
   fi
+
+  printf 'disks=[' > "$next"
+  while IFS=$'\t' read -r total_gb used_gb mp; do
+    escaped_mp=$(json_escape "$mp")
+    if [ "$first" -eq 1 ]; then
+      first=0
+    else
+      printf ',' >> "$next"
+    fi
+    printf '{"mp":"%s","total_gb":%s,"used_gb":%s}' "$escaped_mp" "$total_gb" "$used_gb" >> "$next"
+  done < "$records"
+
+  if ! printf ']\n' >> "$next" || ! mv -f "$next" "$out"; then
+    rm -f "$next" "$raw" "$records"
+    return 1
+  fi
+  rm -f "$raw" "$records"
 }
 
 refresh_disk_space_task() {
