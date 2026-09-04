@@ -1,6 +1,27 @@
 # Changelog
 
-## v0.1.15 (Unreleased)
+## v0.1.16 (2026-9-4)
+
+### Fixed
+
+- Fix server alert notifications never firing: the batched InfluxDB alert
+  queries wrapped a single duration group in `union(tables: [branch0])`,
+  which Flux rejects ("union must have at least two streams as input"), so
+  every alert evaluation cycle skipped all rules whenever a team's rules for
+  an item shared one lookback duration (the default setup). Single-group
+  queries now emit the branch pipeline directly.
+- Keep the valid disk rows when `df` partially fails during SSH status
+  collection (for example a stale FUSE mount makes `df` list every
+  filesystem and then exit non-zero): the disk sample now uses the rows
+  that parsed instead of discarding the whole snapshot, and only falls
+  back to the last cached sample when `df` times out or produces no valid
+  rows at all.
+
+### Web UI
+
+- Some small design changes.
+
+## v0.1.15 (2026-8-30)
 
 This release authenticates the Active Agent terminal handshake (protocol v2:
 the reply is signed with the agent's Ed25519 identity key and pinned by the

@@ -8,6 +8,7 @@ import (
 	"mosona-manager/internal/_type"
 	"mosona-manager/internal/config"
 	"mosona-manager/internal/influx"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -358,12 +359,20 @@ func buildAlertItemQuery(item string, durationGroups map[int][]int64, end time.T
 	branches := make([]string, 0, len(durations))
 	for index, duration := range durations {
 		ids := append([]int64(nil), durationGroups[duration]...)
-		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-		branchDefinitions, branchName := buildAlertItemBranch(index, item, fields, ids, duration, end)
-		definitions = append(definitions, branchDefinitions...)
+		slices.Sort(ids)
+		prelude, pipeline := buildAlertItemBranch(index, item, fields, ids, duration, end)
+		definitions = append(definitions, prelude...)
+		if len(durations) == 1 {
+			definitions = append(definitions, pipeline)
+			break
+		}
+		branchName := fmt.Sprintf("branch%d", index)
+		definitions = append(definitions, fmt.Sprintf("%s = %s", branchName, pipeline))
 		branches = append(branches, branchName)
 	}
-	definitions = append(definitions, fmt.Sprintf("union(tables: [%s])", strings.Join(branches, ", ")))
+	if len(branches) > 0 {
+		definitions = append(definitions, fmt.Sprintf("union(tables: [%s])", strings.Join(branches, ", ")))
+	}
 	return strings.Join(definitions, "\n\n"), nil
 }
 
@@ -385,12 +394,11 @@ func buildAlertItemBranch(
 	serverIDs []int64,
 	duration int,
 	end time.Time,
-) ([]string, string) {
+) (prelude []string, pipeline string) {
 	start := end.Add(-time.Duration(duration) * time.Minute)
-	branchName := fmt.Sprintf("branch%d", index)
 	if item == alertItemStatus || duration <= alertRawWindowMinutes {
 		source := buildAlertFluxSource("server_status_raw", start, end, serverIDs, fields, true)
-		return []string{fmt.Sprintf("%s = %s", branchName, aggregateAlertFlux(item, source))}, branchName
+		return nil, aggregateAlertFlux(item, source)
 	}
 
 	// Minute downsampling intentionally trails real time; aggregate the recent raw
@@ -410,8 +418,7 @@ func buildAlertItemBranch(
 	return []string{
 		fmt.Sprintf("%s = %s", minuteName, minuteSource),
 		fmt.Sprintf("%s = %s", rawName, rawSource),
-		fmt.Sprintf("%s = %s", branchName, aggregateAlertFlux(item, combined)),
-	}, branchName
+	}, aggregateAlertFlux(item, combined)
 }
 
 func buildAlertFluxSource(

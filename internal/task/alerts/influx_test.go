@@ -7,6 +7,7 @@ import (
 	"io"
 	"mosona-manager/internal/_type"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -160,6 +161,41 @@ func TestBuildAlertItemQueryGroupsDistinctDurations(t *testing.T) {
 		if !strings.Contains(query, fragment) {
 			t.Fatalf("query missing %q:\n%s", fragment, query)
 		}
+	}
+}
+
+func TestBuildAlertItemQuerySingleDurationEmitsPipelineDirectly(t *testing.T) {
+	end := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+	// Flux rejects union() with a single input stream ("union must have at
+	// least two streams as input"), which used to break every query for the
+	// common case of rules sharing one duration per item.
+	singleStreamUnion := regexp.MustCompile(`union\(tables: \[[^,\]]+\]\)`)
+	tests := []struct {
+		name     string
+		item     string
+		duration int
+	}{
+		{name: "raw window", item: alertItemCPU, duration: 15},
+		{name: "minute window", item: alertItemMemory, duration: 16},
+		{name: "status", item: alertItemStatus, duration: 1440},
+		{name: "disk minute window", item: alertItemDisk, duration: 60},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			query, err := buildAlertItemQuery(test.item, map[int][]int64{test.duration: {7}}, end)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if match := singleStreamUnion.FindString(query); match != "" {
+				t.Fatalf("query wraps a single stream in union(): %q\n%s", match, query)
+			}
+			if strings.Contains(query, "branch0") {
+				t.Fatalf("single-duration query names an unused branch:\n%s", query)
+			}
+			if !strings.Contains(query, "from(bucket: ") {
+				t.Fatalf("query lost its data source:\n%s", query)
+			}
+		})
 	}
 }
 
