@@ -70,6 +70,20 @@ func BuildAuthMethods(password, key, keyPwd string) ([]gossh.AuthMethod, error) 
 }
 
 func Dial(host string, port int, user, password, key, keyPwd, trustedHostKey string, trustLegacyHostKey bool, timeout time.Duration) (*gossh.Client, error) {
+	return DialContext(context.Background(), host, port, user, password, key, keyPwd, trustedHostKey, trustLegacyHostKey, timeout)
+}
+
+// DialContext bounds TCP setup and the complete SSH handshake with one budget.
+// The context governs dialing only; the caller owns the returned connection.
+func DialContext(ctx context.Context, host string, port int, user, password, key, keyPwd, trustedHostKey string, trustLegacyHostKey bool, timeout time.Duration) (*gossh.Client, error) {
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	hostKeyCallback, err := hostKeyCallback(trustedHostKey, trustLegacyHostKey)
 	if err != nil {
 		return nil, err
@@ -80,17 +94,45 @@ func Dial(host string, port int, user, password, key, keyPwd, trustedHostKey str
 		return nil, err
 	}
 
-	client, err := gossh.Dial("tcp", sshAddress(host, port), &gossh.ClientConfig{
-		User:            user,
-		Auth:            authMethods,
-		HostKeyCallback: hostKeyCallback,
-		Timeout:         timeout,
-	})
+	address := sshAddress(host, port)
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
 	if err != nil {
 		return nil, err
 	}
-
-	return client, nil
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(deadline); err != nil {
+			_ = conn.Close()
+			return nil, err
+		}
+	}
+	// NewClientConn has no context support. Closing the underlying socket also
+	// interrupts banner exchange, key exchange and authentication on cancellation.
+	canceled := make(chan struct{})
+	stopCancel := context.AfterFunc(ctx, func() {
+		_ = conn.Close()
+		close(canceled)
+	})
+	sshConn, channels, requests, err := gossh.NewClientConn(conn, address, &gossh.ClientConfig{
+		User:            user,
+		Auth:            authMethods,
+		HostKeyCallback: hostKeyCallback,
+	})
+	if !stopCancel() {
+		<-canceled
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		_ = conn.Close()
+		return nil, ctxErr
+	}
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return gossh.NewClient(sshConn, channels, requests), nil
 }
 
 func ValidateConnection(host string, port int, user, password, key, keyPwd, trustedHostKey, confirmedHostKey string) (ObservedHostKey, error) {

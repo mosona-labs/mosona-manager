@@ -9,6 +9,8 @@ import (
 	"mosona-manager/internal/influx"
 	"strconv"
 	"time"
+
+	gossh "golang.org/x/crypto/ssh"
 )
 
 func SSH(
@@ -22,6 +24,9 @@ func SSH(
 	)
 
 	backoff := initialBackoff
+	dial := func(ctx context.Context) (*gossh.Client, error) {
+		return DialContext(ctx, host, port, user, password, key, keyPwd, trustedHostKey, trustLegacyHostKey, DefaultDialTimeout)
+	}
 
 	for {
 		select {
@@ -30,7 +35,7 @@ func SSH(
 		default:
 		}
 
-		client, err := Dial(host, port, user, password, key, keyPwd, trustedHostKey, trustLegacyHostKey, DefaultDialTimeout)
+		client, err := dial(ctx)
 
 		if err != nil {
 			if IsPermanentHostKeyError(err) {
@@ -73,7 +78,23 @@ func SSH(
 			}
 			switch osName {
 			case "Linux":
-				go loginMonitor(connCtx, client, serverId, teamID, user)
+				loginCtx, cancelLogins := context.WithCancel(connCtx)
+				loginDone := make(chan struct{})
+				go func() {
+					defer close(loginDone)
+					(loginMonitor{
+						serverID: serverId,
+						user:     user,
+						dial:     dial,
+						report: func(ctx context.Context, fresh []loginSession) {
+							notifyFreshLogins(ctx, serverId, teamID, fresh)
+						},
+					}).run(loginCtx)
+				}()
+				defer func() {
+					cancelLogins()
+					<-loginDone
+				}()
 				if err = information(client, func(data _type.ServerInfoType) {
 					u, _ := strconv.ParseInt(data.Uptime, 10, 64)
 					bootTime := time.Unix(time.Now().Unix()-u, 0)

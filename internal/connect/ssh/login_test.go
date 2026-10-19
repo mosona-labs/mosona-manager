@@ -49,7 +49,7 @@ func TestParseLoginProbeUnavailable(t *testing.T) {
 
 func TestDiffLoginSessionsExcludesSeenAndMonitorSelf(t *testing.T) {
 	prev := map[string]struct{}{
-		"root|pts/0|203.0.113.7|Fri Oct 8 12:00:23 2026": {},
+		"root|pts/0|203.0.113.7|2026-10-08T12:00:23Z": {},
 	}
 	current := []loginSession{
 		{user: "root", tty: "pts/0", ip: "203.0.113.7", date: "Fri Oct 8 12:00:23 2026"},
@@ -64,6 +64,54 @@ func TestDiffLoginSessionsExcludesSeenAndMonitorSelf(t *testing.T) {
 	}
 	if len(snapshot) != 3 {
 		t.Fatalf("snapshot size = %d, want 3", len(snapshot))
+	}
+}
+
+func TestLoginSessionKeysAcrossReaders(t *testing.T) {
+	const prefix = "login|root|pts/0|192.0.2.1|"
+	for _, stamp := range []string{
+		"2026-10-08T12:00:23,123456+00:00",
+		"2026-10-08T20:00:23.123456+08:00",
+		"Thu Oct 8 12:00:23 2026",
+		"Thu Oct 8 12:00", // old last, without -F
+	} {
+		t.Run(stamp, func(t *testing.T) {
+			fast := parseLoginProbe(prefix + "2026-10-08T12:00:23,654321+00:00\n")
+			fallback := parseLoginProbe(prefix + stamp + "\n")
+			var snapshot map[string]struct{}
+			for _, probe := range []loginProbe{fast, fallback, fast, fallback} {
+				fresh, next := diffLoginSessions(snapshot, probe.sessions, "monitor", "")
+				if len(fresh) != 0 {
+					t.Fatalf("same login was reported again: %#v", fresh)
+				}
+				snapshot = next
+			}
+		})
+	}
+}
+
+func TestLoginSessionKeysKeepSecondPrecision(t *testing.T) {
+	baseline := parseLoginProbe("login|root|pts/0|192.0.2.1|2026-10-08T12:00:23,123456+00:00\n")
+	_, snapshot := diffLoginSessions(nil, baseline.sessions, "monitor", "")
+	current := parseLoginProbe("login|root|pts/0|192.0.2.1|Thu Oct 8 12:00:24 2026\n")
+	fresh, _ := diffLoginSessions(snapshot, current.sessions, "monitor", "")
+	if len(fresh) != 1 {
+		t.Fatalf("different login in the same minute was lost: %#v", fresh)
+	}
+}
+
+func TestParseLoginProbeValidatesAndCanonicalizesIP(t *testing.T) {
+	probe := parseLoginProbe(strings.Join([]string{
+		"self_ip=2001:0db8:0:0:0:0:0:1",
+		"login|root|pts/0|2001:db8::1|old",
+		"login|root|pts/1|gateway.example.org|old",
+		"login|root|pts/2|999.999.999.999|old",
+		"login|root|pts/3|::::|old",
+		"login|root|pts/4|0.0.0.0|old",
+		"login|root|pts/5|::|old",
+	}, "\n"))
+	if len(probe.sessions) != 1 || !probe.sessions[0].isMonitorSelf("root", probe.selfIP) {
+		t.Fatalf("invalid addresses accepted or self address not canonicalized: %#v", probe)
 	}
 }
 

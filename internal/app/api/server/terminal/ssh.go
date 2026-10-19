@@ -49,7 +49,8 @@ func terminalSSH(
 		trustedHostKey = *serverAuth.HostKey
 	}
 
-	sshClient, err := connectSSH.Dial(
+	sshClient, err := connectSSH.DialContext(
+		ctx,
 		*serverAuth.Address,
 		*serverAuth.Port,
 		*serverAuth.Username,
