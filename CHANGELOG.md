@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.18 (2026-10-20)
+
+### Fixed
+
+- Fix SSH login alerts stalling or duplicating on slow servers: the login
+  probe now reads wtmp incrementally on its own cancellable connection
+  instead of scanning the whole file.
+
 ## v0.1.17 (2026-10-13)
 
 ### Added
