@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.1.19 (2026-10-22)
+
+### Security
+
+- Rebuilt with Go 1.27.3, which removes CAs that are no longer trusted from
+  the bundled root certificate store: Hub and Agent TLS verification no
+  longer accepts certificates chaining to those authorities.
+
+### Changed
+
+- Update dependencies, including echo v5.4.0, shoutrrr v0.22.1,
+  go-oidc v3.21.0, go-redis v9.23.0, gopsutil v4.26.9, golang.org/x/crypto
+  v0.58.0, golang.org/x/net v0.61.0, and golang.org/x/oauth2 v0.37.0.
+
 ## v0.1.18 (2026-10-20)
 
 ### Fixed
